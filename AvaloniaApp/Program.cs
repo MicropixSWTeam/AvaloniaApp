@@ -20,20 +20,19 @@ namespace AvaloniaApp
         public static void Main(string[] args) => BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-    Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
-        .ConfigureServices((context, services) =>
-        {
-            // 여기서 DI 등록
-            ConfigureServices(services);
-        });
+        Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
+            .ConfigureServices((context, services) =>
+            {
+                // 여기서 DI 등록
+                ConfigureServices(services);
+            });
 
         private static void ConfigureServices(IServiceCollection services)
         {
-            // ViewModels
-            services.AddSingleton<MainWindowViewModel>();
-
             // Services
             services.AddSingleton<CameraService>();
+            // ViewModels
+            services.AddSingleton<MainWindowViewModel>();
 
             // Views
 
