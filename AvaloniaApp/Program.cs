@@ -1,9 +1,4 @@
 ﻿using Avalonia;
-using AvaloniaApp.ViewModels;
-using AvaloniaApp.Views;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using System;
 
 namespace AvaloniaApp

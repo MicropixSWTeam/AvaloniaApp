@@ -1,15 +1,11 @@
-﻿using AvaloniaApp.Configuration;
-using AvaloniaApp.Core.Interfaces;
+﻿using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Presentation.Services;
+using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MsBox.Avalonia.Enums;
-using System.Threading;
 using System.Threading.Tasks;
-using VmbNET;
 
-namespace AvaloniaApp.ViewModels
+namespace AvaloniaApp.Presentation.ViewModels.Window
 {
     public partial class MainWindowViewModel : ViewModelBase
     {

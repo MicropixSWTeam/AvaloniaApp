@@ -6,7 +6,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.ViewModels
+namespace AvaloniaApp.Presentation.ViewModels.Base
 {
     public abstract partial class ViewModelBase : ObservableObject
     {
@@ -19,6 +19,10 @@ namespace AvaloniaApp.ViewModels
         protected readonly IBackgroundJobQueue? _backgroundJobQueue;
         protected readonly IUiDispatcher? _uiDispatcher;
         protected readonly ILogger? _logger;
+
+        public ViewModelBase()
+        {
+        }
         public ViewModelBase(DialogService? dialogService,IUiDispatcher uiDispatcher,IBackgroundJobQueue backgroundJobQueue)
         {
             _dialogService = dialogService;

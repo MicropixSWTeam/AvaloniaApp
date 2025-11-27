@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using AvaloniaApp.ViewModels;
 
 namespace AvaloniaApp.Views
 {

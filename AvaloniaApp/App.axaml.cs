@@ -9,7 +9,7 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.ViewModels;
+using AvaloniaApp.Presentation.ViewModels.Window;
 using AvaloniaApp.Views;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
