@@ -5,12 +5,18 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using VmbNET;
 
 namespace AvaloniaApp.Infrastructure
 {
     public class VimbaCameraService : ICameraService
     {
-
+        public Task GetCameraList(CancellationToken ct)
+        {
+            using IVmbSystem vmbSystem = IVmbSystem.Startup();
+            var cameras = vmbSystem.GetCameras().ToList();
+            return Task.CompletedTask;
+        }
         public Task ConnectAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
