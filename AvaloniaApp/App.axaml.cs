@@ -7,7 +7,9 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
+using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaApp.Presentation.ViewModels.Windows;
+using AvaloniaApp.Presentation.Views.UserControls;
 using AvaloniaApp.Presentation.Views.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +28,8 @@ namespace AvaloniaApp
 
             services.AddSingleton<IUiDispatcher, UiDispatcher>();
             services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
+            services.AddSingleton<ICameraService,VimbaCameraService>();
+            services.AddSingleton<PopupService>();
 
             services.AddSingleton<CameraPipeline>();
 
@@ -33,11 +37,19 @@ namespace AvaloniaApp
             services.AddHostedService<BackgroundJobWorker>();
 
             // ViewModel
+            services.AddSingleton<CameraViewModel>();
             services.AddSingleton<MainWindowViewModel>();
+            services.AddSingleton<PopupHostWindowViewModel>();    
 
             // View
-            services.AddTransient<MainWindow>();
+            services.AddSingleton<CameraView>();
+            services.AddSingleton<MainWindow>();
             services.AddTransient<PopupHostWindow>();
+
+            services.AddTransient<Func<PopupHostWindow>>(sp =>
+            {
+                return () => sp.GetRequiredService<PopupHostWindow>();
+            });
         }
     }
 

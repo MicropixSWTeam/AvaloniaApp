@@ -16,7 +16,7 @@ namespace AvaloniaApp.Core.Pipelines
         private readonly ICameraService _cameraService;
         private readonly IUiDispatcher _uiDispatcher;
 
-        CameraPipeline(
+        public CameraPipeline(
             IBackgroundJobQueue backgroundJobQueue,
             ICameraService cameraService,
             IUiDispatcher uiDispatcher

@@ -3,11 +3,17 @@
              xmlns:dialogHost="using:DialogHostAvalonia"
              x:Class="AvaloniaApp.App"
              xmlns:local="using:AvaloniaApp"
-             xmlns:presentation="using:AvaloniaApp.Presentation"    
+             xmlns:presentation="using:AvaloniaApp.Presentation"
+             xmlns:vmusercontrols="using:AvaloniaApp.Presentation.ViewModels.UserControls" 
+             xmlns:vusercontrols="using:AvaloniaApp.Presentation.Views.UserControls"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
+        <DataTemplate DataType="vmusercontrols:CameraViewModel">
+			<vusercontrols:CameraView />
+        </DataTemplate>
         <presentation:ViewLocator/>
     </Application.DataTemplates>
   

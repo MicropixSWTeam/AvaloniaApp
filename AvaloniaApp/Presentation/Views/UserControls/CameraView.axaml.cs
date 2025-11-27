@@ -2,11 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace AvaloniaApp.Presentation.Views.Windows
+namespace AvaloniaApp.Presentation.Views.UserControls
 {
-    public partial class PopupHostWindow : Window
+    public partial class CameraView : UserControl
     {
-        public PopupHostWindow()
+        public CameraView()
         {
             InitializeComponent();
         }
