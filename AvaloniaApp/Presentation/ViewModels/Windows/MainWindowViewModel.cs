@@ -1,4 +1,5 @@
-﻿using AvaloniaApp.Core.Interfaces;
+﻿using AvaloniaApp.Core.Enums;
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
@@ -20,15 +21,11 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             _cameraViewModel = cameraViewModel;
         }
 
-        [RelayCommand]
-        public async Task TestMsgDialog()
-        {
-            await _popupService.ShowModelessAsync(_cameraViewModel);
-        }
+
         [RelayCommand]
         public async Task TestPopupHostWindow()
         {
-            await _popupService.ShowModelessAsync(_cameraViewModel);
+            await _popupService.ShowModelessAsync(ViewType.Camera,_cameraViewModel);
         }
     }
 }

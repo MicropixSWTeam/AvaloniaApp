@@ -45,7 +45,6 @@ namespace AvaloniaApp
             services.AddSingleton<CameraView>();
             services.AddSingleton<MainWindow>();
             services.AddTransient<PopupHostWindow>();
-
             services.AddTransient<Func<PopupHostWindow>>(sp =>
             {
                 return () => sp.GetRequiredService<PopupHostWindow>();

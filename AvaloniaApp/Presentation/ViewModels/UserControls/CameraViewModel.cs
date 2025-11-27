@@ -11,11 +11,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     {
         CameraPipeline _cameraPipeline;
 
-        public CameraViewModel(
-            CameraPipeline cameraPipeline,
-            DialogService? dialogService,
-            IUiDispatcher uiDispatcher,
-            IBackgroundJobQueue backgroundJobQueue
+        public CameraViewModel(CameraPipeline cameraPipeline,DialogService? dialogService,IUiDispatcher uiDispatcher,IBackgroundJobQueue backgroundJobQueue
         ) : base(dialogService, uiDispatcher, backgroundJobQueue)
         {
             _cameraPipeline = cameraPipeline;

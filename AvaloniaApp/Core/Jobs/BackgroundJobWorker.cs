@@ -14,17 +14,13 @@ namespace AvaloniaApp.Core.Jobs
     public sealed class BackgroundJobWorker:BackgroundService
     {
         private readonly IBackgroundJobQueue _queue;
-        private readonly ILogger<BackgroundJobWorker> _logger;
 
-        public BackgroundJobWorker(IBackgroundJobQueue queue,ILogger<BackgroundJobWorker> logger)
+        public BackgroundJobWorker(IBackgroundJobQueue queue)
         {
             _queue = queue;
-            _logger = logger;
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("BackgroundJobWorker started");
-
             while (!stoppingToken.IsCancellationRequested)
             {
                 BackgroundJob job;
@@ -40,21 +36,14 @@ namespace AvaloniaApp.Core.Jobs
 
                 try
                 {
-                    _logger.LogInformation("Job {Name} started", job.Name);
                     await job.ExecuteAsync(stoppingToken);
-                    _logger.LogInformation("Job {Name} completed", job.Name);
                 }
                 catch (OperationCanceledException)
                 {
-                    _logger.LogInformation("Job {Name} canceled", job.Name);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Job {Name} failed", job.Name);
+                    break;
                 }
             }
 
-            _logger.LogInformation("BackgroundJobWorker stopped");
         }
     }
 }

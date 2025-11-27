@@ -10,10 +10,6 @@ namespace AvaloniaApp.Infrastructure
 {
     public class VimbaCameraService : ICameraService
     {
-        public Task CaptureAsync(CancellationToken ct)
-        {
-            throw new NotImplementedException();
-        }
 
         public Task ConnectAsync(CancellationToken ct)
         {
@@ -24,5 +20,30 @@ namespace AvaloniaApp.Infrastructure
         {
             throw new NotImplementedException();
         }
+
+        public Task StartAsync(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task StopAsync(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task StartStreamAsync(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }   
+
+        public Task StopStreamAsync(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+        public Task CaptureAsync(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

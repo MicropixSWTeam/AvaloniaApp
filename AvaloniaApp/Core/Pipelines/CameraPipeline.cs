@@ -16,15 +16,17 @@ namespace AvaloniaApp.Core.Pipelines
         private readonly ICameraService _cameraService;
         private readonly IUiDispatcher _uiDispatcher;
 
-        public CameraPipeline(
-            IBackgroundJobQueue backgroundJobQueue,
-            ICameraService cameraService,
-            IUiDispatcher uiDispatcher
+        public CameraPipeline(IBackgroundJobQueue backgroundJobQueue,ICameraService cameraService,IUiDispatcher uiDispatcher
         )
         {
             _backgroundJobQueue = backgroundJobQueue;
             _cameraService = cameraService;
             _uiDispatcher = uiDispatcher;
+        }
+
+        public Task EnqueueAsync(BackgroundJob job, CancellationToken ct)
+        {
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
 
         public Task EnqueueCaptureAsync(CancellationToken ct)
@@ -53,7 +55,6 @@ namespace AvaloniaApp.Core.Pipelines
 
                     await _uiDispatcher.InvokeAsync(() =>
                     {
-                        // capture 로직
                         return Task.CompletedTask;
                     });
                 });
@@ -69,7 +70,6 @@ namespace AvaloniaApp.Core.Pipelines
 
                     await _uiDispatcher.InvokeAsync(() =>
                     {
-                        // capture 로직
                         return Task.CompletedTask;
                     });
                 });

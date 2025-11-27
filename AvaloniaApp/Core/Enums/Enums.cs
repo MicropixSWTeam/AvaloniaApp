@@ -6,5 +6,8 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Enums
 {
-
+    public enum ViewType
+    {
+        Camera,
+    }
 }
