@@ -10,13 +10,9 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaXaml Remove="Presentation\Views\Popups\**" />
-    <AvaloniaXaml Remove="Presentation\Views\Windows\**" />
     <Compile Remove="Presentation\Views\Popups\**" />
-    <Compile Remove="Presentation\Views\Windows\**" />
     <EmbeddedResource Remove="Presentation\Views\Popups\**" />
-    <EmbeddedResource Remove="Presentation\Views\Windows\**" />
     <None Remove="Presentation\Views\Popups\**" />
-    <None Remove="Presentation\Views\Windows\**" />
   </ItemGroup>
   <ItemGroup>
 	<Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
@@ -52,5 +48,8 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="VmbNET.win-x64" Version="1.3.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Presentation\Views\UserControls\" />
   </ItemGroup>
 </Project>

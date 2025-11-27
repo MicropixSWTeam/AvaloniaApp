@@ -5,7 +5,7 @@ using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.Input;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.ViewModels.UserControl
+namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
     public partial class CameraViewModel :ViewModelBase
     {

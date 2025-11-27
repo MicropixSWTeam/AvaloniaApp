@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.ViewModels.Window
+namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public class PopupHostWindowViewModel
     {

@@ -1,7 +1,5 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Interfaces;
@@ -9,14 +7,13 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels.Window;
-using AvaloniaApp.Views;
+using AvaloniaApp.Presentation.ViewModels.Windows;
+using AvaloniaApp.Presentation.Views.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Linq;
 
 namespace AvaloniaApp
 {

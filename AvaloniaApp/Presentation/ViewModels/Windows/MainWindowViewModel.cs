@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using MsBox.Avalonia.Enums;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.ViewModels.Window
+namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public partial class MainWindowViewModel : ViewModelBase
     {
