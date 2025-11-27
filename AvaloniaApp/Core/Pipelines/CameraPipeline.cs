@@ -32,6 +32,8 @@ namespace AvaloniaApp.Core.Pipelines
             var job = new BackgroundJob("CameraCapture", 
                 async token =>
                 {
+                    await _cameraService.CaptureAsync(token);
+
                     await _uiDispatcher.InvokeAsync(() =>
                     {
                         // capture 로직
@@ -39,6 +41,38 @@ namespace AvaloniaApp.Core.Pipelines
                     });
                 });
 
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
+        }
+
+        public Task EnqueueConnectAsync(CancellationToken ct)
+        {
+            var job = new BackgroundJob("CameraConnect",
+                async token =>
+                {
+                    await _cameraService.ConnectAsync(token);
+
+                    await _uiDispatcher.InvokeAsync(() =>
+                    {
+                        // capture 로직
+                        return Task.CompletedTask;
+                    });
+                });
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
+        }
+
+        public Task EnqueueDisconnectAsync(CancellationToken ct)
+        {
+            var job = new BackgroundJob("CameraDisconnect",
+                async token =>
+                {
+                    await _cameraService.DisconnectAsync(token);
+
+                    await _uiDispatcher.InvokeAsync(() =>
+                    {
+                        // capture 로직
+                        return Task.CompletedTask;
+                    });
+                });
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
     }

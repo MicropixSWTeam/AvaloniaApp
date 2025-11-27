@@ -19,11 +19,18 @@ namespace AvaloniaApp.Presentation.Services
             _hostFactory = hostFactory;
             _owner = owner;
         }
-        public Task ShowAsync(object vm)
+        public Task ShowModelessAsync(object vm)
         {
             var host = _hostFactory();
-            host.DataContext = vm; // View는 DataTemplate이 resolve
+            host.DataContext = vm; 
             host.Show(_owner);
+            return Task.CompletedTask;
+        }
+        public Task ShowModalAsync(object vm)
+        {
+            var host = _hostFactory();
+            host.DataContext = vm;
+            host.ShowDialog(_owner);
             return Task.CompletedTask;
         }
     }

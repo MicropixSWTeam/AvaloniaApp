@@ -9,4 +9,5 @@
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
         x:DataType="window:PopupHostWindowViewModel"
         Title="{Binding Title}">
+    <ContentControl Content="{Binding}"/>
 </Window>

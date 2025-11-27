@@ -23,21 +23,12 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         [RelayCommand]
         public async Task TestMsgDialog()
         {
-            if(_dialogService is null)
-                return;
-
-            var result = await _dialogService.ShowMessageAsync(
-                "TestDialogTitle",
-                "TestDialogMessage",
-                ButtonEnum.YesNo);
-
-            if (result != ButtonResult.Yes)
-                return;
+            await _popupService.ShowModelessAsync(_cameraViewModel);
         }
         [RelayCommand]
         public async Task TestPopupHostWindow()
         {
-            await _popupService.ShowAsync(_cameraViewModel);
+            await _popupService.ShowModelessAsync(_cameraViewModel);
         }
     }
 }
