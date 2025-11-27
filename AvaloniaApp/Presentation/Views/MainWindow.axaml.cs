@@ -5,10 +5,9 @@ namespace AvaloniaApp.Views
 {
     public partial class MainWindow : Window
     {
-        public MainWindow(MainWindowViewModel vm)
+        public MainWindow()
         {
             InitializeComponent();
-            DataContext = vm;
         }
     }
 }

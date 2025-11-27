@@ -8,12 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
-    <Folder Include="Views\Popups\" />
-    <Folder Include="Views\Windows\" />
+    <AvaloniaXaml Remove="Presentation\Views\Popups\**" />
+    <AvaloniaXaml Remove="Presentation\Views\Windows\**" />
+    <Compile Remove="Presentation\Views\Popups\**" />
+    <Compile Remove="Presentation\Views\Windows\**" />
+    <EmbeddedResource Remove="Presentation\Views\Popups\**" />
+    <EmbeddedResource Remove="Presentation\Views\Windows\**" />
+    <None Remove="Presentation\Views\Popups\**" />
+    <None Remove="Presentation\Views\Windows\**" />
   </ItemGroup>
-
+  <ItemGroup>
+	<Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="15.1.0" />
     <PackageReference Include="Avalonia" Version="11.3.9" />

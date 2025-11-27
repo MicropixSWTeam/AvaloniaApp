@@ -1,5 +1,7 @@
-﻿using AvaloniaApp.Services;
+﻿using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Presentation.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,13 +14,21 @@ namespace AvaloniaApp.ViewModels
         private bool isBusy;
         [ObservableProperty]
         private string? lastError;
+
+        protected readonly DialogService? _dialogService;
+        protected readonly IBackgroundJobQueue? _backgroundJobQueue;
+        protected readonly IUiDispatcher? _uiDispatcher;
+        protected readonly ILogger? _logger;
+        public ViewModelBase(DialogService? dialogService,IUiDispatcher uiDispatcher,IBackgroundJobQueue backgroundJobQueue)
+        {
+            _dialogService = dialogService;
+            _uiDispatcher = uiDispatcher;
+            _backgroundJobQueue = backgroundJobQueue;
+        }
         /// <summary>
         /// Busy / 예외 / 취소를 한 번에 처리하는 공통 비동기 래퍼
         /// </summary>
-        protected async Task RunSafeAsync(
-            Func<CancellationToken, Task> operation,
-            bool showErrorDialog = true,
-            CancellationToken token = default)
+        protected async Task RunSafeAsync(Func<CancellationToken, Task> operation,bool showErrorDialog = true,CancellationToken token = default)
         {
             // 이미 다른 작업이 돌고 있으면 무시
             if (IsBusy)
@@ -42,14 +52,13 @@ namespace AvaloniaApp.ViewModels
             {
                 LastError = ex.Message;
 
-                // TODO: ILogger 있으면 여기서 LogError(ex, ...)
-                //if (showErrorDialog && DialogService is not null)
-                //{
-                //    await DialogService.ShowMessageAsync(
-                //        "오류",
-                //        ex.Message
-                //    );
-                //}
+                if (showErrorDialog && _dialogService is not null)
+                {
+                    await _dialogService.ShowMessageAsync(
+                        "오류",
+                        ex.Message
+                    );
+                }
             }
             finally
             {
@@ -60,10 +69,7 @@ namespace AvaloniaApp.ViewModels
         /// <summary>
         /// 결과값이 필요한 경우용 제네릭 버전
         /// </summary>
-        protected async Task<T?> RunSafeAsync<T>(
-            Func<CancellationToken, Task<T>> operation,
-            bool showErrorDialog = true,
-            CancellationToken token = default)
+        protected async Task<T?> RunSafeAsync<T>(Func<CancellationToken, Task<T>> operation,bool showErrorDialog = true,CancellationToken token = default)
         {
             if (IsBusy)
                 return default;
@@ -86,13 +92,13 @@ namespace AvaloniaApp.ViewModels
             {
                 LastError = ex.Message;
 
-                //if (showErrorDialog && DialogService is not null)
-                //{
-                //    await DialogService.ShowMessageAsync(
-                //        "오류",
-                //        ex.Message
-                //    );
-                //}
+                if (showErrorDialog && _dialogService is not null)
+                {
+                    await _dialogService.ShowMessageAsync(
+                        "오류",
+                        ex.Message
+                    );
+                }
 
                 return default;
             }

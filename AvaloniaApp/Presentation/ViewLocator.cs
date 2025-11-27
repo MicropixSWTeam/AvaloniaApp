@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using AvaloniaApp.ViewModels;
 
-namespace AvaloniaApp
+namespace AvaloniaApp.Presentation
 {
     /// <summary>
     /// Given a view model, returns the corresponding view if possible.

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Services
+namespace AvaloniaApp.Core.Models
 {
-    public class DialogService
+    public class CameraModel
     {
     }
 }

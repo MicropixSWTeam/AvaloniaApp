@@ -4,9 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Services
+namespace AvaloniaApp.Core.Enums
 {
-    public class CameraService
-    {
-    }
+
 }
