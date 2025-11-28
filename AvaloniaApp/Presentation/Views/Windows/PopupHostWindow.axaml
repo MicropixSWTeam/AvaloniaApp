@@ -7,7 +7,6 @@
         mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="500"
         Width=" 400" Height="300"
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
-        x:DataType="window:PopupHostWindowViewModel"
-        Title="{Binding Title}">
+        x:DataType="window:PopupHostWindowViewModel">
     <ContentControl Content="{Binding}"/>
 </Window>

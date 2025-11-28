@@ -18,6 +18,7 @@
     </Application.DataTemplates>
   
     <Application.Styles>
+        <FluentTheme/>
         <dialogHost:DialogHostStyles />
     </Application.Styles>
 </Application>

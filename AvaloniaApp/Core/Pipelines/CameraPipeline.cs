@@ -1,10 +1,9 @@
-﻿using AvaloniaApp.Core.Interfaces;
+﻿using AutoMapper.Configuration.Annotations;
+using Avalonia.Media.Imaging;
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Jobs;
-using Microsoft.Extensions.Logging;
+using AvaloniaApp.Infrastructure;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,34 +12,24 @@ namespace AvaloniaApp.Core.Pipelines
     public class CameraPipeline
     {
         private readonly IBackgroundJobQueue _backgroundJobQueue;
-        private readonly ICameraService _cameraService;
+        private readonly VimbaCameraService _cameraService;
         private readonly IUiDispatcher _uiDispatcher;
 
-        public CameraPipeline(IBackgroundJobQueue backgroundJobQueue,ICameraService cameraService,IUiDispatcher uiDispatcher
+        public CameraPipeline(IBackgroundJobQueue backgroundJobQueue, VimbaCameraService cameraService,IUiDispatcher uiDispatcher
         )
         {
             _backgroundJobQueue = backgroundJobQueue;
             _cameraService = cameraService;
             _uiDispatcher = uiDispatcher;
         }
-
-        public Task EnqueueAsync(BackgroundJob job, CancellationToken ct)
-        {
-            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
-        }
-
-        public Task EnqueueCaptureAsync(CancellationToken ct)
+        public Task EnqueueCaptureAsync(CancellationToken ct,Func<Bitmap,Task> OnCapture)
         {
             var job = new BackgroundJob("CameraCapture", 
                 async token =>
                 {
                     await _cameraService.CaptureAsync(token);
-
-                    await _uiDispatcher.InvokeAsync(() =>
-                    {
-                        // capture 로직
-                        return Task.CompletedTask;
-                    });
+                    var bitmap = new Bitmap("");
+                    await OnCapture(bitmap);
                 });
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();

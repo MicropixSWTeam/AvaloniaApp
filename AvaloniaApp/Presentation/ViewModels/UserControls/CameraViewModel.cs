@@ -16,10 +16,5 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             _cameraPipeline = cameraPipeline;
         }
-        [RelayCommand]
-        public Task CaptureAsync()
-        {
-            return RunSafeAsync(ct => _cameraPipeline.EnqueueCaptureAsync(ct));
-        }
     }
 }

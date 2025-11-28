@@ -1,4 +1,6 @@
-﻿using AvaloniaApp.Core.Interfaces;
+﻿using Avalonia.Media.Imaging;
+using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,39 +11,35 @@ using VmbNET;
 
 namespace AvaloniaApp.Infrastructure
 {
-    public class VimbaCameraService : ICameraService
+    public class VimbaCameraService : ICameraService, IAsyncDisposable
     {
-        public Task GetCameraList(CancellationToken ct)
+        private IVmbSystem? _vimbaSystem;
+        private ICamera? _currentCamera;
+        private IOpenCamera? _openCamera;
+        public Task<IReadOnlyList<CameraInfo>> GetCameraListAsync(CancellationToken ct)
         {
-            using IVmbSystem vmbSystem = IVmbSystem.Startup();
-            var cameras = vmbSystem.GetCameras().ToList();
-            return Task.CompletedTask;
+            throw new NotImplementedException();
         }
         public Task ConnectAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
         }
-
         public Task DisconnectAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
         }
-
         public Task StartAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
         }
-
         public Task StopAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
         }
-
         public Task StartStreamAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
         }   
-
         public Task StopStreamAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
@@ -50,6 +48,9 @@ namespace AvaloniaApp.Infrastructure
         {
             throw new NotImplementedException();
         }
-
+        ValueTask IAsyncDisposable.DisposeAsync()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -6,7 +6,23 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
-    public class CameraModel
+    public sealed class CameraInfo
     {
+        public string   Id { get; init; } = string.Empty;
+        public string   Name { get; init; } = string.Empty;
+        public string   SerialNumber { get; init; } = string.Empty;
+        public string   ModelName { get; init; } = string.Empty;
+
+        public CameraInfo(string id, string name, string serial,string modelName)
+        {
+            Id = id;
+            Name = name;
+            SerialNumber = serial;
+            ModelName = modelName;
+        }
+        public override string ToString()
+        {
+            return $"{Name} ({ModelName},{SerialNumber})";
+        }
     }
 }

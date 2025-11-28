@@ -4,11 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Core.Enums
+namespace AvaloniaApp.Core.Pipelines
 {
-    public enum ViewType
+    public class PopupPipeline
     {
-        Camera,
-        CameraConnect,
     }
 }

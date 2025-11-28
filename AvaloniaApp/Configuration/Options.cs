@@ -8,8 +8,9 @@ namespace AvaloniaApp.Configuration
 {
     public sealed class CameraOptions
     {
-        public double   DefaultExposureMs { get; init; } = 0.0;
-        public double   DefaultGain { get; init; } = 0.0;
-        public double   DefaultGamma { get; init; } = 0.0;
+        public double   ExposureMs { get; init; } = 0.0;
+        public double   Gain { get; init; } = 0.0;
+        public double   Gamma { get; init; } = 0.0;
+        public string   PixelFormat { get; init; } = "Mono8";   
     }
 }

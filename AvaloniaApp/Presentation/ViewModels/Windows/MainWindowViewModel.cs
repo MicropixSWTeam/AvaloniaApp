@@ -14,7 +14,8 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly PopupService _popupService;
         private readonly CameraViewModel _cameraViewModel;
 
-        public MainWindowViewModel(DialogService? dialogService, PopupService popupService,IUiDispatcher uiDispatcher, IBackgroundJobQueue backgroundJobQueue,CameraViewModel cameraViewModel)
+        public MainWindowViewModel(DialogService? dialogService, PopupService popupService,IUiDispatcher uiDispatcher, IBackgroundJobQueue backgroundJobQueue,
+                                    CameraViewModel cameraViewModel)
             :base(dialogService,uiDispatcher,backgroundJobQueue)
         {
             _popupService = popupService;

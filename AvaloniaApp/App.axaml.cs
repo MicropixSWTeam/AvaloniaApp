@@ -28,7 +28,7 @@ namespace AvaloniaApp
 
             services.AddSingleton<IUiDispatcher, UiDispatcher>();
             services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
-            services.AddSingleton<ICameraService,VimbaCameraService>();
+            services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<PopupService>();
 
             services.AddSingleton<CameraPipeline>();

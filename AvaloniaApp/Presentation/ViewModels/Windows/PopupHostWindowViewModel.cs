@@ -10,6 +10,5 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public class PopupHostWindowViewModel :ViewModelBase
     {
-        public string Title { get; set; } = "Popup Window";
     }
 }
