@@ -24,7 +24,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
 
 
         [RelayCommand]
-        public async Task TestPopupHostWindow()
+        public async Task OpenCameraConnectViewAsync()
         {
             await _popupService.ShowModelessAsync(ViewType.Camera,_cameraViewModel);
         }

@@ -13,9 +13,6 @@ namespace AvaloniaApp.Infrastructure
 {
     public class VimbaCameraService : ICameraService, IAsyncDisposable
     {
-        private IVmbSystem? _vimbaSystem;
-        private ICamera? _currentCamera;
-        private IOpenCamera? _openCamera;
         public Task<IReadOnlyList<CameraInfo>> GetCameraListAsync(CancellationToken ct)
         {
             throw new NotImplementedException();
