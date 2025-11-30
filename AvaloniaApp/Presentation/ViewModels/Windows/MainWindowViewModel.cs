@@ -13,13 +13,15 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
     {
         private readonly PopupService _popupService;
         private readonly CameraViewModel _cameraViewModel;
+        private readonly ChartViewModel _chartViewModel;
 
         public MainWindowViewModel(DialogService? dialogService, PopupService popupService,IUiDispatcher uiDispatcher, IBackgroundJobQueue backgroundJobQueue,
-                                    CameraViewModel cameraViewModel)
+                                    CameraViewModel cameraViewModel,ChartViewModel chartViewModel)
             :base(dialogService,uiDispatcher,backgroundJobQueue)
         {
             _popupService = popupService;
             _cameraViewModel = cameraViewModel;
+            _chartViewModel = chartViewModel;
         }
 
 
@@ -27,6 +29,12 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         public async Task OpenCameraConnectViewAsync()
         {
             await _popupService.ShowModelessAsync(ViewType.Camera,_cameraViewModel);
+        }
+
+        [RelayCommand]
+        public async Task OpenChartViewCommand()
+        {
+            await _popupService.ShowModelessAsync(ViewType.SpectrumChart, _chartViewModel);
         }
     }
 }
