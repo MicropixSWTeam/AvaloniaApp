@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Infrastructure
 {
-    public sealed class UiDispatcher:IUiDispatcher
+    public sealed class UiDispatcher
     {
         public void Invoke(Action action)
         {

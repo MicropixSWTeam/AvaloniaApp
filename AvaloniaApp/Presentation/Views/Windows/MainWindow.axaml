@@ -25,13 +25,14 @@
         </dialogHost:DialogHost.DialogContent>
 
         <!-- 실제 메인 화면 -->
-        <Grid RowDefinitions="Auto,*">
-            <StackPanel Orientation="Horizontal">
+        <DockPanel HorizontalAlignment="Left" VerticalAlignment="Top">
+			<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="0">
+                <Button Content="ConnectCamera" Command="{Binding OpenCameraConnectViewAsync}" BorderThickness="0" CornerRadius="0"/>
+                <Button Content="Camera" Command="{Binding OpenCameraViewAsync}" BorderThickness="0" CornerRadius="0"/>
+                <Button Content="SpectrumChart" Command="{Binding OpenChartViewAsync}" BorderThickness="0" CornerRadius="0"/>
             </StackPanel>
-            <Button Content="Open Dialog" Command="{Binding OpenCameraConnectViewCommand}" Margin="8"/>
-            <Border Grid.Row="1" Margin="8" BorderThickness="1">
-            </Border>
-        </Grid>
+        </DockPanel>
+
     </dialogHost:DialogHost>
 
 </Window>

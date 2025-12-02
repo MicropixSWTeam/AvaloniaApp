@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Jobs
 {
-    public sealed class BackgroundJobQueue : IBackgroundJobQueue
+    public sealed class BackgroundJobQueue 
     {
         private readonly Channel<BackgroundJob> _channel;
 

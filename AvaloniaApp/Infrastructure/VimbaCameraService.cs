@@ -26,7 +26,7 @@ namespace AvaloniaApp.Infrastructure
         public Bitmap? LastCapturedImage { get; private set; }
         public VimbaCameraService()
         {
-            _system = IVmbSystem.Startup();
+            //_system = IVmbSystem.Startup();
         }
         private void ThrowIfDisposed()
         {

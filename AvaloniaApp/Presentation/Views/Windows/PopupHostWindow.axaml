@@ -2,11 +2,25 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="using:AvaloniaApp.Presentation.ViewModels"
+        xmlns:v="using:AvaloniaApp.Presentation.Views.UserControls"
+        xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
         xmlns:window="using:AvaloniaApp.Presentation.ViewModels.Windows"
         mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="500"
-        Width=" 400" Height="300"
+        Width="{Binding}" Height="{Binding}"
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
         x:DataType="window:PopupHostWindowViewModel">
     <ContentControl Content="{Binding}"/>
+        <Window.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:CameraViewModel}">
+            <v:CameraView />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:CameraConnectViewModel}">
+            <v:CameraConnectView />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ChartViewModel}">
+            <v:ChartView />
+        </DataTemplate>
+    </Window.DataTemplates>
 </Window>

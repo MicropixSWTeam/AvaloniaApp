@@ -1,7 +1,10 @@
 ﻿using Avalonia.Controls;
+using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Enums;
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Presentation.Views.UserControls; // 실제 뷰들이 있는 네임스페이스
 using AvaloniaApp.Presentation.Views.Windows;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -12,8 +15,8 @@ namespace AvaloniaApp.Presentation.Services
     {
         private readonly Func<PopupHostWindow> _hostFactory;
         private readonly MainWindow _owner;
+        private readonly Dictionary<object, PopupHostWindow> _popupDic = new();
 
-        private readonly Dictionary<(ViewType viewType, object vm), PopupHostWindow> _popupDic = new();
 
         public PopupService(Func<PopupHostWindow> hostFactory, MainWindow owner)
         {
@@ -21,11 +24,15 @@ namespace AvaloniaApp.Presentation.Services
             _owner = owner;
         }
 
-        public Task ShowModelessAsync(ViewType viewType, object vm)
+        public Task ShowModelessAsync(object vm)
         {
-            var key = (viewType, vm);
+            if (vm is null)
+                throw new ArgumentNullException(nameof(vm));
 
-            if (_popupDic.TryGetValue(key, out var existing))
+            // 동일 VM instance에 대해 하나만 띄우고 싶다면 key를 viewModel로 사용
+            var key = vm;
+
+            if (_popupDic.TryGetValue((vm.GetType(), vm), out var existing))
             {
                 if (existing.IsVisible)
                 {
@@ -34,18 +41,23 @@ namespace AvaloniaApp.Presentation.Services
                     return Task.CompletedTask;
                 }
 
-                _popupDic.Remove(key);
+                _popupDic.Remove((vm.GetType(), vm));
             }
 
             var host = _hostFactory();
-            host.Title = viewType.ToString();
-            host.Content = CreateView(viewType, vm); // 여기서 View를 직접 생성
 
-            _popupDic[key] = host;
+            if(vm is IPopup data)
+            {
+
+            }
+
+            host.DataContext = vm;    // 여기만 세팅하면 DataTemplate이 알아서 View를 생성
+
+            _popupDic[(vm.GetType(), vm)] = host;
 
             host.Closed += (_, __) =>
             {
-                _popupDic.Remove(key);
+                _popupDic.Remove((vm.GetType(), vm));
             };
 
             host.Show(_owner);

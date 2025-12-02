@@ -8,16 +8,10 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Interfaces
 {
-    public interface ICameraService
+    public interface IPopup
     {
-    }
-    public interface IBackgroundJobQueue
-    {
-    }
-    public interface IUiDispatcher
-    {
-    }   
-    public interface IPipeline
-    {
+        public string Title { get; set; }   
+        public int Width { get; set; }
+        public int Height { get; set; }
     }
 }
