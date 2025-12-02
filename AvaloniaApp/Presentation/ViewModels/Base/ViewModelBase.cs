@@ -1,4 +1,6 @@
 ﻿using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Core.Jobs;
+using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -16,14 +18,14 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
         private string? lastError;
 
         protected readonly DialogService? _dialogService;
-        protected readonly IBackgroundJobQueue? _backgroundJobQueue;
-        protected readonly IUiDispatcher? _uiDispatcher;
+        protected readonly BackgroundJobQueue? _backgroundJobQueue;
+        protected readonly UiDispatcher? _uiDispatcher;
         protected readonly ILogger? _logger;
 
         public ViewModelBase()
         {
         }
-        public ViewModelBase(DialogService? dialogService,IUiDispatcher uiDispatcher,IBackgroundJobQueue backgroundJobQueue)
+        public ViewModelBase(DialogService? dialogService,UiDispatcher uiDispatcher,BackgroundJobQueue backgroundJobQueue)
         {
             _dialogService = dialogService;
             _uiDispatcher = uiDispatcher;

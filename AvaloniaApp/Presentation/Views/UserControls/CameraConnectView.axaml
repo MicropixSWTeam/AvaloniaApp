@@ -1,8 +1,42 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="using:AvaloniaApp.Presentation.Views.UserControls"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraConnectView">
-  Welcome to Avalonia!
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="160"
+             xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraConnectView"
+             x:DataType="vm:CameraViewModel">
+    <StackPanel Margin="16" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+
+        <!-- 1. 카메라 선택 영역 -->
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Camera"
+                       Width="80"
+                       VerticalAlignment="Center" />
+
+            <!-- 카메라 리스트 -->
+            <ComboBox Width="250"
+                      ItemsSource="{Binding Cameras}"
+                      SelectedItem="{Binding SelectedCamera}"/>
+
+            <!-- 카메라 새로고침 버튼 -->
+            <Button Content="Reset"
+                    Width="80"
+                    Command="{Binding LoadCamerasCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+        </StackPanel>
+
+        <!-- 2. 픽셀 포맷 선택 영역 -->
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Pixel Format"
+                       Width="80"
+                       VerticalAlignment="Center" />
+
+            <ComboBox Width="250"
+                      ItemsSource="{Binding PixelFormats}"
+                      SelectedItem="{Binding SelectedPixelFormat}"/>
+        
+        </StackPanel>
+
+    </StackPanel>
 </UserControl>

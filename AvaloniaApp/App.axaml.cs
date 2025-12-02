@@ -26,8 +26,8 @@ namespace AvaloniaApp
             // 서비스/도메인
             services.AddSingleton<DialogService>();
 
-            services.AddSingleton<IUiDispatcher, UiDispatcher>();
-            services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
+            services.AddSingleton<UiDispatcher>();
+            services.AddSingleton<BackgroundJobQueue>();
             services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
@@ -46,6 +46,7 @@ namespace AvaloniaApp
 
             // View
             services.AddSingleton<CameraView>();
+            services.AddSingleton<CameraConnectView>();
             services.AddSingleton<ChartView>();
             services.AddSingleton<FileExplorerView>();
             services.AddSingleton<MainWindow>();

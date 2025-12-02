@@ -28,7 +28,7 @@
         <Grid RowDefinitions="Auto,*">
             <StackPanel Orientation="Horizontal">
             </StackPanel>
-            <Button Content="Open Dialog" Command="{Binding OpenChartViewCommandCommand}" Margin="8"/>
+            <Button Content="Open Dialog" Command="{Binding OpenCameraConnectViewCommand}" Margin="8"/>
             <Border Grid.Row="1" Margin="8" BorderThickness="1">
             </Border>
         </Grid>

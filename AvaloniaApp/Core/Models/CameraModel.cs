@@ -22,7 +22,22 @@ namespace AvaloniaApp.Core.Models
         }
         public override string ToString()
         {
-            return $"{Name} ({ModelName},{SerialNumber})";
+            return $"{Name}";
         }
+    }
+    public sealed class PixelFormatInfo
+    {
+        public string Name { get; }
+        public string DisplayName { get; }
+        public bool IsAvailable { get; }
+        public PixelFormatInfo(string name, string displayName, bool isAvailable)
+        {
+            Name = name;
+            DisplayName = displayName;
+            IsAvailable = isAvailable;
+        }
+
+        public override string ToString()
+            => string.IsNullOrWhiteSpace(DisplayName) ? Name : DisplayName;
     }
 }

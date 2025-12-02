@@ -1,8 +1,11 @@
 ﻿using AvaloniaApp.Core.Enums;
 using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Core.Jobs;
+using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
+using AvaloniaApp.Presentation.Views.UserControls;
 using CommunityToolkit.Mvvm.Input;
 using MsBox.Avalonia.Enums;
 using System.Threading.Tasks;
@@ -15,9 +18,9 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly CameraViewModel _cameraViewModel;
         private readonly ChartViewModel _chartViewModel;
 
-        public MainWindowViewModel(DialogService? dialogService, PopupService popupService,IUiDispatcher uiDispatcher, IBackgroundJobQueue backgroundJobQueue,
-                                    CameraViewModel cameraViewModel,ChartViewModel chartViewModel)
-            :base(dialogService,uiDispatcher,backgroundJobQueue)
+        public MainWindowViewModel(DialogService? dialogService, PopupService popupService, UiDispatcher uiDispatcher, BackgroundJobQueue backgroundJobQueue,
+                                    CameraViewModel cameraViewModel, ChartViewModel chartViewModel)
+            : base(dialogService, uiDispatcher, backgroundJobQueue)
         {
             _popupService = popupService;
             _cameraViewModel = cameraViewModel;
@@ -28,7 +31,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         [RelayCommand]
         public async Task OpenCameraConnectViewAsync()
         {
-            await _popupService.ShowModelessAsync(ViewType.Camera,_cameraViewModel);
+            await _popupService.ShowModelessAsync(ViewType.CameraConnect, _cameraViewModel);
         }
 
         [RelayCommand]

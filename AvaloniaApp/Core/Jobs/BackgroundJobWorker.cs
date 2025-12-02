@@ -13,9 +13,9 @@ namespace AvaloniaApp.Core.Jobs
 {
     public sealed class BackgroundJobWorker:BackgroundService
     {
-        private readonly IBackgroundJobQueue _queue;
+        private readonly BackgroundJobQueue _queue;
 
-        public BackgroundJobWorker(IBackgroundJobQueue queue)
+        public BackgroundJobWorker(BackgroundJobQueue queue)
         {
             _queue = queue;
         }
