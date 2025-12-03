@@ -1,6 +1,7 @@
 ﻿using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Presentation.ViewModels;
+using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Threading;

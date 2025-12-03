@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using AvaloniaApp.Presentation.ViewModels;
+using AvaloniaApp.Presentation.ViewModels.Base;
 
 namespace AvaloniaApp.Presentation
 {

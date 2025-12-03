@@ -1,4 +1,5 @@
 ﻿using AvaloniaApp.Core.Models;
+using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore;

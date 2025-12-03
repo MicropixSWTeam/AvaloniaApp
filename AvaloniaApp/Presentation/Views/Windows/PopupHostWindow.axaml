@@ -9,8 +9,7 @@
         Width="{Binding}" Height="{Binding}"
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
         x:DataType="window:PopupHostWindowViewModel">
-    <ContentControl Content="{Binding}"/>
-        <Window.DataTemplates>
+    <Window.DataTemplates>
         <DataTemplate DataType="{x:Type vm:CameraViewModel}">
             <v:CameraView />
         </DataTemplate>
@@ -23,4 +22,7 @@
             <v:ChartView />
         </DataTemplate>
     </Window.DataTemplates>
+
+    <ContentControl Content="{Binding}"/>
+
 </Window>

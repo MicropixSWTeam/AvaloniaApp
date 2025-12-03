@@ -21,9 +21,14 @@
                     HorizontalAlignment="Center"
                     Margin="0,8,0,8"
                     Spacing="8">
-            <Button Content="Capture"
+            <Button Content="Start"
                     Width="100"
-                    Command="{Binding StartPreviewCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Command="{Binding StartPreviewCommand}"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+            <Button Content="Stop"
+                    Width="100"
+                    Command="{Binding StopPreviewCommand}"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
     </Grid>
 </UserControl>

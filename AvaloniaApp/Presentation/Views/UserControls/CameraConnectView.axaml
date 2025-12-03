@@ -24,7 +24,7 @@
             <Button Content="Connect"
                     MinWidth="100"
                     Command="{Binding ConnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
-            <Button Content="DisConnect"
+            <Button Content="Disconnect"
                     MinWidth="100"
                     Command="{Binding DisconnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
