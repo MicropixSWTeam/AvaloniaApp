@@ -1,8 +1,6 @@
-﻿using AutoMapper.Configuration.Annotations;
-using Avalonia.Media.Imaging;
-using AvaloniaApp.Core.Interfaces;
-using AvaloniaApp.Core.Jobs;
+﻿using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Models;
+using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
 using System;
 using System.Collections.Generic;
@@ -17,76 +15,144 @@ namespace AvaloniaApp.Core.Pipelines
         private readonly VimbaCameraService _cameraService;
         private readonly UiDispatcher _uiDispatcher;
 
-        public CameraPipeline(BackgroundJobQueue backgroundJobQueue, VimbaCameraService cameraService,UiDispatcher uiDispatcher)
+        public CameraPipeline(
+            BackgroundJobQueue backgroundJobQueue,
+            VimbaCameraService cameraService,
+            UiDispatcher uiDispatcher)
         {
             _backgroundJobQueue = backgroundJobQueue;
             _cameraService = cameraService;
             _uiDispatcher = uiDispatcher;
         }
-        public Task EnqueueGetCameraListAsync(CancellationToken ct,Func<IReadOnlyList<CameraInfo>, Task> OnGetCameraList)
+
+        // 그대로 사용
+        public Task EnqueueGetCameraListAsync(
+            CancellationToken ct,
+            Func<IReadOnlyList<CameraInfo>, Task> onGetCameraList)
         {
             var job = new BackgroundJob("GetCameraList",
                 async token =>
                 {
                     var list = await _cameraService.GetCameraListAsync(token);
-                    // ViewModel 업데이트는 UI 스레드에서
-                    await _uiDispatcher.InvokeAsync(() => OnGetCameraList(list));
+                    await _uiDispatcher.InvokeAsync(() => onGetCameraList(list));
                 });
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueGetPixelFormatListAsync(CancellationToken ct, string id, Func<IReadOnlyList<PixelFormatInfo>, Task> OnGetPixelFormatList)
+
+        // 그대로 사용
+        public Task EnqueueGetPixelFormatListAsync(
+            CancellationToken ct,
+            string id,
+            Func<IReadOnlyList<PixelFormatInfo>, Task> onGetPixelFormatList)
         {
             var job = new BackgroundJob("GetPixelFormatList",
                 async token =>
                 {
                     var list = await _cameraService.GetSupportPixelformatListAsync(token, id);
-
-                    await _uiDispatcher.InvokeAsync(() => OnGetPixelFormatList(list));
-                });
-
-            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
-        }    
-        public Task EnqueueCaptureAsync(CancellationToken ct,Func<Bitmap,Task> OnCapture)
-        {
-            var job = new BackgroundJob("CameraCapture", 
-                async token =>
-                {
-                    await _cameraService.CaptureAsync(token);
-                    var bitmap = new Bitmap("");
-                    await OnCapture(bitmap);
+                    await _uiDispatcher.InvokeAsync(() => onGetPixelFormatList(list));
                 });
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
 
-        public Task EnqueueConnectAsync(CancellationToken ct,string id)
+        /// <summary>
+        /// 연속 프리뷰 시작 (FrameReady 이벤트 구독)
+        /// </summary>
+        public Task EnqueueStartPreviewAsync(
+            CancellationToken ct,
+            Func<Bitmap, Task> onFrame)
+        {
+            var job = new BackgroundJob(
+                "CameraPreview",
+                async token =>
+                {
+                    // 이벤트 핸들러: Vimba 쓰레드 → UI 쓰레드
+                    async void Handler(object? sender, Bitmap bmp)
+                    {
+                        if (token.IsCancellationRequested)
+                        {
+                            // 이미 취소된 상태면 이 프레임은 사용하지 않고 폐기
+                            bmp.Dispose();
+                            return;
+                        }
+
+                        await _uiDispatcher.InvokeAsync(() => onFrame(bmp));
+                    }
+
+                    _cameraService.FrameReady += Handler;
+
+                    try
+                    {
+                        await _cameraService.StartStreamAsync(token);
+
+                        // 토큰이 취소될 때까지 단순 대기
+                        while (!token.IsCancellationRequested)
+                        {
+                            await Task.Delay(50, token);
+                        }
+                    }
+                    finally
+                    {
+                        _cameraService.FrameReady -= Handler;
+                        await _cameraService.StopStreamAsync(CancellationToken.None);
+                    }
+                });
+
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
+        }
+
+        /// <summary>
+        /// 단일 캡처
+        /// </summary>
+        public Task EnqueueCaptureAsync(
+            CancellationToken ct,
+            Func<Bitmap, Task> onCapture)
+        {
+            var job = new BackgroundJob("CameraCapture",
+                async token =>
+                {
+                    var bmp = await _cameraService.CaptureAsync(token);
+                    await _uiDispatcher.InvokeAsync(() => onCapture(bmp));
+                });
+
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
+        }
+
+        /// <summary>
+        /// 카메라 연결 (UI 콜백 제대로 호출)
+        /// </summary>
+        public Task EnqueueConnectAsync(
+            CancellationToken ct,
+            string id,
+            Func<Task> onConnect)
         {
             var job = new BackgroundJob("CameraConnect",
                 async token =>
                 {
-                    await _cameraService.ConnectAsync(token,id);
+                    await _cameraService.ConnectAsync(token, id);
 
-                    await _uiDispatcher.InvokeAsync(() =>
-                    {
-                        return Task.CompletedTask;
-                    });
+                    await _uiDispatcher.InvokeAsync(onConnect);
                 });
+
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
 
-        public Task EnqueueDisconnectAsync(CancellationToken ct)
+        public Task EnqueueDisconnectAsync(
+            CancellationToken ct,
+            Func<Task>? onDisconnect = null)
         {
             var job = new BackgroundJob("CameraDisconnect",
                 async token =>
                 {
                     await _cameraService.DisconnectAsync(token);
 
-                    await _uiDispatcher.InvokeAsync(() =>
+                    if (onDisconnect is not null)
                     {
-                        return Task.CompletedTask;
-                    });
+                        await _uiDispatcher.InvokeAsync(onDisconnect);
+                    }
                 });
+
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
     }

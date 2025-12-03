@@ -5,7 +5,6 @@ using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
@@ -24,16 +23,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private CameraInfo? selectedCamera;
 
-        [ObservableProperty]
-        private IReadOnlyList<PixelFormatInfo>? pixelFormats;
-
-        [ObservableProperty]
-        private PixelFormatInfo? selectedPixelFormat;
-
         private CameraPipeline _cameraPipeline;
-        public CameraConnectViewModel(CameraPipeline cameraPipeline) :base()
+        private PopupService _popupService;
+        public CameraConnectViewModel(CameraPipeline cameraPipeline,PopupService popupService) :base()
         {
             _cameraPipeline = cameraPipeline;
+            _popupService = popupService;   
         }
         [RelayCommand]
         public async Task LoadCamerasAsync()
@@ -44,38 +39,41 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 {
                     Cameras = list;
                     SelectedCamera = null;
-                    PixelFormats = null;
-                    SelectedPixelFormat = null;
                 });
             });
         }
         [RelayCommand]
-        public async Task LoadPixelFormatsAsync()
+        public async Task ConnectCameraAsync()
         {
             if (SelectedCamera is null)
-            {
                 return;
-            }
+
             await RunSafeAsync(async ct =>
             {
-                await _cameraPipeline.EnqueueGetPixelFormatListAsync(ct, SelectedCamera.Id, async list =>
-                {
-                    PixelFormats = list;
-                    SelectedPixelFormat = PixelFormats.FirstOrDefault(p => p.IsAvailable) ?? PixelFormats.FirstOrDefault();
-                });
+                await _cameraPipeline.EnqueueConnectAsync(
+                    ct,
+                    SelectedCamera.Id,
+                    async () =>
+                    {
+                        _popupService.ClosePopup(this);
+                        await Task.CompletedTask;
+                    });
             });
         }
-        partial void OnSelectedCameraChanged(CameraInfo? value)
+        [RelayCommand]
+        public async Task DisconnectCameraAsync()
         {
-            if (value is null)
+            await RunSafeAsync(async ct =>
             {
-                PixelFormats = null;
-                SelectedPixelFormat = null;
-                return;
-            }
-
-            // 비동기로 픽셀 포맷 로드
-            _ = LoadPixelFormatsAsync();
+                await _cameraPipeline.EnqueueDisconnectAsync(
+                    ct,
+                    async () =>
+                    {
+                        SelectedCamera = null;
+                        await Task.CompletedTask;
+                    });
+            });
         }
+
     }
 }

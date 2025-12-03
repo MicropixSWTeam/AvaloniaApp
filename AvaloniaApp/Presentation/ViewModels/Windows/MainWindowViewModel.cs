@@ -3,7 +3,7 @@ using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels.Base;
+using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaApp.Presentation.Views.UserControls;
 using CommunityToolkit.Mvvm.Input;

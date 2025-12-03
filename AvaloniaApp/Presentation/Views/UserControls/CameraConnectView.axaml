@@ -7,35 +7,26 @@
              xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraConnectView"
              x:DataType="vm:CameraConnectViewModel">
-    <StackPanel Margin="16" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
 
         <!-- 1. 카메라 선택 영역 -->
         <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="Camera"
-                       Width="80"
-                       VerticalAlignment="Center" />
-
-            <!-- 카메라 리스트 -->
-            <ComboBox Width="250"
-                      ItemsSource="{Binding Cameras}"
-                      SelectedItem="{Binding SelectedCamera}"/>
-
-            <!-- 카메라 새로고침 버튼 -->
-            <Button Content="Reset"
-                    Width="80"
+            <ComboBox MinWidth="300"
+                    ItemsSource="{Binding Cameras}"
+                    SelectedItem="{Binding SelectedCamera}"/>
+            <Button Content="Refresh"
+                    MinWidth="100"
                     Command="{Binding LoadCamerasCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
 
         <!-- 2. 픽셀 포맷 선택 영역 -->
         <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="Pixel Format"
-                       Width="80"
-                       VerticalAlignment="Center" />
-
-            <ComboBox Width="250"
-                      ItemsSource="{Binding PixelFormats}"
-                      SelectedItem="{Binding SelectedPixelFormat}"/>
-        
+            <Button Content="Connect"
+                    MinWidth="100"
+                    Command="{Binding ConnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+            <Button Content="DisConnect"
+                    MinWidth="100"
+                    Command="{Binding DisconnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
 
     </StackPanel>
