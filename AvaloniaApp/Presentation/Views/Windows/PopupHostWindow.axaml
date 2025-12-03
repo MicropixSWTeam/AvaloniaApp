@@ -18,6 +18,10 @@
             <v:CameraConnectView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:CameraSettingViewModel}">
+            <v:CameraSettingView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:ChartViewModel}">
             <v:ChartView />
         </DataTemplate>

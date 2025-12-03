@@ -10,6 +10,7 @@ namespace AvaloniaApp.Core.Enums
     {
         Camera,
         CameraConnect,
+        CameraSetting,  
         SpectrumChart,
     }
 }

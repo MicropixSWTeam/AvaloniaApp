@@ -1,4 +1,6 @@
 ﻿using Avalonia.Controls;
+using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.Views.Windows;
 using System;
 using System.Collections.Generic;
@@ -39,6 +41,13 @@ namespace AvaloniaApp.Presentation.Services
             }
 
             var host = _hostFactory();
+
+            if (vm is IPopup popup) 
+            {
+                host.Title = popup.Title;
+                host.Width = popup.Width;
+                host.Height = popup.Height;
+            }
 
             host.DataContext = vm;
 

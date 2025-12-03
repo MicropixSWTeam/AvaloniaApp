@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public partial class CameraConnectViewModel:ViewModelBase
+    public partial class CameraConnectViewModel:ViewModelBase,IPopup
     {
         [ObservableProperty]
         private IReadOnlyList<CameraInfo>? cameras;
@@ -26,6 +26,11 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private CameraPipeline _cameraPipeline;
         private PopupService _popupService;
+
+        public string Title { get; set; } = "Camera Connect";
+        public int Width { get; set; } = 600;
+        public int Height { get; set; } = 400;
+
         public CameraConnectViewModel(CameraPipeline cameraPipeline,PopupService popupService) :base()
         {
             _cameraPipeline = cameraPipeline;
@@ -70,9 +75,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     ct,
                     async () =>
                     {
-                        SelectedCamera = null;
                         await Task.CompletedTask;
                     });
+                SelectedCamera = null;
             });
         }
 

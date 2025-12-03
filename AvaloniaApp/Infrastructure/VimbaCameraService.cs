@@ -36,15 +36,19 @@ namespace AvaloniaApp.Infrastructure
         {
             _system = IVmbSystem.Startup();
         }
-
+        private IOpenCamera EnsureOpenCamera()
+        {
+            if (_openCamera is null)
+                throw new InvalidOperationException("카메라가 연결되지 않았습니다.");
+            return _openCamera;
+        }
         private void ThrowIfDisposed()
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(VimbaCameraService));
         }
 
-        public Task<IReadOnlyList<PixelFormatInfo>> GetSupportPixelformatListAsync(
-            CancellationToken ct, string? id)
+        public Task<IReadOnlyList<PixelFormatInfo>> GetSupportPixelformatListAsync(CancellationToken ct, string? id)
         {
             ct.ThrowIfCancellationRequested();
             ThrowIfDisposed();
@@ -65,7 +69,6 @@ namespace AvaloniaApp.Infrastructure
 
             return Task.FromResult<IReadOnlyList<PixelFormatInfo>>(list);
         }
-
         public Task<IReadOnlyList<CameraInfo>> GetCameraListAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -84,7 +87,6 @@ namespace AvaloniaApp.Infrastructure
 
             return Task.FromResult<IReadOnlyList<CameraInfo>>(result);
         }
-
         public async Task ConnectAsync(CancellationToken ct, string id)
         {
             ThrowIfDisposed();
@@ -130,7 +132,6 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
-
         public async Task DisconnectAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -157,13 +158,8 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
-
         public Task StartAsync(CancellationToken ct) => StartStreamAsync(ct);
         public Task StopAsync(CancellationToken ct) => StopStreamAsync(ct);
-
-        /// <summary>
-        /// 연속 스트림 시작 (FrameReady 이벤트로 Bitmap 푸시)
-        /// </summary>
         public async Task StartStreamAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -187,7 +183,6 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
-
         public async Task StopStreamAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -213,10 +208,6 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
-
-        /// <summary>
-        /// Vimba 연속 프레임 콜백 → Bitmap 생성 후 FrameReady 이벤트로 전달
-        /// </summary>
         private void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
         {
             try
@@ -283,10 +274,6 @@ namespace AvaloniaApp.Infrastructure
                 // 이벤트 핸들러에서 예외 전파 방지
             }
         }
-
-        /// <summary>
-        /// 단일 캡처: Bitmap 반환 (소유권은 호출자)
-        /// </summary>
         public async Task<Bitmap> CaptureAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -355,7 +342,124 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+        public async Task<double> GetExposureTimeAsync(CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
 
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+                // dynamic 사용
+                double value = cam.Features.ExposureTime;
+                return value;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        public async Task<double> SetExposureTimeAsync(double exposureTime, CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+
+                // 요청 값 설정
+                cam.Features.ExposureTime = exposureTime;
+
+                // 실제 적용된 값 읽기 (카메라가 근처 값으로 수정했을 수 있음)
+                double applied = cam.Features.ExposureTime;
+                return applied;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        public async Task<double> GetGainAsync(CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+                double value = cam.Features.Gain;
+                return value;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        public async Task<double> SetGainAsync(double gain, CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+                cam.Features.Gain = gain;
+
+                double applied = cam.Features.Gain;
+                return applied;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        public async Task<double> GetGammaAsync(CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+                double value = cam.Features.Gamma;
+                return value;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        public async Task<double> SetGammaAsync(double gamma, CancellationToken ct)
+        {
+            ThrowIfDisposed();
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var cam = EnsureOpenCamera();
+                cam.Features.Gamma = gamma;
+
+                double applied = cam.Features.Gamma;
+                return applied;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
         public async ValueTask DisposeAsync()
         {
             if (_disposed)

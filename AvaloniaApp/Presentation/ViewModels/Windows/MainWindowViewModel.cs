@@ -19,15 +19,18 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly CameraViewModel _cameraViewModel;
         private readonly ChartViewModel _chartViewModel;
         private readonly CameraConnectViewModel _cameraConnectViewModel;
+        private readonly CameraSettingViewModel _cameraSettingViewModel;
 
-        public MainWindowViewModel(DialogService? dialogService, PopupService popupService, UiDispatcher uiDispatcher, BackgroundJobQueue backgroundJobQueue,
-                                    CameraConnectViewModel cameraConnectViewModel,CameraViewModel cameraViewModel, ChartViewModel chartViewModel)
+        public MainWindowViewModel(DialogService? dialogService, PopupService popupService, 
+            UiDispatcher uiDispatcher, BackgroundJobQueue backgroundJobQueue,
+            CameraConnectViewModel cameraConnectViewModel,CameraViewModel cameraViewModel, ChartViewModel chartViewModel,CameraSettingViewModel cameraSettingViewModel)
             : base(dialogService, uiDispatcher, backgroundJobQueue)
         {
             _popupService = popupService;
             _cameraViewModel = cameraViewModel;
             _chartViewModel = chartViewModel;
             _cameraConnectViewModel = cameraConnectViewModel;
+            _cameraSettingViewModel = cameraSettingViewModel;
         }
         [RelayCommand]
         public async Task OpenCameraViewAsync()
@@ -43,6 +46,11 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         public async Task OpenChartViewAsync()
         {
             await _popupService.ShowModelessAsync( _chartViewModel);
+        }
+        [RelayCommand]
+        public async Task OpenCameraSettingViewAsync()
+        {
+            await _popupService.ShowModelessAsync(_cameraSettingViewModel);
         }
     }
 }

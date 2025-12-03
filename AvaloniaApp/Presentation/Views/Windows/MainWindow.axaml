@@ -8,7 +8,9 @@
         x:Class="AvaloniaApp.Presentation.Views.Windows.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="AvaloniaApp">
+        Title="CameraApp"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
@@ -28,6 +30,7 @@
         <DockPanel HorizontalAlignment="Left" VerticalAlignment="Top">
 			<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="0">
                 <Button Content="ConnectCamera" Command="{Binding OpenCameraConnectViewAsync}" BorderThickness="0" CornerRadius="0"/>
+                <Button Content="CameraSetting" Command="{Binding OpenCameraSettingViewAsync}" BorderThickness="0" CornerRadius="0"/>
                 <Button Content="Camera" Command="{Binding OpenCameraViewAsync}" BorderThickness="0" CornerRadius="0"/>
                 <Button Content="SpectrumChart" Command="{Binding OpenChartViewAsync}" BorderThickness="0" CornerRadius="0"/>
             </StackPanel>

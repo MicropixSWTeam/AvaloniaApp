@@ -40,4 +40,10 @@ namespace AvaloniaApp.Core.Models
         public override string ToString()
             => string.IsNullOrWhiteSpace(DisplayName) ? Name : DisplayName;
     }
+    public sealed class ImageMatchData
+    {
+        public int XOffset { get; init; }   
+        public int YOffset { get; init; }
+        public int Distance { get; init; }  
+    }
 }

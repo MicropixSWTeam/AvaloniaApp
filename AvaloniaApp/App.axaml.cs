@@ -40,6 +40,7 @@ namespace AvaloniaApp
             // ViewModel
             services.AddSingleton<CameraViewModel>();
             services.AddSingleton<CameraConnectViewModel>();
+            services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();
             services.AddSingleton<FileExplorerViewModel>();
             services.AddSingleton<MainWindowViewModel>();
@@ -48,6 +49,7 @@ namespace AvaloniaApp
             // View
             services.AddSingleton<CameraView>();
             services.AddSingleton<CameraConnectView>();
+            services.AddSingleton<CameraSettingView>();
             services.AddSingleton<ChartView>();
             services.AddSingleton<TabView>();
             services.AddSingleton<FileExplorerView>();
@@ -81,9 +83,7 @@ namespace AvaloniaApp
 
             builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
             // 설정 바인딩
-            builder.Services.Configure<CameraOptions>(builder.Configuration.GetSection("Camera"));
-            builder.Services.Configure<CameraConnectViewOptions>(builder.Configuration.GetSection("Views:CameraConnect"));
-            builder.Services.Configure<SpectrumChartViewOptions>(builder.Configuration.GetSection("Views:SpectrumChart"));
+            builder.Services.Configure<Options>(builder.Configuration.GetSection("Options"));
             // DI 등록
             builder.Services.AddAppServices(); // 직접 만든 확장 메서드
 

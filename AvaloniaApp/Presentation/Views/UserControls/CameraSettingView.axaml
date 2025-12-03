@@ -2,8 +2,73 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             mc:Ignorable="d"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraSettingView"
-             x:DataType="vm:CameraSettingViewModel">
+             x:DataType="vm:CameraSettingViewModel"
+             d:DesignWidth="1000"
+             d:DesignHeight="1000"
+             Loaded="OnLoaded">
+
+    <StackPanel Margin="16" Spacing="12">
+        <TextBlock Text="Camera Settings"
+                   FontSize="18"
+                   FontWeight="Bold" />
+
+        <!-- Exposure -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="Exposure [us]" />
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <!-- Slider -->
+                <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                        Minimum="{Binding ExposureMin}"
+                        Maximum="{Binding ExposureMax}"
+                        Value="{Binding ExposureTime, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+
+                <!-- TextBox -->
+                <TextBox Grid.Row="1" Grid.Column="0"
+                         Width="100"
+                         Text="{Binding ExposureTime,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+            </Grid>
+        </StackPanel>
+
+        <!-- Gain -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="Gain [db]" />
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                        Minimum="{Binding GainMin}"
+                        Maximum="{Binding GainMax}"
+                        Value="{Binding Gain, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+                <TextBox Grid.Row="1" Grid.Column="0"
+                         Width="100"
+                         Text="{Binding Gain,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+            </Grid>
+        </StackPanel>
+
+        <!-- Gamma -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="Gamma" />
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                        Minimum="{Binding GammaMin}"
+                        Maximum="{Binding GammaMax}"
+                        Value="{Binding Gamma, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+                <TextBox Grid.Row="1" Grid.Column="0"
+                         Width="100"
+                         Text="{Binding Gamma,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+            </Grid>
+        </StackPanel>
+
+        <!-- ¹öÆ° -->
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="Reload"
+                    Command="{Binding LoadCommand}" />
+            <Button Content="Apply"
+                    Command="{Binding ApplyCommand}" />
+        </StackPanel>
+    </StackPanel>
 </UserControl>

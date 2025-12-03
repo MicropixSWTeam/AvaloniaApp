@@ -4,6 +4,7 @@ using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,15 +14,16 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     {
         [ObservableProperty]
         private Bitmap? image;
+        [ObservableProperty]
+        private List<Bitmap> cropImages = new();
+        [ObservableProperty]
+        private int selectedCropIndex = -1; 
 
         private readonly CameraPipeline _cameraPipeline;
         public CameraViewModel(CameraPipeline cameraPipeline) : base()
         {
             _cameraPipeline = cameraPipeline;
         }
-        /// <summary>
-        /// Image 속성이 바뀔 때 이전 Bitmap 해제 (메모리 누수 방지)
-        /// </summary>
         partial void OnImageChanging(Bitmap? value)
         {
             image?.Dispose();
