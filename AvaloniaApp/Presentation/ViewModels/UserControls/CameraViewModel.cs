@@ -15,15 +15,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private Bitmap? image;
 
         private readonly CameraPipeline _cameraPipeline;
-
-        // 프리뷰용 CTS (Start/Stop 에서 사용)
-        private CancellationTokenSource? _previewCts;
-
         public CameraViewModel(CameraPipeline cameraPipeline) : base()
         {
             _cameraPipeline = cameraPipeline;
         }
-
         /// <summary>
         /// Image 속성이 바뀔 때 이전 Bitmap 해제 (메모리 누수 방지)
         /// </summary>
@@ -31,7 +26,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             image?.Dispose();
         }
-
         [RelayCommand]
         public async Task CaptureAsync()
         {
@@ -44,20 +38,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 });
             });
         }
-
         [RelayCommand]
         public async Task StartPreviewAsync()
         {
-            // 이미 프리뷰 중이면 무시
-            if (_previewCts is not null)
-                return;
-
-            _previewCts = new CancellationTokenSource();
-
             await RunSafeAsync(async ct =>
             {
                 await _cameraPipeline.EnqueueStartPreviewAsync(
-                    _previewCts.Token,
+                    ct,
                     async bmp =>
                     {
                         // 여기서는 Bitmap 소유권을 ViewModel 이 가져감
@@ -66,18 +53,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     });
             });
         }
-
         [RelayCommand]
-        public Task StopPreviewAsync()
+        public async Task StopPreviewAsync()
         {
-            if (_previewCts is null)
-                return Task.CompletedTask;
-
-            _previewCts.Cancel();
-            _previewCts.Dispose();
-            _previewCts = null;
-
-            return Task.CompletedTask;
+            await RunSafeAsync(async ct =>
+            {
+                await _cameraPipeline.EnqueueStopPreviewAsync(ct);
+            });
         }
     }
 }

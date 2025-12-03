@@ -16,17 +16,17 @@
                     SelectedItem="{Binding SelectedCamera}"/>
             <Button Content="Refresh"
                     MinWidth="100"
-                    Command="{Binding LoadCamerasCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Command="{Binding LoadCamerasAsync}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
 
         <!-- 2. 픽셀 포맷 선택 영역 -->
         <StackPanel Orientation="Horizontal" Spacing="10">
             <Button Content="Connect"
                     MinWidth="100"
-                    Command="{Binding ConnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Command="{Binding ConnectCameraAsync}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
             <Button Content="Disconnect"
                     MinWidth="100"
-                    Command="{Binding DisconnectCameraCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Command="{Binding DisconnectCameraAsync}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
         </StackPanel>
 
     </StackPanel>

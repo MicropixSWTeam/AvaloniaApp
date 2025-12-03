@@ -101,7 +101,17 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-
+        public Task EnqueueStopPreviewAsync(
+            CancellationToken ct)
+        {
+            var job = new BackgroundJob(
+                "CameraStopPreview",
+                async token =>
+                {
+                    await _cameraService.StopStreamAsync(token);
+                });
+            return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
+        }
         /// <summary>
         /// 단일 캡처
         /// </summary>
