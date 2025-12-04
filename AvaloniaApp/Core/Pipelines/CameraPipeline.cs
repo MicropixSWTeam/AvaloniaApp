@@ -1,4 +1,5 @@
-﻿using Avalonia.Media.Imaging;
+﻿// AvaloniaApp.Core/Pipelines/CameraPipeline.cs
+using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
@@ -129,7 +130,7 @@ namespace AvaloniaApp.Core.Pipelines
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
 
-        public Task EnqueueStopPreviewAsync(CancellationToken ct)
+        public Task EnqueueStopPreviewAsync(CancellationToken ct, Func<Task> OnStopPreview)
         {
             var job = new BackgroundJob(
                 "CameraStopPreview",
@@ -147,11 +148,13 @@ namespace AvaloniaApp.Core.Pipelines
                     }
 
                     await _cameraService.StopStreamAsync(CancellationToken.None);
+                    await _uiDispatcher.InvokeAsync(OnStopPreview);
                 });
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueCaptureAsync(CancellationToken ct,Func<Bitmap, Task> onCapture)
+
+        public Task EnqueueCaptureAsync(CancellationToken ct, Func<Bitmap, Task> onCapture)
         {
             var job = new BackgroundJob(
                 "CameraCapture",
@@ -163,7 +166,8 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueConnectAsync(CancellationToken ct,string id,Func<Task> onConnect)
+
+        public Task EnqueueConnectAsync(CancellationToken ct, string id, Func<Task> onConnect)
         {
             var job = new BackgroundJob(
                 "CameraConnect",
@@ -175,7 +179,8 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueDisconnectAsync(CancellationToken ct,Func<Task>? onDisconnect = null)
+
+        public Task EnqueueDisconnectAsync(CancellationToken ct, Func<Task>? onDisconnect = null)
         {
             var job = new BackgroundJob(
                 "CameraDisconnect",
@@ -202,7 +207,8 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueLoadCameraParamsAsync(CancellationToken ct,Func<double, double, double, Task> onLoaded)
+
+        public Task EnqueueLoadCameraParamsAsync(CancellationToken ct, Func<double, double, double, Task> onLoaded)
         {
             var job = new BackgroundJob(
                 "CameraLoadParams",
@@ -217,7 +223,13 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
-        public Task EnqueueApplyCameraParamsAsync(CancellationToken ct,double exposureTime,double gain,double gamma,Func<double, double, double, Task>? onApplied = null)
+
+        public Task EnqueueApplyCameraParamsAsync(
+            CancellationToken ct,
+            double exposureTime,
+            double gain,
+            double gamma,
+            Func<double, double, double, Task>? onApplied = null)
         {
             var job = new BackgroundJob(
                 "CameraApplyParams",

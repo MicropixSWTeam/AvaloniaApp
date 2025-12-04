@@ -1,8 +1,12 @@
+// AvaloniaApp.Presentation/Views/UserControls/CameraView.xaml.cs
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media.Imaging;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
+using AvaloniaEdit.Utils;
 using System;
 
 namespace AvaloniaApp.Presentation.Views.UserControls
@@ -12,80 +16,137 @@ namespace AvaloniaApp.Presentation.Views.UserControls
         private bool _isDragging;
         private Point _dragStart;
 
-        // DataContext를 강하게 캐스팅해서 쓰기 위한 헬퍼
-        private CameraViewModel? Vm => DataContext as CameraViewModel;
-
         public CameraView()
         {
             InitializeComponent();
 
-            // 선택 중일 때 마우스 커서 모양(선택 사항)
-            SelectionCanvas.Cursor = new Cursor(StandardCursorType.Cross);
+            SelectionCanvas.SizeChanged += SelectionCanvas_OnSizeChanged;
+        }
+
+        private CameraViewModel? Vm => DataContext as CameraViewModel;
+
+        private void SelectionCanvas_OnSizeChanged(object? sender, SizeChangedEventArgs e)
+        {
+            if (Vm is null) return;
+            Vm.ImageControlSize = e.NewSize;
+        }
+
+        // 실제 화면에 렌더된 이미지 영역(Rect)을 계산 (Image.Stretch = Uniform 기준)
+        private bool TryGetImageRenderRect(out Rect rect)
+        {
+            rect = new Rect();
+
+            if (Vm?.DisplayImage is not Bitmap bmp)
+                return false;
+
+            var controlSize = SelectionCanvas.Bounds.Size;
+            var pixelSize = bmp.PixelSize;
+
+            if (controlSize.Width <= 0 || controlSize.Height <= 0 ||
+                pixelSize.Width <= 0 || pixelSize.Height <= 0)
+                return false;
+
+            double scale = Math.Min(
+                controlSize.Width / pixelSize.Width,
+                controlSize.Height / pixelSize.Height);
+
+            double imgWidth = pixelSize.Width * scale;
+            double imgHeight = pixelSize.Height * scale;
+
+            double offsetX = (controlSize.Width - imgWidth) * 0.5;
+            double offsetY = (controlSize.Height - imgHeight) * 0.5;
+
+            rect = new Rect(offsetX, offsetY, imgWidth, imgHeight);
+            return true;
+        }
+
+        private static Point ClampToRect(Point p, Rect rect)
+        {
+            var x = Math.Clamp(p.X, rect.X, rect.X + rect.Width);
+            var y = Math.Clamp(p.Y, rect.Y, rect.Y + rect.Height);
+            return new Point(x, y);
         }
 
         private void SelectionCanvas_OnPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (Vm is null) return;
+            if (!Vm.CanDrawRegions) return;
 
-            // 스트리밍 중일 때는 선택 비활성화 (Stop 누른 후에만 선택)
-            if (!Vm.IsStop) return;
+            if (!TryGetImageRenderRect(out var imageRect))
+                return;
 
-            var point = e.GetPosition(SelectionCanvas);
+            var pos = e.GetPosition(SelectionCanvas);
+
+            // 이미지 영역 밖에서 시작하면 무시
+            if (!imageRect.Contains(pos))
+                return;
 
             _isDragging = true;
-            _dragStart = point;
+            _dragStart = ClampToRect(pos, imageRect);
+            SelectionCanvas.CapturePointer(e.Pointer);
 
-            // 초기 rect 0으로 시작
+            Canvas.SetLeft(SelectionRect, _dragStart.X);
+            Canvas.SetTop(SelectionRect, _dragStart.Y);
             SelectionRect.Width = 0;
             SelectionRect.Height = 0;
-            Canvas.SetLeft(SelectionRect, point.X);
-            Canvas.SetTop(SelectionRect, point.Y);
 
-            // 공식 API: IPointer.Capture(IInputElement)
-            // https://api-docs.avaloniaui.net/docs/M_Avalonia_Input_IPointer_Capture
-            e.Pointer.Capture(SelectionCanvas);
+            Vm.SelectionRectInControl = new Rect(_dragStart, _dragStart);
+
+            e.Handled = true;
         }
 
         private void SelectionCanvas_OnPointerMoved(object? sender, PointerEventArgs e)
         {
-            if (!_isDragging) return;
-            if (Vm is null) return;
-            if (!Vm.IsStop) return;
+            if (!_isDragging || Vm is null) return;
 
-            var p = e.GetPosition(SelectionCanvas);
+            if (!TryGetImageRenderRect(out var imageRect))
+                return;
 
-            var x = Math.Min(_dragStart.X, p.X);
-            var y = Math.Min(_dragStart.Y, p.Y);
-            var w = Math.Abs(p.X - _dragStart.X);
-            var h = Math.Abs(p.Y - _dragStart.Y);
+            var raw = e.GetPosition(SelectionCanvas);
+            var current = ClampToRect(raw, imageRect);
 
-            SelectionRect.Width = w;
-            SelectionRect.Height = h;
+            double x = Math.Min(_dragStart.X, current.X);
+            double y = Math.Min(_dragStart.Y, current.Y);
+            double w = Math.Abs(current.X - _dragStart.X);
+            double h = Math.Abs(current.Y - _dragStart.Y);
+
             Canvas.SetLeft(SelectionRect, x);
             Canvas.SetTop(SelectionRect, y);
+            SelectionRect.Width = w;
+            SelectionRect.Height = h;
 
-            // VM에 현재 컨트롤 크기 + 선택 영역 전달
-            Vm.ImageControlSize = SelectionCanvas.Bounds.Size;
-            Vm.SelectionRectInControl = new Rect(x, y, w, h);
+            Vm.SelectionRectInControl = new Rect(new Point(x, y), new Size(w, h));
+
+            e.Handled = true;
         }
 
         private void SelectionCanvas_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
         {
-            if (!_isDragging) return;
+            if (!_isDragging || Vm is null) return;
 
             _isDragging = false;
+            SelectionCanvas.ReleasePointerCapture(e.Pointer);
 
-            // 캡처 해제
-            if (e.Pointer.Captured == SelectionCanvas)
-                e.Pointer.Capture(null);
+            if (!TryGetImageRenderRect(out var imageRect))
+                return;
 
-            if (Vm is null) return;
-            if (!Vm.IsStop) return;
+            var rawEnd = e.GetPosition(SelectionCanvas);
+            var end = ClampToRect(rawEnd, imageRect);
 
-            Vm.ImageControlSize = SelectionCanvas.Bounds.Size;
+            double x = Math.Min(_dragStart.X, end.X);
+            double y = Math.Min(_dragStart.Y, end.Y);
+            double w = Math.Abs(end.X - _dragStart.X);
+            double h = Math.Abs(end.Y - _dragStart.Y);
 
-            // 여기서 선택된 영역의 Y 평균/표준편차 계산 호출
-            Vm.UpdateSelectionStats();
+            Vm.SelectionRectInControl = new Rect(new Point(x, y), new Size(w, h));
+
+            // 여기서 Region 추가 + Chart 업데이트
+            Vm.CommitSelectionRect();
+
+            SelectionRect.Width = 0;
+            SelectionRect.Height = 0;
+
+            e.Handled = true;
         }
     }
 }

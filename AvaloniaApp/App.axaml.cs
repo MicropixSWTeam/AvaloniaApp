@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Jobs;
+using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
@@ -36,6 +37,11 @@ namespace AvaloniaApp
 
             services.AddSingleton<CameraPipeline>();
             services.AddSingleton<ImageProcessPipeline>();
+
+            services.AddSingleton<RegionAnalysisWorkspace>();
+            services.AddSingleton<ImageAnalysisWorkspace>();
+
+
             // 백그라운드 워커
             services.AddHostedService<BackgroundJobWorker>();
 

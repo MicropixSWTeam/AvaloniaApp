@@ -1,35 +1,40 @@
-﻿using System;
+﻿// AvaloniaApp.Core/Models/CameraAndAnalysisModels.cs
+using Avalonia;
+using Avalonia.Media.Imaging;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
     public sealed class CameraInfo
     {
-        public string   Id { get; init; } = string.Empty;
-        public string   Name { get; init; } = string.Empty;
-        public string   SerialNumber { get; init; } = string.Empty;
-        public string   ModelName { get; init; } = string.Empty;
+        public string Id { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string SerialNumber { get; init; } = string.Empty;
+        public string ModelName { get; init; } = string.Empty;
 
-        public CameraInfo(string id, string name, string serial,string modelName)
+        public CameraInfo(string id, string name, string serial, string modelName)
         {
             Id = id;
             Name = name;
             SerialNumber = serial;
             ModelName = modelName;
         }
+
         public override string ToString()
         {
             return $"{Name}";
         }
     }
+
     public sealed class PixelFormatInfo
     {
         public string Name { get; }
         public string DisplayName { get; }
         public bool IsAvailable { get; }
+
         public PixelFormatInfo(string name, string displayName, bool isAvailable)
         {
             Name = name;
@@ -40,6 +45,7 @@ namespace AvaloniaApp.Core.Models
         public override string ToString()
             => string.IsNullOrWhiteSpace(DisplayName) ? Name : DisplayName;
     }
+
     /// <summary>
     /// 각 타일별 평행 이동(translation) 보정 값
     /// OffsetX: +면 오른쪽, -면 왼쪽
@@ -132,12 +138,218 @@ namespace AvaloniaApp.Core.Models
                 },
             };
     }
-    public readonly record struct CropGridConfig(int RowSize,int ColSize,int RowGap,int ColGap,int RowCount,int ColCount);
-    public sealed class ImageMatchData
+
+    public readonly record struct CropGridConfig(
+        int RowSize,
+        int ColSize,
+        int RowGap,
+        int ColGap,
+        int RowCount,
+        int ColCount);
+
+    /// <summary>
+    /// 하나의 선택 영역(ROI)에 대한 정보.
+    /// </summary>
+    public sealed class SelectionRegion
     {
-        public int XOffset { get; init; }   
-        public int YOffset { get; init; }
-        public int Distance { get; init; }  
+        public int Index { get; }
+        public Rect ControlRect { get; }      // CameraView 캔버스 좌표
+        public Rect ImageRect { get; }        // 타일 이미지 좌표
+        public double Mean { get; }
+        public double StdDev { get; }
+
+        // Canvas 배치용 프로퍼티
+        public double X => ControlRect.X;
+        public double Y => ControlRect.Y;
+        public double Width => ControlRect.Width;
+        public double Height => ControlRect.Height;
+
+        public SelectionRegion(
+            int index,
+            Rect controlRect,
+            Rect imageRect,
+            double mean,
+            double stdDev)
+        {
+            Index = index;
+            ControlRect = controlRect;
+            ImageRect = imageRect;
+            Mean = mean;
+            StdDev = stdDev;
+        }
     }
 
+    /// <summary>
+    /// 하나의 ROI에 대해, 각 타일별 mean / stdDev 배열 (차트용).
+    /// </summary>
+    public sealed class RegionSeries
+    {
+        public int RegionIndex { get; }
+        public IReadOnlyList<double> Means { get; }
+        public IReadOnlyList<double> StdDevs { get; }
+
+        public RegionSeries(
+            int regionIndex,
+            IReadOnlyList<double> means,
+            IReadOnlyList<double> stdDevs)
+        {
+            RegionIndex = regionIndex;
+            Means = means;
+            StdDevs = stdDevs;
+        }
+    }
+
+    /// <summary>
+    /// 타일 하나에 대한 Y(mean, stdDev) 통계.
+    /// </summary>
+    public sealed record TileStats(double Mean, double StdDev);
+
+    /// <summary>
+    /// 선택 영역(ROI) + 각 영역에 대한 타일별 통계를 공유하는 워크스페이스.
+    /// CameraViewModel, ChartViewModel 등에서 DI로 공유.
+    /// </summary>
+    public sealed class RegionAnalysisWorkspace
+    {
+        private readonly ObservableCollection<SelectionRegion> _regions = new();
+        public ObservableCollection<SelectionRegion> Regions => _regions;
+
+        /// <summary>
+        /// 선택된 영역(Chart에서 선택해서 Remove할 때 사용).
+        /// </summary>
+        public SelectionRegion? SelectedRegion { get; set; }
+
+        /// <summary>
+        /// Region.Index → 타일별 통계 리스트(예: 15개 TileStats).
+        /// </summary>
+        public Dictionary<int, IReadOnlyList<TileStats>> RegionTileStats { get; } = new();
+
+        /// <summary>
+        /// Regions/RegionTileStats가 변경될 때마다 발생.
+        /// ChartViewModel에서 Subscribe해서 Series 재구성.
+        /// </summary>
+        public event EventHandler? Changed;
+
+        public void AddRegion(SelectionRegion region, IReadOnlyList<TileStats> tileStats)
+        {
+            if (region is null) throw new ArgumentNullException(nameof(region));
+            if (tileStats is null) throw new ArgumentNullException(nameof(tileStats));
+
+            // 같은 Index가 있으면 먼저 제거
+            var existing = _regions.FirstOrDefault(r => r.Index == region.Index);
+            if (existing is not null)
+            {
+                _regions.Remove(existing);
+                RegionTileStats.Remove(existing.Index);
+            }
+
+            _regions.Add(region);
+            RegionTileStats[region.Index] = tileStats;
+            OnChanged();
+        }
+
+        public void RemoveRegion(SelectionRegion region)
+        {
+            if (region is null) return;
+            if (_regions.Remove(region))
+            {
+                RegionTileStats.Remove(region.Index);
+                if (ReferenceEquals(SelectedRegion, region))
+                    SelectedRegion = null;
+                OnChanged();
+            }
+        }
+
+        public void Clear()
+        {
+            _regions.Clear();
+            RegionTileStats.Clear();
+            SelectedRegion = null;
+            OnChanged();
+        }
+
+        private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// 현재 프레임 + 타일(정규화된 타일 포함) + ROI 영역 + ROI별 시리즈를
+    /// 공용으로 관리하는 Workspace.
+    /// CameraViewModel, ChartViewModel 등이 DI로 공유해서 사용.
+    /// </summary>
+    public sealed class ImageAnalysisWorkspace : IDisposable
+    {
+        public WriteableBitmap? SourceGrayFrame { get; private set; }
+
+        /// <summary>정규화 + translation까지 완료된 타일들(Gray8) </summary>
+        public IReadOnlyList<WriteableBitmap> NormalizedTiles { get; private set; }
+            = Array.Empty<WriteableBitmap>();
+
+        /// <summary>그려진 ROI 사각형 목록 (CameraView에서 사용)</summary>
+        public ObservableCollection<SelectionRegion> Regions { get; } = new();
+
+        /// <summary>각 ROI에 대응하는 타일별 mean/stdDev (ChartViewModel에서 사용)</summary>
+        public ObservableCollection<RegionSeries> RegionSeries { get; } = new();
+
+        private int _nextRegionIndex = 1;
+        public int NextRegionIndex => _nextRegionIndex;
+
+        public ImageAnalysisWorkspace()
+        {
+        }
+
+        public void SetFrameAndTiles(WriteableBitmap? frame, IReadOnlyList<WriteableBitmap> tiles)
+        {
+            // 기존 리소스 해제
+            SourceGrayFrame?.Dispose();
+            if (NormalizedTiles is { Count: > 0 })
+            {
+                foreach (var t in NormalizedTiles)
+                    t.Dispose();
+            }
+
+            SourceGrayFrame = frame;
+            NormalizedTiles = tiles ?? Array.Empty<WriteableBitmap>();
+
+            // 새 프레임이 들어오면 ROI/시리즈는 초기화 (새 측정으로 간주)
+            Regions.Clear();
+            RegionSeries.Clear();
+            _nextRegionIndex = 1;
+        }
+
+        public int AllocateRegionIndex()
+        {
+            return _nextRegionIndex++;
+        }
+
+        public void AddRegion(SelectionRegion region, RegionSeries series)
+        {
+            Regions.Add(region);
+            RegionSeries.Add(series);
+        }
+
+        public void ClearRegions()
+        {
+            Regions.Clear();
+            RegionSeries.Clear();
+            _nextRegionIndex = 1;
+        }
+
+        public void RemoveLastRegion()
+        {
+            if (Regions.Count == 0 || RegionSeries.Count == 0)
+                return;
+
+            Regions.RemoveAt(Regions.Count - 1);
+            RegionSeries.RemoveAt(RegionSeries.Count - 1);
+        }
+
+        public void Dispose()
+        {
+            SourceGrayFrame?.Dispose();
+            if (NormalizedTiles is { Count: > 0 })
+            {
+                foreach (var t in NormalizedTiles)
+                    t.Dispose();
+            }
+        }
+    }
 }

@@ -1,32 +1,32 @@
-﻿using AvaloniaApp.Core.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Jobs
 {
-    public sealed class BackgroundJobQueue 
+    public sealed class BackgroundJobQueue
     {
         private readonly Channel<BackgroundJob> _channel;
 
+        // capacity 파라미터는 더 이상 쓰지 않지만,
+        // 기존 호출부 깨지지 않게 시그니처만 유지
         public BackgroundJobQueue(int capacity = 100)
         {
-            var options = new BoundedChannelOptions(capacity)
+            var options = new UnboundedChannelOptions
             {
                 SingleWriter = false,
-                SingleReader = true,
-                FullMode = BoundedChannelFullMode.Wait
+                SingleReader = true
             };
 
-            _channel = Channel.CreateBounded<BackgroundJob>(options);
+            _channel = Channel.CreateUnbounded<BackgroundJob>(options);
         }
 
         public ValueTask EnqueueAsync(BackgroundJob job, CancellationToken ct = default)
-            => _channel.Writer.WriteAsync(job, ct);
+        {
+            if (job is null) throw new ArgumentNullException(nameof(job));
+            return _channel.Writer.WriteAsync(job, ct);
+        }
 
         public ValueTask<BackgroundJob> DequeueAsync(CancellationToken ct)
             => _channel.Reader.ReadAsync(ct);

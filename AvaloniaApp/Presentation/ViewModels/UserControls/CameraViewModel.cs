@@ -1,35 +1,23 @@
-﻿using Avalonia;
+﻿// AvaloniaApp.Presentation/ViewModels/UserControls/CameraViewModel.cs
+using Avalonia;
 using Avalonia.Media.Imaging;
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public sealed class RoiSelection
-    {
-        public int Index { get; }
-        public Rect ControlRect { get; } // 컨트롤 좌표계의 사각형 (그대로 캔버스에 그림)
-        public double Mean { get; }
-        public double StdDev { get; }
-
-        public string Label => $"R{Index + 1}";
-
-        public RoiSelection(int index, Rect controlRect, double mean, double stdDev)
-        {
-            Index = index;
-            ControlRect = controlRect;
-            Mean = mean;
-            StdDev = stdDev;
-        }
-    }
-    public partial class CameraViewModel : ViewModelBase
+    public partial class CameraViewModel : ViewModelBase,IPopup
     {
         // 카메라에서 들어오는 전체 프레임 (스트리밍)
         [ObservableProperty]
@@ -58,13 +46,20 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private double targetIntensity = 128.0;
 
+        // 거리 선택 (0 = translation 없음)
         [ObservableProperty]
         private int selectedDistance = 0;
-        
+
+        // Stop 상태
         [ObservableProperty]
         private bool isStop = false;
 
-        // 최근 선택 영역(컨트롤 좌표)
+        /// <summary>
+        /// 실제 드로잉 가능 여부 = Stop 상태 + Draw 모드
+        /// </summary>
+        public bool CanDrawRegions => IsStop;
+
+        // 최근 드래그 중인 선택 영역(컨트롤 좌표)
         private Rect _selectionRectInControl;
         public Rect SelectionRectInControl
         {
@@ -72,7 +67,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             set => SetProperty(ref _selectionRectInControl, value);
         }
 
-        // 컨트롤 실제 렌더 크기 (CameraView 코드비하인드에서 업데이트)
+        // 컨트롤 실제 렌더 크기 (SelectionCanvas 크기)
         private Size _imageControlSize;
         public Size ImageControlSize
         {
@@ -86,10 +81,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private double selectedRegionStdDev;
 
-        // 여러 개 ROI
-        public ObservableCollection<RoiSelection> RoiSelections { get; } = new();
-
-        public string Title { get; set; } = "Camera Setting";
+        public string Title { get; set; } = "Camera View";
         public int Width { get; set; } = 900;
         public int Height { get; set; } = 600;
 
@@ -99,9 +91,16 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private readonly CameraPipeline _cameraPipeline;
         private readonly ImageProcessService _imageProcessService;
-        private readonly ImageProcessPipeline _imageProcessPipeline;
         private readonly DrawRectService _drawRectService;
         private readonly StorageService _storageService;
+        private readonly RegionAnalysisWorkspace _analysis;
+
+        /// <summary>
+        /// XAML에서 ROI 오버레이를 위해 바인딩할 컬렉션.
+        /// (_analysis.Regions 그대로 노출)
+        /// </summary>
+        public ObservableCollection<SelectionRegion> Regions => _analysis.Regions;
+
         // grid 설정 (현재 카메라 해상도 기준 5x3, 1064x1012)
         private readonly CropGridConfig _gridConfig =
             new CropGridConfig(
@@ -115,19 +114,26 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private bool _gridConfigured;
         private PixelSize _gridFrameSize;
 
-      public CameraViewModel(
-        CameraPipeline cameraPipeline,
-        ImageProcessService imageProcessService,
-        DrawRectService drawRectService,
-        StorageService storageService,
-        ImageProcessPipeline imageProcessPipeline) : base()
-    {
-        _cameraPipeline = cameraPipeline;
-        _imageProcessService = imageProcessService;
-        _drawRectService = drawRectService;
-        _storageService = storageService;
-        _imageProcessPipeline = imageProcessPipeline;
-    }
+        // ==== 정규화된 타일 캐시 (성능 개선용) ====
+        // 같은 프레임 + 같은 거리 + 같은 TargetIntensity 에 대해서만 재사용
+        private IReadOnlyList<WriteableBitmap>? _normalizedTilesCache;
+        private Bitmap? _normalizedTilesSource;
+        private int _normalizedTilesDistance;
+        private byte _normalizedTilesTarget;
+
+        public CameraViewModel(
+            CameraPipeline cameraPipeline,
+            ImageProcessService imageProcessService,
+            DrawRectService drawRectService,
+            StorageService storageService,
+            RegionAnalysisWorkspace analysis) : base()
+        {
+            _cameraPipeline = cameraPipeline;
+            _imageProcessService = imageProcessService;
+            _drawRectService = drawRectService;
+            _storageService = storageService;
+            _analysis = analysis;
+        }
 
         /// <summary>
         /// 실제 화면에 바인딩할 이미지
@@ -156,6 +162,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         partial void OnImageChanging(Bitmap? value)
         {
+            // 새 프레임이 들어오므로 타일 캐시 무효화
+            InvalidateNormalizedTilesCache();
             image?.Dispose();
         }
 
@@ -205,15 +213,25 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         partial void OnTargetIntensityChanged(double value)
         {
+            // intensity 값 변경 → 타일 캐시 무효화
+            InvalidateNormalizedTilesCache();
+
             UpdatePreviewImages();
             OnPropertyChanged(nameof(DisplayImage));
         }
 
         partial void OnSelectedDistanceChanged(int value)
         {
-            // 거리 변경 시 translation이 달라지므로 프리뷰 갱신
+            // 거리 변경 → 타일 캐시 무효화
+            InvalidateNormalizedTilesCache();
+
             UpdatePreviewImages();
             OnPropertyChanged(nameof(DisplayImage));
+        }
+
+        partial void OnIsStopChanged(bool value)
+        {
+            OnPropertyChanged(nameof(CanDrawRegions));
         }
 
         // ===== Commands =====
@@ -239,15 +257,49 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             await RunSafeAsync(async ct =>
             {
-                await _cameraPipeline.EnqueueStopPreviewAsync(ct);
-                IsStop = true;
+                await _cameraPipeline.EnqueueStopPreviewAsync(ct, async () =>
+                {
+                    IsStop = true;
+                    await Task.CompletedTask;
+                });
             });
         }
+        [RelayCommand]
+        public async Task SaveImageSetAsync()
+        {
+            // 선택: 저장은 Stop 상태에서만 허용
+            if (!IsStop)
+                return;
 
-        /// <summary>
-        /// 다음 타일로 이동하는 버튼 (&gt;)
-        /// -1 → 0 → 1 → ... → (마지막)
-        /// </summary>
+            if (Image is null)
+                return;
+
+            // 현재 Image + SelectedDistance + TargetIntensity 기준으로
+            // 정규화+translation된 타일들을 캐시에서 얻거나 새로 계산
+            var tiles = GetOrBuildNormalizedTiles(Image);   // IReadOnlyList<WriteableBitmap>
+
+            // WriteableBitmap -> Bitmap 업캐스트용 리스트
+            var tileBitmaps = tiles.Cast<Bitmap>().ToList(); // List<Bitmap>
+
+            // 타일 그대로 붙여서 전체 stitched 이미지 생성
+            // (translation은 BuildNormalizedTiles 안에서 이미 적용된 상태라고 가정)
+            var stitched = _imageProcessService.StitchTiles(tileBitmaps);
+
+            try
+            {
+                // sessionName: null이면 StorageService 내부에서 Timestamp로 폴더 이름 생성
+                await _storageService.SaveImageSetWithFolderDialogAsync(
+                    stitched,
+                    tileBitmaps,
+                    sessionName: null,
+                    ct: CancellationToken.None);
+            }
+            finally
+            {
+                // stitched는 여기서만 쓰는 임시 비트맵이므로 해제
+                stitched.Dispose();
+            }
+        }
         [RelayCommand]
         private void NextIndex()
         {
@@ -266,10 +318,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             }
         }
 
-        /// <summary>
-        /// 이전 타일로 이동하는 버튼 (&lt;)
-        /// ... → 2 → 1 → 0 → -1
-        /// </summary>
         [RelayCommand]
         private void PrevIndex()
         {
@@ -285,22 +333,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 SelectedCropIndex = -1; // 전체 이미지로 돌아가기
             }
         }
-        [RelayCommand]
-        private async Task SaveDisplayImageAsync()
-        {
-            // 화면에 표시 중인 이미지가 없으면 무시
-            var bmp = DisplayImage as Bitmap;
-            if (bmp is null)
-                return;
 
-            await RunSafeAsync(async ct =>
-            {
-                await _storageService.SaveBitmapWithDialogAsync(
-                    bmp,
-                    ".png",   // 기본 제안 파일명
-                    ct);
-            });
-        }
         // ===== 내부 헬퍼 =====
 
         private void EnsureGridConfigured(Bitmap frame)
@@ -335,18 +368,17 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             if (SelectedCropIndex >= _imageProcessService.TileCount)
                 return;
 
-            // 거리 + 인덱스 기반 translation 오프셋
             var transform = GetTileTransform(SelectedDistance, SelectedCropIndex);
 
-            // 원본 타일 (translation 적용)
+            // 원본 타일
             var rawTile = _imageProcessService.CropTile(Image, SelectedCropIndex, transform);
             CroppedPreviewImage = rawTile;
 
             // normalize 프리뷰
             if (NormalizePreviewEnabled)
             {
-                var ti = (byte)System.Math.Clamp(
-                    (int)System.Math.Round(TargetIntensity),
+                var ti = (byte)Math.Clamp(
+                    (int)Math.Round(TargetIntensity),
                     0,
                     255);
 
@@ -373,97 +405,206 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             return t;
         }
-        // CameraViewModel 클래스 내부, 아무 데나 메서드로 추가
-        public void UpdateSelectionStats()
-        {
-            // 현재 화면에 보이는 비트맵 (전체 or 타일)
-            var bmp = DisplayImage;
-            if (bmp is null)
-            {
-                SelectedRegionMean = 0;
-                SelectedRegionStdDev = 0;
-                return;
-            }
 
-            var stats = _drawRectService.GetYStatsFromSelection(
-                bmp,
-                SelectionRectInControl,
-                ImageControlSize);
-
-            if (stats is { } s)
-            {
-                SelectedRegionMean = s.mean;
-                SelectedRegionStdDev = s.stdDev;
-            }
-            else
-            {
-                SelectedRegionMean = 0;
-                SelectedRegionStdDev = 0;
-            }
-        }
         /// <summary>
-        /// 현재 SelectionRectInControl을 기준으로
-        /// DisplayImage에서 Y 평균/표준편차를 구하고
-        /// RoiSelections에 1개 ROI를 추가한다.
+        /// 정규화 타일 캐시 초기화(Dispose 포함).
+        /// </summary>
+        private void InvalidateNormalizedTilesCache()
+        {
+            if (_normalizedTilesCache is { Count: > 0 })
+            {
+                foreach (var tile in _normalizedTilesCache)
+                    tile.Dispose();
+            }
+
+            _normalizedTilesCache = null;
+            _normalizedTilesSource = null;
+        }
+
+        /// <summary>
+        /// 현재 Image + SelectedDistance + TargetIntensity 조합에 대해
+        /// 정규화+translation된 타일 배열을 한 번만 생성해서 캐시.
+        /// </summary>
+        private IReadOnlyList<WriteableBitmap> GetOrBuildNormalizedTiles(Bitmap source)
+        {
+            var ti = (byte)Math.Clamp(
+                (int)Math.Round(TargetIntensity),
+                0,
+                255);
+
+            if (_normalizedTilesCache is { Count: > 0 } &&
+                ReferenceEquals(_normalizedTilesSource, source) &&
+                _normalizedTilesDistance == SelectedDistance &&
+                _normalizedTilesTarget == ti)
+            {
+                return _normalizedTilesCache;
+            }
+
+            // 기존 캐시 정리
+            InvalidateNormalizedTilesCache();
+
+            // Grid 설정 보장
+            EnsureGridConfigured(source);
+
+            // 거리별 translation을 적용한 정규화 타일 생성
+            var tiles = _imageProcessService.BuildNormalizedTiles(
+                source,
+                idx => GetTileTransform(SelectedDistance, idx),
+                ti);
+
+            _normalizedTilesCache = tiles;
+            _normalizedTilesSource = source;
+            _normalizedTilesDistance = SelectedDistance;
+            _normalizedTilesTarget = ti;
+
+            return tiles;
+        }
+
+        /// <summary>
+        /// ROI 선택 확정 시 호출.
+        /// - Stop 상태일 때만 동작.
+        /// - 미리 만들어둔(또는 캐시에서 가져온) 정규화 타일에서
+        ///   동일 비율(u1..u2, v1..v2)의 영역을 잘라 Y mean/std 계산.
         /// </summary>
         public void CommitSelectionRect()
         {
-            var bmp = DisplayImage;
-            if (bmp is null)
+            // 1) 기본 체크
+            if (Image is null)
+                return;
+
+            if (!CanDrawRegions)
+                return;
+
+            if (SelectionRectInControl.Width <= 0 ||
+                SelectionRectInControl.Height <= 0)
+                return;
+
+            // 반드시 "타일 모드"에서만 ROI 정의
+            if (SelectedCropIndex < 0)
+                return;
+
+            if (_imageProcessService.TileCount <= 0)
+                return;
+
+            // 2) 정규화 타일 캐시 가져오기 (없으면 생성)
+            IReadOnlyList<WriteableBitmap> tiles;
+            try
             {
-                SelectedRegionMean = 0;
-                SelectedRegionStdDev = 0;
+                tiles = GetOrBuildNormalizedTiles(Image);
+            }
+            catch
+            {
+                // 포맷 문제 등으로 Normalize 실패 시 안전하게 종료
                 return;
             }
 
-            // 컨트롤 크기는 CameraView 코드비하인드에서 계속 갱신해준다.
-            var stats = _drawRectService.GetYStatsFromSelection(
-                bmp,
+            if (SelectedCropIndex >= tiles.Count)
+                return;
+
+            var baseTile = tiles[SelectedCropIndex];
+            if (baseTile is null)
+                return;
+
+            // SelectionCanvas 크기 기준 → 기준 타일 좌표로 변환
+            var baseRectInTile = _drawRectService.ControlRectToImageRect(
                 SelectionRectInControl,
-                ImageControlSize);
+                ImageControlSize,
+                baseTile);
 
-            if (stats is not { } s)
-            {
-                SelectedRegionMean = 0;
-                SelectedRegionStdDev = 0;
+            if (baseRectInTile.Width <= 0 || baseRectInTile.Height <= 0)
                 return;
-            }
 
-            SelectedRegionMean = s.mean;
-            SelectedRegionStdDev = s.stdDev;
+            var baseSize = baseTile.PixelSize;
+            if (baseSize.Width <= 0 || baseSize.Height <= 0)
+                return;
 
-            // 새 ROI 추가 (ControlRect는 그대로 사용, ImageRect는 필요하면 나중에 추가)
-            var index = RoiSelections.Count;
-            var roi = new RoiSelection(index, SelectionRectInControl, s.mean, s.stdDev);
-            RoiSelections.Add(roi);
-        }
-        [RelayCommand]
-        private void ClearRois()
-        {
-            RoiSelections.Clear();
-            SelectedRegionMean = 0;
-            SelectedRegionStdDev = 0;
-        }
+            // 3) 기준 타일에서의 정규화 좌표 [0..1]
+            double u1 = baseRectInTile.X / baseSize.Width;
+            double v1 = baseRectInTile.Y / baseSize.Height;
+            double u2 = (baseRectInTile.X + baseRectInTile.Width) / baseSize.Width;
+            double v2 = (baseRectInTile.Y + baseRectInTile.Height) / baseSize.Height;
 
-        [RelayCommand]
-        private void RemoveLastRoi()
-        {
-            if (RoiSelections.Count == 0) return;
+            u1 = Math.Clamp(u1, 0.0, 1.0);
+            v1 = Math.Clamp(v1, 0.0, 1.0);
+            u2 = Math.Clamp(u2, 0.0, 1.0);
+            v2 = Math.Clamp(v2, 0.0, 1.0);
 
-            RoiSelections.RemoveAt(RoiSelections.Count - 1);
+            if (u2 <= u1 || v2 <= v1)
+                return;
 
-            if (RoiSelections.Count > 0)
+            // 4) 모든 타일에 대해 동일 비율(u1..u2, v1..v2)의 영역에서 Y mean/std 계산
+            var tileStatsList = new List<TileStats>(tiles.Count);
+            var allMeans = new List<double>(tiles.Count);
+            var allSds = new List<double>(tiles.Count);
+
+            for (int tileIndex = 0; tileIndex < tiles.Count; tileIndex++)
             {
-                var last = RoiSelections[^1];
-                SelectedRegionMean = last.Mean;
-                SelectedRegionStdDev = last.StdDev;
-            }
-            else
-            {
-                SelectedRegionMean = 0;
-                SelectedRegionStdDev = 0;
-            }
-        }
+                var tileBmp = tiles[tileIndex];
+                if (tileBmp is null)
+                {
+                    var zero = new TileStats(0, 0);
+                    tileStatsList.Add(zero);
+                    allMeans.Add(0);
+                    allSds.Add(0);
+                    continue;
+                }
 
+                var ps = tileBmp.PixelSize;
+                if (ps.Width <= 0 || ps.Height <= 0)
+                {
+                    var zero = new TileStats(0, 0);
+                    tileStatsList.Add(zero);
+                    allMeans.Add(0);
+                    allSds.Add(0);
+                    continue;
+                }
+
+                int tx1 = (int)Math.Floor(u1 * ps.Width);
+                int ty1 = (int)Math.Floor(v1 * ps.Height);
+                int tx2 = (int)Math.Ceiling(u2 * ps.Width);
+                int ty2 = (int)Math.Ceiling(v2 * ps.Height);
+
+                var tileRectPx = new Rect(tx1, ty1, tx2 - tx1, ty2 - ty1);
+
+                var stats = _drawRectService.GetYStatsFromGrayTile(tileBmp, tileRectPx);
+
+                if (stats is { } s)
+                {
+                    var ts = new TileStats(s.mean, s.stdDev);
+                    tileStatsList.Add(ts);
+                    allMeans.Add(s.mean);
+                    allSds.Add(s.stdDev);
+                }
+                else
+                {
+                    var zero = new TileStats(0, 0);
+                    tileStatsList.Add(zero);
+                    allMeans.Add(0);
+                    allSds.Add(0);
+                }
+            }
+
+            // 5) ROI 전체 요약값 (타일 mean/std 평균)
+            double regionMean = allMeans.Count > 0 ? allMeans.Average() : 0.0;
+            double regionStd = allSds.Count > 0 ? allSds.Average() : 0.0;
+
+            SelectedRegionMean = regionMean;
+            SelectedRegionStdDev = regionStd;
+
+            // 6) SelectionRegion 인덱스 부여 (1,2,3,...)
+            int newIndex = _analysis.Regions.Count == 0
+                ? 1
+                : _analysis.Regions.Max(r => r.Index) + 1;
+
+            var region = new SelectionRegion(
+                newIndex,
+                SelectionRectInControl, // CameraView 캔버스 좌표
+                baseRectInTile,         // 기준 타일 좌표
+                regionMean,
+                regionStd);
+
+            // 7) Workspace에 등록 → Chart + ROI 오버레이 둘 다 갱신
+            _analysis.AddRegion(region, tileStatsList);
+        }
     }
 }

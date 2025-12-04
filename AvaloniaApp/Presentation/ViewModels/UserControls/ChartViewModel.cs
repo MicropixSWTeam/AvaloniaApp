@@ -1,25 +1,21 @@
-﻿using AvaloniaApp.Core.Interfaces;
+﻿// AvaloniaApp.Presentation/ViewModels/UserControls/ChartViewModel.cs
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
-using LiveChartsCore.Drawing;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
-using Microsoft.Extensions.Logging;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-
-    public partial class ChartViewModel:ViewModelBase,IPopup    
+    public partial class ChartViewModel : ViewModelBase, IPopup
     {
         [ObservableProperty]
         private ISeries[]? series;
@@ -30,98 +26,158 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private Axis[]? yAxes;
 
-        private ChartModel? _chartModel;
-        private readonly List<SpectrumData> _spectrumDatas = new();
+        [ObservableProperty]
+        private SelectionRegion? selectedRegion;
+
+        private readonly RegionAnalysisWorkspace _analysis;
 
         public string Title { get; set; } = "Spectrum Chart";
         public int Width { get; set; } = 600;
         public int Height { get; set; } = 400;
-        public ChartViewModel()
+
+        public IEnumerable<SelectionRegion> Regions => _analysis.Regions;
+
+        // ROI 색상 팔레트 (차트 + 카메라 ROI에 같이 쓸 수 있도록 고정 팔레트)
+        private static readonly SKColor[] Palette =
         {
-            // 예시 데이터: 평균 + 표준편차
-            // x = 0,1,2,3 / mean, sd
-            var means = new[] { 100,110,200,250,50, 100, 110, 200, 250, 50, 100, 110, 200, 250, 50 };
-            var sds = new[] { 5, 8, 10, 6 ,2, 5, 8, 1, 6, 2 , 5, 8, 1, 6, 2 };
+            new SKColor( 59, 130, 246), // 파랑
+            new SKColor( 34, 197,  94), // 초록
+            new SKColor(239,  68,  68), // 레드
+            new SKColor(234, 179,   8), // 노랑
+            new SKColor( 56, 189, 248), // 시안
+            new SKColor(168,  85, 247), // 보라
+        };
 
-            var errorValues = means
-                .Select((m, i) => new ErrorValue(m, sds[i])) // m ± sd
-                .ToArray();
+        public ChartViewModel(RegionAnalysisWorkspace analysis)
+        {
+            _analysis = analysis;
+            _analysis.Changed += (_, __) => RebuildSeries();
 
-            Series = new ISeries[]
-            {
-                new LineSeries<ErrorValue>
-                {
-                    Name   = "Intensity",
-                    Values = errorValues,
-                    Fill = null,
-                    LineSmoothness = 0,
-                    // 라인/포인트 스타일
-                    Stroke = new SolidColorPaint(SKColors.Blue) { StrokeThickness = 1 },
-                    // 에러 바 스타일 (선 굵기 등)
-                    ErrorPaint = new SolidColorPaint(SKColors.Blue) { StrokeThickness = 1 },
-                }
-            };
+            // X축: 15개 밴드 (410~690nm), 항상 전부 보이도록 MinStep = 1
             XAxes = new Axis[]
             {
                 new Axis
                 {
-                    // === X label (xlabel) 항상 표시되게 ===
-                    Name = "Wavelength [nm]",                  // 축 제목
-                    NamePaint = new SolidColorPaint(SKColors.Black), // 제목 그릴 펜(이게 없으면 제목이 안 나올 수 있음)
-                    NameTextSize = 16,                         // 제목 폰트 크기
-                    NamePadding = new Padding(0, 10, 0, 0),    // 축과 제목 사이 여백
-                   
-                    TextSize = 14,                             // 눈금 레이블 크기
+                    Name = "Wavelength [nm]",
+                    NamePaint = new SolidColorPaint(SKColors.LightGray),
+                    NameTextSize = 16,
+                    NamePadding = new LiveChartsCore.Drawing.Padding(0, 10, 0, 0),
+
                     Labels = new[]
                     {
-                        "410","430", "450", "470", "490",
-                        "510", "530", "550", "570", "590",
-                        "610", "630", "650", "670", "690"
+                        "410","430","450","470","490",
+                        "510","530","550","570","590",
+                        "610","630","650","670","690"
                     },
-                    LabelsPaint = new SolidColorPaint(SKColors.Black),
-                    LabelsDensity = 0,
-                    IsVisible = true                           // 축 자체 보이도록
+                    LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                    TextSize = 13,
+
+                    // 카테고리 축에서 모든 tick 을 보이게
+                    MinStep = 1,
+
+                    // 눈금/축선 색
+                    SeparatorsPaint = new SolidColorPaint(new SKColor(60, 72, 88)),
+                    TicksPaint       = new SolidColorPaint(new SKColor(60, 72, 88)),
+                    ShowSeparatorLines = true
                 }
             };
 
+            // Y축: Intensity (0~255 고정)
             YAxes = new Axis[]
             {
-                    new Axis
-                    {
-                        Name = "Intensity",
-                        NamePaint = new SolidColorPaint(SKColors.Black),
-                        NameTextSize = 16,
-                        NamePadding = new Padding(0, 0, 10, 0),
+                new Axis
+                {
+                    Name = "Intensity",
+                    NamePaint = new SolidColorPaint(SKColors.LightGray),
+                    NameTextSize = 16,
+                    NamePadding = new LiveChartsCore.Drawing.Padding(0, 0, 10, 0),
 
-                        // 숫자 축으로 사용
-                        MinLimit = 0,      // 최소 값
-                        MaxLimit = 255,    // 최대 값
-                        MinStep  = 51,     // 최소 간격 (0, 51, 102, ...)
+                    MinLimit = 0,
+                    MaxLimit = 255,
+                    MinStep  = 51,
+                    Labeler  = value => value.ToString("0"),
 
-                        // 값 → 문자열 포맷
-                        Labeler = value => value.ToString("0"), // 필요하면 $"{value:0}" 같은 형식
+                    LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                    TextSize = 13,
 
-                        LabelsPaint = new SolidColorPaint(SKColors.Black),
-                        TextSize = 14,
-
-                        LabelsDensity = 0,
-                        IsVisible = true
-                    }
+                    SeparatorsPaint = new SolidColorPaint(new SKColor(60, 72, 88)),
+                    TicksPaint       = new SolidColorPaint(new SKColor(60, 72, 88)),
+                    ShowSeparatorLines = true
+                }
             };
+
+            Series = Array.Empty<ISeries>();
         }
-        public void AddSpectrum(ChartModel chartModel, SpectrumData spectrumData)
+
+        private void RebuildSeries()
         {
-            _chartModel = chartModel;
-            _spectrumDatas.Add(spectrumData);
+            if (_analysis.Regions.Count == 0 || _analysis.RegionTileStats.Count == 0)
+            {
+                Series = Array.Empty<ISeries>();
+                return;
+            }
+
+            var list = new List<ISeries>();
+
+            for (int i = 0; i < _analysis.Regions.Count; i++)
+            {
+                var region = _analysis.Regions[i];
+
+                if (!_analysis.RegionTileStats.TryGetValue(region.Index, out var stats))
+                    continue;
+
+                // ErrorValue: Value = mean, Error = half std
+                var values = stats
+                    .Select(ts =>
+                    {
+                        var halfStd = ts.StdDev / 2.0;
+                        return new ErrorValue(ts.Mean, halfStd);
+                    })
+                    .ToArray();
+
+                var color = Palette[i % Palette.Length];
+
+                var line = new LineSeries<ErrorValue>
+                {
+                    Name = $"ROI {region.Index}",
+                    Values = values,
+
+                    // 선 스타일
+                    Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
+                    Fill = null,
+                    LineSmoothness = 0, // 직선
+
+                    // 포인트(동그라미)
+                    GeometrySize = 8,
+                    GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 2 },
+                    GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)), // 어두운 배경색 정도
+
+                    // 에러바 (표준편차의 절반만 위/아래로)
+                    ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
+
+                    XToolTipLabelFormatter = null,
+                    YToolTipLabelFormatter = null
+                };
+
+                list.Add(line);
+            }
+
+            Series = list.ToArray();
         }
-        public void RemoveSpectrum(SpectrumData spectrumData)
+
+        [RelayCommand]
+        private void ClearRegions()
         {
-            _spectrumDatas.Remove(spectrumData);
+            _analysis.Clear();
+            SelectedRegion = null;
         }
-        public void Clear()
+
+        [RelayCommand]
+        private void RemoveSelectedRegion()
         {
-            _chartModel = null;
-            _spectrumDatas.Clear();
+            if (SelectedRegion is null) return;
+            _analysis.RemoveRegion(SelectedRegion);
+            SelectedRegion = null;
         }
     }
 }

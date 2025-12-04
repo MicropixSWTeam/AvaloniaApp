@@ -1,10 +1,13 @@
-﻿using Avalonia;
+﻿// AvaloniaApp.Infrastructure/ImageProcessService.cs
+using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Core.Models;
+using MathNet.Numerics.IntegralTransforms;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace AvaloniaApp.Infrastructure
@@ -15,6 +18,7 @@ namespace AvaloniaApp.Infrastructure
     /// - 각 타일 내부에 translation 적용 (dx, dy)
     /// - 각 타일을 targetIntensity(평균 밝기)에 맞게 normalize
     /// - normalize된 타일들을 다시 붙여서 stitching (translation 적용 가능)
+    /// - 위상 상관(Phase Correlation)으로 기준 타일 대비 나머지 타일들의 offset 추정
     /// </summary>
     public class ImageProcessService
     {
@@ -31,6 +35,8 @@ namespace AvaloniaApp.Infrastructure
         public ImageProcessService()
         {
         }
+
+        #region Grid 설정
 
         public void ConfigureGrid(
             int cameraWidth,
@@ -77,7 +83,7 @@ namespace AvaloniaApp.Infrastructure
             int rowCount = config.RowCount;
             int colCount = config.ColCount;
 
-            // C++ 코드와 동일한 방식으로 grid 좌표 생성
+            // 중앙 기준 grid 좌표 생성
             for (int i = 0; i < rowCount; ++i)
             {
                 double iOff = i - (rowCount - 1) * 0.5;
@@ -97,6 +103,10 @@ namespace AvaloniaApp.Infrastructure
 
             _gridConfigured = true;
         }
+
+        #endregion
+
+        #region Crop / Translation / Normalize
 
         /// <summary>
         /// translation 없이 crop:
@@ -122,7 +132,7 @@ namespace AvaloniaApp.Infrastructure
 
             var cropped = new WriteableBitmap(
                 roiSize,
-                new Vector(96, 96),
+                new Avalonia.Vector(96, 96),
                 PixelFormats.Gray8,
                 AlphaFormat.Opaque);
 
@@ -181,13 +191,17 @@ namespace AvaloniaApp.Infrastructure
 
             for (int i = 0; i < _tileRects.Count; i++)
             {
-                var tile = CropTile(source, i);         // crop
+                var tile = CropTile(source, i);           // crop
                 NormalizeInPlace(tile, targetIntensity); // normalize
                 result[i] = tile;
             }
 
             return result;
         }
+
+        #endregion
+
+        #region Stitching
 
         /// <summary>
         /// translation 없이 stitching.
@@ -208,7 +222,7 @@ namespace AvaloniaApp.Infrastructure
 
             var final = new WriteableBitmap(
                 _frameSize,
-                new Vector(96, 96),
+                new Avalonia.Vector(96, 96),
                 PixelFormats.Gray8,
                 AlphaFormat.Opaque);
 
@@ -247,7 +261,7 @@ namespace AvaloniaApp.Infrastructure
 
             var final = new WriteableBitmap(
                 _frameSize,
-                new Vector(96, 96),
+                new Avalonia.Vector(96, 96),
                 PixelFormats.Gray8,
                 AlphaFormat.Opaque);
 
@@ -271,12 +285,14 @@ namespace AvaloniaApp.Infrastructure
             return final;
         }
 
-        // ===== 내부 구현부 =====
+        #endregion
+
+        #region 내부 구현: Translation / Normalize / Blit
 
         /// <summary>
         /// crop된 타일 내부에서 dx, dy 만큼 평행 이동.
-        /// dx &gt; 0 → 오른쪽으로 이동, dx &lt; 0 → 왼쪽
-        /// dy &gt; 0 → 아래로 이동, dy &lt; 0 → 위로 이동
+        /// dx &gt; 0 → 오른쪽, dx &lt; 0 → 왼쪽
+        /// dy &gt; 0 → 아래, dy &lt; 0 → 위
         /// 이동 범위를 벗어나는 픽셀은 버리고, 새로 생기는 영역은 0(검정)으로 채움.
         /// </summary>
         private static WriteableBitmap ApplyTranslation(WriteableBitmap sourceTile, TileTransform transform)
@@ -302,7 +318,7 @@ namespace AvaloniaApp.Infrastructure
 
                     var dest = new WriteableBitmap(
                         fbSrc.Size,
-                        new Vector(96, 96),
+                        new Avalonia.Vector(96, 96),
                         PixelFormats.Gray8,
                         AlphaFormat.Opaque);
 
@@ -478,5 +494,202 @@ namespace AvaloniaApp.Infrastructure
 
             return new PixelRect(x, y, w, h);
         }
+
+        #endregion
+
+        #region 타일 사전 구축 (Normalize + Translation 1회 수행)
+
+        /// <summary>
+        /// 현재 grid 설정과 transforms, targetIntensity를 기반으로
+        /// 전체 타일(0..TileCount-1)에 대해
+        ///  - CropTile(source, i, transform(i))
+        ///  - NormalizeInPlace(tile, targetIntensity)
+        /// 를 한 번만 수행해서 WriteableBitmap 리스트로 반환.
+        ///
+        /// 이후 ROI 분석에서는 이 리스트만 사용해서,
+        /// 같은 타일에 대해 재정규화하지 않는다.
+        /// </summary>
+        public IReadOnlyList<WriteableBitmap> BuildNormalizedTiles(
+            Bitmap source,
+            Func<int, TileTransform> transformSelector,
+            byte targetIntensity)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (!_gridConfigured || _tileRects.Count == 0)
+                throw new InvalidOperationException("Grid가 아직 설정되지 않았습니다. ConfigureGrid를 먼저 호출하세요.");
+            if (source.Format != PixelFormats.Gray8)
+                throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={source.Format}");
+
+            var tiles = new WriteableBitmap[_tileRects.Count];
+
+            for (int i = 0; i < _tileRects.Count; i++)
+            {
+                var t = transformSelector?.Invoke(i) ?? new TileTransform(0, 0);
+
+                var tile = CropTile(source, i, t);       // crop + translation
+                NormalizeInPlace(tile, targetIntensity); // in-place normalize
+                tiles[i] = tile;
+            }
+
+            return tiles;
+        }
+
+        #endregion
+
+        #region 위상 상관 기반 오프셋 계산
+
+        /// <summary>
+        /// 위상 상관(Phase Correlation)을 사용하여 기준 타일(referenceIndex)을 기준으로
+        /// 나머지 타일들의 평행 이동 오프셋(정수 픽셀)을 계산.
+        ///
+        /// - tiles: 동일 크기 Gray8 WriteableBitmap 타일들 (예: BuildNormalizedTiles 결과)
+        /// - referenceIndex: 기준 타일 인덱스 (예: 7)
+        /// - 반환: tiles.Count 개수의 TileTransform 배열
+        ///   * 기준 타일 위치에는 (0,0)이 들어감
+        /// </summary>
+        public IReadOnlyList<TileTransform> ComputePhaseCorrelationOffsets(
+            IReadOnlyList<WriteableBitmap> tiles,
+            int referenceIndex)
+        {
+            if (tiles is null) throw new ArgumentNullException(nameof(tiles));
+            if (tiles.Count == 0) throw new ArgumentException("타일이 없습니다.", nameof(tiles));
+            if (referenceIndex < 0 || referenceIndex >= tiles.Count)
+                throw new ArgumentOutOfRangeException(nameof(referenceIndex));
+
+            var refTile = tiles[referenceIndex];
+
+            if (refTile.Format != PixelFormats.Gray8)
+                throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={refTile.Format}");
+
+            int width = refTile.PixelSize.Width;
+            int height = refTile.PixelSize.Height;
+
+            if (width <= 0 || height <= 0)
+                throw new InvalidOperationException("타일 크기가 유효하지 않습니다.");
+
+            // 기준 타일 FFT 준비
+            var refFreq = new Complex[width * height];
+            {
+                using var fb = refTile.Lock();
+                int stride = fb.RowBytes;
+                int bufferSize = stride * height;
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+
+                try
+                {
+                    Marshal.Copy(fb.Address, buffer, 0, bufferSize);
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        int rowStart = y * stride;
+                        for (int x = 0; x < width; x++)
+                        {
+                            byte v = buffer[rowStart + x];
+                            refFreq[y * width + x] = new Complex(v, 0);
+                        }
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+
+                Fourier.Forward2D(refFreq, height, width, FourierOptions.Default);
+            }
+
+            var results = new TileTransform[tiles.Count];
+
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                if (i == referenceIndex)
+                {
+                    results[i] = new TileTransform(0, 0);
+                    continue;
+                }
+
+                var tile = tiles[i];
+
+                if (tile.Format != PixelFormats.Gray8)
+                    throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={tile.Format}");
+
+                if (tile.PixelSize.Width != width || tile.PixelSize.Height != height)
+                    throw new InvalidOperationException("모든 타일의 해상도는 동일해야 합니다.");
+
+                var tileFreq = new Complex[width * height];
+
+                // 대상 타일 FFT
+                using (var fb = tile.Lock())
+                {
+                    int stride = fb.RowBytes;
+                    int bufferSize = stride * height;
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+
+                    try
+                    {
+                        Marshal.Copy(fb.Address, buffer, 0, bufferSize);
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            int rowStart = y * stride;
+                            for (int x = 0; x < width; x++)
+                            {
+                                byte v = buffer[rowStart + x];
+                                tileFreq[y * width + x] = new Complex(v, 0);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                }
+
+                Fourier.Forward2D(tileFreq, height, width, FourierOptions.Default);
+
+                // 교차 파워 스펙트럼 (정규화)
+                var crossPower = new Complex[width * height];
+                for (int k = 0; k < crossPower.Length; k++)
+                {
+                    Complex F = refFreq[k];
+                    Complex G = tileFreq[k];
+                    Complex R = F * Complex.Conjugate(G);
+                    double mag = R.Magnitude;
+
+                    crossPower[k] = mag < 1e-12 ? Complex.Zero : R / mag;
+                }
+
+                // 역 FFT → 위상 상관 맵
+                Fourier.Inverse2D(crossPower, height, width, FourierOptions.Default);
+
+                // 최대값 위치 찾기
+                int peakIndex = 0;
+                double maxVal = double.MinValue;
+
+                for (int k = 0; k < crossPower.Length; k++)
+                {
+                    double val = crossPower[k].Magnitude;
+                    if (val > maxVal)
+                    {
+                        maxVal = val;
+                        peakIndex = k;
+                    }
+                }
+
+                int peakY = peakIndex / width;
+                int peakX = peakIndex % width;
+
+                // 주기 경계 보정: FFT는 순환 시프트이므로 반대편으로 넘어간 경우 음수 오프셋으로 변환
+                if (peakX > width / 2)
+                    peakX -= width;
+                if (peakY > height / 2)
+                    peakY -= height;
+
+                results[i] = new TileTransform(peakX, peakY);
+            }
+
+            return results;
+        }
+
+        #endregion
     }
 }

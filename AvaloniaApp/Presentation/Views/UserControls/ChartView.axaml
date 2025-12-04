@@ -1,15 +1,38 @@
+<!-- AvaloniaApp.Presentation/Views/UserControls/ChartView.xaml -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:chart="using:LiveChartsCore.SkiaSharpView.Avalonia"
-             xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             mc:Ignorable="d"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.ChartView"
              x:DataType="vm:ChartViewModel">
-        <Grid>
-            <chart:CartesianChart Series="{Binding Series}"
-                                  XAxes="{Binding XAxes}"
-                                  YAxes="{Binding YAxes}"/>
-        </Grid>
+
+  <Grid RowDefinitions="Auto,*" Margin="8">
+    <StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8">
+
+      <!-- ROI 리스트 -->
+      <ComboBox Width="120"
+                ItemsSource="{Binding Regions}"
+                SelectedItem="{Binding SelectedRegion, Mode=TwoWay}"
+                DisplayMemberBinding="{Binding Index}" />
+
+      <!-- 선택된 ROI 삭제 -->
+      <Button Content="Remove Selected"
+              Command="{Binding RemoveSelectedRegionCommand}" />
+
+      <!-- 전체 ROI 삭제 -->
+      <Button Content="Clear All"
+              Command="{Binding ClearRegionsCommand}" />
+    </StackPanel>
+
+    <!-- 스펙트럼 차트 -->
+    <lvc:CartesianChart Grid.Row="1"
+                        Series="{Binding Series}"
+                        XAxes="{Binding XAxes}"
+                        YAxes="{Binding YAxes}" />
+  </Grid>
 </UserControl>

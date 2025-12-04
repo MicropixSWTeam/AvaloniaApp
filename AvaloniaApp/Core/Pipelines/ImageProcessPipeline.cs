@@ -1,9 +1,11 @@
-﻿using Avalonia.Media.Imaging;
-using AvaloniaApp.Core.Jobs;
+﻿// AvaloniaApp.Core/Pipelines/ImageProcessPipeline.cs
+using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Models;
+using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -56,10 +58,25 @@ namespace AvaloniaApp.Core.Pipelines
                         // grid 설정 (해상도 바뀌면 자동으로 재설정)
                         _imageProcessService.ConfigureGrid(size, gridConfig);
 
-                        // 1) 타일 normalize
-                        var normalizedTiles = _imageProcessService.NormalizeTiles(frame, targetIntensity);
+                        IReadOnlyList<Bitmap> normalizedTiles;
 
-                        // 2) stitching (translation 적용 여부)
+                        if (transforms is not null && transforms.Count > 0)
+                        {
+                            // 1) 타일별 translation + normalize 한 번만 수행
+                            var tiles = _imageProcessService.BuildNormalizedTiles(
+                                frame,
+                                idx => transforms[idx],
+                                targetIntensity); // IReadOnlyList<WriteableBitmap>
+
+                            normalizedTiles = tiles.Cast<Bitmap>().ToArray();
+                        }
+                        else
+                        {
+                            // translation 없이 normalize만
+                            normalizedTiles = _imageProcessService.NormalizeTiles(frame, targetIntensity);
+                        }
+
+                        // 2) stitching (translation 추가 적용 여부)
                         Bitmap stitched;
                         if (transforms is not null &&
                             transforms.Count == normalizedTiles.Count)
