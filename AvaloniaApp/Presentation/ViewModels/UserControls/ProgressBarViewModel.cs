@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public class ProgressBardViewModel : ViewModelBase
-    {
+    public class ProgressBarViewModel : ViewModelBase
+    { 
     }
 }

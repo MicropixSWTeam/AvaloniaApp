@@ -28,8 +28,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private PopupService _popupService;
 
         public string Title { get; set; } = "Camera Connect";
-        public int Width { get; set; } = 600;
-        public int Height { get; set; } = 400;
+        public int Width { get; set; } = 500;
+        public int Height { get; set; } = 250;
 
         public CameraConnectViewModel(CameraPipeline cameraPipeline,PopupService popupService) :base()
         {

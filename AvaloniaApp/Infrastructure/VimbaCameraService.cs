@@ -3,6 +3,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Core.Models;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -20,28 +21,30 @@ namespace AvaloniaApp.Infrastructure
         private IReadOnlyList<ICamera>? _cameras;
         private IOpenCamera? _openCamera;
         private IAcquisition? _acquisition;
-
         private bool _disposed;
 
         public CameraInfo? ConnectedCameraInfo { get; private set; }
 
         /// <summary>
         /// 연속 프리뷰용 프레임 이벤트.
-        /// Bitmap 소유권은 구독자에게 넘어간다고 가정한다.
-        /// (구독자가 Dispose 해줘야 함)
+        /// Bitmap 소유권은 구독자에게 넘어감 (구독자가 Dispose 책임).
         /// </summary>
         public event EventHandler<Bitmap>? FrameReady;
+
+        public bool IsStreaming => _acquisition is not null;
 
         public VimbaCameraService()
         {
             _system = IVmbSystem.Startup();
         }
+
         private IOpenCamera EnsureOpenCamera()
         {
             if (_openCamera is null)
                 throw new InvalidOperationException("카메라가 연결되지 않았습니다.");
             return _openCamera;
         }
+
         private void ThrowIfDisposed()
         {
             if (_disposed)
@@ -59,6 +62,7 @@ namespace AvaloniaApp.Infrastructure
             var camera = _system.GetCameraByID(id)
                          ?? throw new InvalidOperationException($"Camera '{id}' not found.");
 
+            // 지금은 Mono8만 사용 (나중에 확장)
             var list = new[]
             {
                 new PixelFormatInfo(
@@ -69,6 +73,7 @@ namespace AvaloniaApp.Infrastructure
 
             return Task.FromResult<IReadOnlyList<PixelFormatInfo>>(list);
         }
+
         public Task<IReadOnlyList<CameraInfo>> GetCameraListAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -87,6 +92,7 @@ namespace AvaloniaApp.Infrastructure
 
             return Task.FromResult<IReadOnlyList<CameraInfo>>(result);
         }
+
         public async Task ConnectAsync(CancellationToken ct, string id)
         {
             ThrowIfDisposed();
@@ -99,13 +105,11 @@ namespace AvaloniaApp.Infrastructure
             {
                 ct.ThrowIfCancellationRequested();
 
-                // 이미 같은 카메라에 연결되어 있으면 패스
                 if (_openCamera is not null && ConnectedCameraInfo?.Id == id)
                     return;
 
-                // 이전 스트림 정리
-                _acquisition?.Dispose();
-                _acquisition = null;
+                // 스트림/이벤트 정리
+                SafeStopAcquisition_NoLock();
 
                 if (_openCamera is not null)
                 {
@@ -120,6 +124,7 @@ namespace AvaloniaApp.Infrastructure
                              ?? throw new InvalidOperationException($"Camera '{id}' not found.");
 
                 _openCamera = camera.Open();
+                // 프레임 이벤트 핸들러는 StartStream에서 붙임
 
                 ConnectedCameraInfo = new CameraInfo(
                     id: camera.Id,
@@ -132,6 +137,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task DisconnectAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -141,8 +147,7 @@ namespace AvaloniaApp.Infrastructure
             {
                 ct.ThrowIfCancellationRequested();
 
-                _acquisition?.Dispose();
-                _acquisition = null;
+                SafeStopAcquisition_NoLock();
 
                 if (_openCamera is not null)
                 {
@@ -158,8 +163,10 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public Task StartAsync(CancellationToken ct) => StartStreamAsync(ct);
         public Task StopAsync(CancellationToken ct) => StopStreamAsync(ct);
+
         public async Task StartStreamAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -169,20 +176,21 @@ namespace AvaloniaApp.Infrastructure
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (_openCamera is null)
-                    throw new InvalidOperationException("카메라가 연결되지 않았습니다.");
+                var cam = EnsureOpenCamera();
 
                 if (_acquisition is not null)
                     return; // 이미 스트리밍 중
 
-                _openCamera.FrameReceived += OnFrameReceived;
-                _acquisition = _openCamera.StartFrameAcquisition();
+                cam.FrameReceived += OnFrameReceived;
+                // VmbNET 권장 방법: StartFrameAcquisition 호출로 비동기 캡처 시작
+                _acquisition = cam.StartFrameAcquisition();
             }
             finally
             {
                 _gate.Release();
             }
         }
+
         public async Task StopStreamAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -191,23 +199,48 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
-                if (_acquisition is not null)
-                {
-                    _acquisition.Dispose();
-                    _acquisition = null;
-                }
-
-                if (_openCamera is not null)
-                {
-                    _openCamera.FrameReceived -= OnFrameReceived;
-                }
+                SafeStopAcquisition_NoLock();
             }
             finally
             {
                 _gate.Release();
             }
         }
+
+        /// <summary>
+        /// _gate 안에서만 호출 (락 밖에서 호출하지 말 것)
+        /// </summary>
+        private void SafeStopAcquisition_NoLock()
+        {
+            if (_acquisition is not null)
+            {
+                try
+                {
+                    _acquisition.Dispose(); // IAcquisition.Dispose() 가 AcquisitionStop + 큐 flush 수행
+                }
+                catch
+                {
+                    // 카메라 핸들이 이미 죽었거나 BadHandle 등인 경우는 무시
+                }
+                finally
+                {
+                    _acquisition = null;
+                }
+            }
+
+            if (_openCamera is not null)
+            {
+                try
+                {
+                    _openCamera.FrameReceived -= OnFrameReceived;
+                }
+                catch
+                {
+                    // 여러 번 detach 시도해도 문제 없게
+                }
+            }
+        }
+
         private void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
         {
             try
@@ -233,47 +266,54 @@ namespace AvaloniaApp.Infrastructure
                 if (frame.BufferSize < (uint)imageSize)
                     return;
 
-                var buffer = new byte[imageSize];
-                Marshal.Copy(frame.ImageData, buffer, 0, imageSize);
-
-                var bitmap = new WriteableBitmap(
-                    new PixelSize(width, height),
-                    new Vector(96, 96),
-                    PixelFormats.Gray8,
-                    AlphaFormat.Opaque);
-
-                using (var fb = bitmap.Lock())
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(imageSize);
+                try
                 {
-                    int destStride = fb.RowBytes;
+                    Marshal.Copy(frame.ImageData, buffer, 0, imageSize);
 
-                    if (destStride == stride)
+                    var bitmap = new WriteableBitmap(
+                        new PixelSize(width, height),
+                        new Vector(96, 96),
+                        PixelFormats.Gray8,
+                        AlphaFormat.Opaque);
+
+                    using (var fb = bitmap.Lock())
                     {
-                        Marshal.Copy(buffer, 0, fb.Address, imageSize);
-                    }
-                    else
-                    {
-                        for (int y = 0; y < height; y++)
+                        int destStride = fb.RowBytes;
+
+                        if (destStride == stride)
                         {
-                            IntPtr destLine = IntPtr.Add(fb.Address, y * destStride);
-                            Marshal.Copy(buffer, y * stride, destLine, stride);
+                            Marshal.Copy(buffer, 0, fb.Address, imageSize);
+                        }
+                        else
+                        {
+                            for (int y = 0; y < height; y++)
+                            {
+                                IntPtr destLine = IntPtr.Add(fb.Address, y * destStride);
+                                Marshal.Copy(buffer, y * stride, destLine, stride);
+                            }
                         }
                     }
-                }
 
-                if (FrameReady is null)
+                    if (FrameReady is null)
+                    {
+                        bitmap.Dispose();
+                        return;
+                    }
+
+                    FrameReady?.Invoke(this, bitmap);
+                }
+                finally
                 {
-                    // 구독자 없으면 즉시 Dispose (메모리 누수 방지)
-                    bitmap.Dispose();
-                    return;
+                    ArrayPool<byte>.Shared.Return(buffer);
                 }
-
-                FrameReady?.Invoke(this, bitmap);
             }
             catch
             {
-                // 이벤트 핸들러에서 예외 전파 방지
+                // 이벤트 핸들러에서 예외 전파 금지 (Vmb 내부 스레드 보호)
             }
         }
+
         public async Task<Bitmap> CaptureAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -283,10 +323,9 @@ namespace AvaloniaApp.Infrastructure
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (_openCamera is null)
-                    throw new InvalidOperationException("카메라가 연결되지 않았습니다.");
+                var cam = EnsureOpenCamera();
 
-                using IFrame frame = _openCamera.AcquireSingleImage(TimeSpan.FromMilliseconds(500));
+                using IFrame frame = cam.AcquireSingleImage(TimeSpan.FromMilliseconds(500));
 
                 if (frame.FrameStatus != IFrame.FrameStatusValue.Completed)
                     throw new InvalidOperationException($"프레임 상태가 Completed가 아님: {frame.FrameStatus}");
@@ -308,40 +347,48 @@ namespace AvaloniaApp.Infrastructure
                     throw new InvalidOperationException(
                         $"버퍼 크기 부족: BufferSize={frame.BufferSize}, 필요={imageSize}");
 
-                var buffer = new byte[imageSize];
-                Marshal.Copy(frame.ImageData, buffer, 0, imageSize);
-
-                var bitmap = new WriteableBitmap(
-                    new PixelSize(width, height),
-                    new Vector(96, 96),
-                    PixelFormats.Gray8,
-                    AlphaFormat.Opaque);
-
-                using (var fb = bitmap.Lock())
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(imageSize);
+                try
                 {
-                    int destStride = fb.RowBytes;
+                    Marshal.Copy(frame.ImageData, buffer, 0, imageSize);
 
-                    if (destStride == stride)
+                    var bitmap = new WriteableBitmap(
+                        new PixelSize(width, height),
+                        new Vector(96, 96),
+                        PixelFormats.Gray8,
+                        AlphaFormat.Opaque);
+
+                    using (var fb = bitmap.Lock())
                     {
-                        Marshal.Copy(buffer, 0, fb.Address, imageSize);
-                    }
-                    else
-                    {
-                        for (int y = 0; y < height; y++)
+                        int destStride = fb.RowBytes;
+
+                        if (destStride == stride)
                         {
-                            IntPtr destLine = IntPtr.Add(fb.Address, y * destStride);
-                            Marshal.Copy(buffer, y * stride, destLine, stride);
+                            Marshal.Copy(buffer, 0, fb.Address, imageSize);
+                        }
+                        else
+                        {
+                            for (int y = 0; y < height; y++)
+                            {
+                                IntPtr destLine = IntPtr.Add(fb.Address, y * destStride);
+                                Marshal.Copy(buffer, y * stride, destLine, stride);
+                            }
                         }
                     }
-                }
 
-                return bitmap;
+                    return bitmap;
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
             }
             finally
             {
                 _gate.Release();
             }
         }
+
         public async Task<double> GetExposureTimeAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -350,9 +397,7 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
-                // dynamic 사용
                 double value = cam.Features.ExposureTime;
                 return value;
             }
@@ -361,6 +406,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task<double> SetExposureTimeAsync(double exposureTime, CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -369,13 +415,9 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
 
-                // 요청 값 설정
                 cam.Features.ExposureTime = exposureTime;
-
-                // 실제 적용된 값 읽기 (카메라가 근처 값으로 수정했을 수 있음)
                 double applied = cam.Features.ExposureTime;
                 return applied;
             }
@@ -384,6 +426,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task<double> GetGainAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -392,7 +435,6 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
                 double value = cam.Features.Gain;
                 return value;
@@ -402,6 +444,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task<double> SetGainAsync(double gain, CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -410,10 +453,8 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
                 cam.Features.Gain = gain;
-
                 double applied = cam.Features.Gain;
                 return applied;
             }
@@ -422,6 +463,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task<double> GetGammaAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -430,7 +472,6 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
                 double value = cam.Features.Gamma;
                 return value;
@@ -440,6 +481,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task<double> SetGammaAsync(double gamma, CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -448,10 +490,8 @@ namespace AvaloniaApp.Infrastructure
             try
             {
                 ct.ThrowIfCancellationRequested();
-
                 var cam = EnsureOpenCamera();
                 cam.Features.Gamma = gamma;
-
                 double applied = cam.Features.Gamma;
                 return applied;
             }
@@ -460,6 +500,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async ValueTask DisposeAsync()
         {
             if (_disposed)
@@ -470,12 +511,18 @@ namespace AvaloniaApp.Infrastructure
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                _acquisition?.Dispose();
-                _acquisition = null;
+                SafeStopAcquisition_NoLock();
 
                 if (_openCamera is not null)
                 {
-                    _openCamera.FrameReceived -= OnFrameReceived;
+                    try
+                    {
+                        _openCamera.FrameReceived -= OnFrameReceived;
+                    }
+                    catch
+                    {
+                    }
+
                     _openCamera.Dispose();
                     _openCamera = null;
                 }

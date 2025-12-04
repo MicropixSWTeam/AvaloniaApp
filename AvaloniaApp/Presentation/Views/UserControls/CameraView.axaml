@@ -2,33 +2,84 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
              x:DataType="vm:CameraViewModel">
-        <Grid RowDefinitions="*,Auto">
-        <!-- 캡처된 이미지 표시 영역 -->
+
+    <Grid RowDefinitions="*,Auto" Margin="4">
         <Border Grid.Row="0"
-                Margin="8"
+                Margin="4"
                 Background="Black">
-            <Image Source="{Binding Image}"
-                   Stretch="Uniform" />
+            <Grid>
+                <Image x:Name="CameraImage"
+                        Source="{Binding DisplayImage}"
+                        Stretch="Uniform"/>
+
+                <!-- 선택 사각형 (overlay) -->
+                <Canvas>
+                    <Rectangle x:Name="SelectionRect"
+                                Stroke="Red"
+                                StrokeThickness="1"
+                                Fill="#40FF0000"
+                                IsHitTestVisible="False"
+                                Width="0"
+                                Height="0" />
+                </Canvas>
+            </Grid>
         </Border>
 
-        <!-- 하단 컨트롤 영역 -->
         <StackPanel Grid.Row="1"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     Margin="0,8,0,8"
                     Spacing="8">
+
             <Button Content="Start"
-                    Width="100"
-                    Command="{Binding StartPreviewCommand}"
-                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Width="90"
+                    Command="{Binding StartPreviewCommand}" 
+                    VerticalContentAlignment="Center"/>
+
             <Button Content="Stop"
-                    Width="100"
-                    Command="{Binding StopPreviewCommand}"
-                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    Width="90"
+                    Command="{Binding StopPreviewCommand}" 
+                    VerticalContentAlignment="Center"/>
+
+            <TextBlock Text="Idx : "
+                       Margin="16,0,4,0"
+                       VerticalAlignment="Center" />
+
+            <Button Content="&lt;"
+                    Width="30"
+                    Command="{Binding PrevIndexCommand}" />
+
+            <TextBox Width="40"
+                     Margin="4,0"
+                     Text="{Binding SelectedCropIndexText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+
+            <Button Content="&gt;"
+                    Width="30"
+                    Command="{Binding NextIndexCommand}" />
+
+            <CheckBox Content="Normalize"
+                      Margin="16,0,4,0"
+                      IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
+                      VerticalAlignment="Center" />
+
+            <TextBlock Text="Target Intensity:"
+                       Margin="16,0,4,0"
+                       VerticalAlignment="Center" />
+
+            <TextBox Width="60"
+                     Text="{Binding TargetIntensity,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Text="Distance : "
+                       Margin="16,0,4,0"
+                       VerticalAlignment="Center" />
+
+            <ComboBox Width="80"
+                      ItemsSource="{Binding AvailableDistances}"
+                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}" />
         </StackPanel>
     </Grid>
 </UserControl>

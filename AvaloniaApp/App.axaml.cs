@@ -29,11 +29,13 @@ namespace AvaloniaApp
             services.AddSingleton<UiDispatcher>();
             services.AddSingleton<BackgroundJobQueue>();
             services.AddSingleton<VimbaCameraService>();
+            services.AddSingleton<ImageProcessService>();
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
+            services.AddSingleton<DrawRectService>();
 
             services.AddSingleton<CameraPipeline>();
-
+            services.AddSingleton<ImageProcessPipeline>();
             // 백그라운드 워커
             services.AddHostedService<BackgroundJobWorker>();
 
@@ -42,7 +44,7 @@ namespace AvaloniaApp
             services.AddSingleton<CameraConnectViewModel>();
             services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();
-            services.AddSingleton<FileExplorerViewModel>();
+            services.AddSingleton<StorageViewModel>();
             services.AddSingleton<MainWindowViewModel>();
             services.AddSingleton<PopupHostWindowViewModel>();    
 
@@ -52,7 +54,7 @@ namespace AvaloniaApp
             services.AddSingleton<CameraSettingView>();
             services.AddSingleton<ChartView>();
             services.AddSingleton<TabView>();
-            services.AddSingleton<FileExplorerView>();
+            services.AddSingleton<StorageView>();
             services.AddSingleton<MainWindow>();
             services.AddTransient<PopupHostWindow>();
             services.AddTransient<Func<PopupHostWindow>>(sp =>

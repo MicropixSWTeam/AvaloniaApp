@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public class FileExplorerViewModel
+    public class StorageViewModel
     {
 
     }

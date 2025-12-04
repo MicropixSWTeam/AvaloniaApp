@@ -1,4 +1,5 @@
-﻿using AvaloniaApp.Core.Models;
+﻿using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Core.Models;
 using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -18,7 +19,7 @@ using System.Threading.Tasks;
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
 
-    public partial class ChartViewModel:ViewModelBase
+    public partial class ChartViewModel:ViewModelBase,IPopup    
     {
         [ObservableProperty]
         private ISeries[]? series;
@@ -31,6 +32,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private ChartModel? _chartModel;
         private readonly List<SpectrumData> _spectrumDatas = new();
+
+        public string Title { get; set; } = "Spectrum Chart";
+        public int Width { get; set; } = 600;
+        public int Height { get; set; } = 400;
         public ChartViewModel()
         {
             // 예시 데이터: 평균 + 표준편차
