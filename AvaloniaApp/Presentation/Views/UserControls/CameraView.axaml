@@ -12,19 +12,25 @@
                 Margin="4"
                 Background="Black">
             <Grid>
+                <!-- 실제 카메라 이미지 -->
                 <Image x:Name="CameraImage"
-                        Source="{Binding DisplayImage}"
-                        Stretch="Uniform"/>
+                       Source="{Binding DisplayImage}"
+                       Stretch="Uniform" />
 
-                <!-- 선택 사각형 (overlay) -->
-                <Canvas>
+                <!-- 선택 사각형을 그릴 캔버스 -->
+                <Canvas x:Name="SelectionCanvas"
+                        Background="Transparent"
+                        PointerPressed="SelectionCanvas_OnPointerPressed"
+                        PointerMoved="SelectionCanvas_OnPointerMoved"
+                        PointerReleased="SelectionCanvas_OnPointerReleased">
+
                     <Rectangle x:Name="SelectionRect"
-                                Stroke="Red"
-                                StrokeThickness="1"
-                                Fill="#40FF0000"
-                                IsHitTestVisible="False"
-                                Width="0"
-                                Height="0" />
+                               Stroke="Red"
+                               StrokeThickness="1"
+                               Fill="#40FF0000"
+                               IsHitTestVisible="False"
+                               Width="0"
+                               Height="0" />
                 </Canvas>
             </Grid>
         </Border>
@@ -36,42 +42,51 @@
                     Spacing="8">
 
             <Button Content="Start"
-                    Width="90"
+                    Width="100"
                     Command="{Binding StartPreviewCommand}" 
-                    VerticalContentAlignment="Center"/>
+                    VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
             <Button Content="Stop"
-                    Width="90"
+                    Width="100"
                     Command="{Binding StopPreviewCommand}" 
-                    VerticalContentAlignment="Center"/>
-
+                    VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+            <Button Content="Save Image"
+                    Width="100"
+                    Command="{Binding SaveDisplayImageCommand}"
+                    IsEnabled="{Binding IsStop}"/>
             <TextBlock Text="Idx : "
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
             <Button Content="&lt;"
                     Width="30"
-                    Command="{Binding PrevIndexCommand}" />
+                    Command="{Binding PrevIndexCommand}" 
+                    VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
-            <TextBox Width="40"
+            <TextBox Width="20"
                      Margin="4,0"
-                     Text="{Binding SelectedCropIndexText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+                     Text="{Binding SelectedCropIndexText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" 
+                     VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
             <Button Content="&gt;"
                     Width="30"
-                    Command="{Binding NextIndexCommand}" />
+                    Command="{Binding NextIndexCommand}" 
+                    VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
             <CheckBox Content="Normalize"
                       Margin="16,0,4,0"
                       IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
-                      VerticalAlignment="Center" />
+                      IsEnabled="{Binding IsStop}"
+                      VerticalAlignment="Center" 
+                      VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
             <TextBlock Text="Target Intensity:"
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
-            <TextBox Width="60"
-                     Text="{Binding TargetIntensity,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <TextBox Width="40"
+                     Text="{Binding TargetIntensity,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" 
+                     VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
 
             <TextBlock Text="Distance : "
                        Margin="16,0,4,0"
@@ -79,7 +94,8 @@
 
             <ComboBox Width="80"
                       ItemsSource="{Binding AvailableDistances}"
-                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}" />
+                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}" 
+                      IsEnabled="{Binding IsStop}"/>
         </StackPanel>
     </Grid>
 </UserControl>
