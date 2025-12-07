@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public partial class CameraViewModel : ViewModelBase,IPopup
+    public partial class CameraViewModel : ViewModelBase, IPopup
     {
         // 카메라에서 들어오는 전체 프레임 (스트리밍)
         [ObservableProperty]
@@ -42,9 +42,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private bool normalizePreviewEnabled = false;
 
-        // normalize 타겟 밝기
+        // normalize 타겟 밝기 (0~255)
         [ObservableProperty]
-        private double targetIntensity = 128.0;
+        private byte targetIntensity = 128;
 
         // 거리 선택 (0 = translation 없음)
         [ObservableProperty]
@@ -211,7 +211,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             OnPropertyChanged(nameof(DisplayImage));
         }
 
-        partial void OnTargetIntensityChanged(double value)
+        partial void OnTargetIntensityChanged(byte value)
         {
             // intensity 값 변경 → 타일 캐시 무효화
             InvalidateNormalizedTilesCache();
@@ -259,11 +259,32 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             {
                 await _cameraPipeline.EnqueueStopPreviewAsync(ct, async () =>
                 {
+                    // 1) 스트리밍 중지 플래그
                     IsStop = true;
+
+                    // 2) Stop 시점의 현재 프레임 기준으로
+                    //    정규화+translation 타일을 미리 한 번 캐시에 빌드해서,
+                    //    이후 첫 ROI 확정(CommitSelectionRect) 때는
+                    //    무거운 작업을 다시 안 돌도록 함.
+                    var src = Image;
+                    if (src is not null)
+                    {
+                        try
+                        {
+                            _ = GetOrBuildNormalizedTiles(src);
+                        }
+                        catch
+                        {
+                            // 실패해도 CommitSelectionRect 쪽에서
+                            // 필요 시 다시 시도하므로 여기서는 무시
+                        }
+                    }
+
                     await Task.CompletedTask;
                 });
             });
         }
+
         [RelayCommand]
         public async Task SaveImageSetAsync()
         {
@@ -300,6 +321,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 stitched.Dispose();
             }
         }
+
         [RelayCommand]
         private void NextIndex()
         {
@@ -367,22 +389,14 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             if (SelectedCropIndex >= _imageProcessService.TileCount)
                 return;
-
-            var transform = GetTileTransform(SelectedDistance, SelectedCropIndex);
-
             // 원본 타일
-            var rawTile = _imageProcessService.CropTile(Image, SelectedCropIndex, transform);
+            var rawTile = _imageProcessService.GetTranslationCropImage(Image, SelectedDistance, SelectedCropIndex);
             CroppedPreviewImage = rawTile;
 
             // normalize 프리뷰
             if (NormalizePreviewEnabled)
             {
-                var ti = (byte)Math.Clamp(
-                    (int)Math.Round(TargetIntensity),
-                    0,
-                    255);
-
-                var normTile = _imageProcessService.NormalizeTile(Image, SelectedCropIndex, transform, ti);
+                var normTile = _imageProcessService.NormalizeTile(rawTile,TargetIntensity);
                 NormalizedPreviewImage = normTile;
             }
         }
@@ -427,10 +441,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         /// </summary>
         private IReadOnlyList<WriteableBitmap> GetOrBuildNormalizedTiles(Bitmap source)
         {
-            var ti = (byte)Math.Clamp(
-                (int)Math.Round(TargetIntensity),
-                0,
-                255);
+            byte ti = TargetIntensity;
 
             if (_normalizedTilesCache is { Count: > 0 } &&
                 ReferenceEquals(_normalizedTilesSource, source) &&

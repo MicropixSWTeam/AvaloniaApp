@@ -27,6 +27,23 @@ namespace AvaloniaApp.Infrastructure
         private PixelSize _frameSize;
         private CropGridConfig _config;
 
+        // translation 프리뷰 좌표 캐시: distance -> [tileIndex] -> 사전 계산된 정보
+        private readonly Dictionary<int, TranslationPreviewCoord[]> _translationPreviewTable = new();
+
+        private readonly struct TranslationPreviewCoord
+        {
+            public TranslationPreviewCoord(PixelRect sourceRect, int destOffsetX, int destOffsetY)
+            {
+                SourceRect = sourceRect;
+                DestOffsetX = destOffsetX;
+                DestOffsetY = destOffsetY;
+            }
+
+            public PixelRect SourceRect { get; }
+            public int DestOffsetX { get; }
+            public int DestOffsetY { get; }
+        }
+
         public IReadOnlyList<Rect> TileRects => _tileRects;
         public int TileCount => _tileRects.Count;
         public PixelSize FrameSize => _frameSize;
@@ -101,6 +118,9 @@ namespace AvaloniaApp.Infrastructure
                 }
             }
 
+            // distance / index 별 translation 프리뷰 좌표 미리 계산
+            BuildTranslationPreviewTable();
+
             _gridConfigured = true;
         }
 
@@ -165,7 +185,7 @@ namespace AvaloniaApp.Infrastructure
             return translated;
         }
 
-        /// <summary>
+        /// <summary>0
         /// 실시간 프리뷰용: (전체 → crop → translation → normalize)
         /// </summary>
         public WriteableBitmap NormalizeTile(Bitmap source, int tileIndex, TileTransform transform, byte targetIntensity)
@@ -497,6 +517,190 @@ namespace AvaloniaApp.Infrastructure
 
         #endregion
 
+        #region Translation preview precompute
+
+        private void BuildTranslationPreviewTable()
+        {
+            _translationPreviewTable.Clear();
+
+            if (_tileRects.Count == 0)
+                return;
+
+            int previewWidth = _config.ColSize;
+            int previewHeight = _config.RowSize;
+
+            // distance = 0 (translation 없음)
+            var arr0 = new TranslationPreviewCoord[_tileRects.Count];
+            for (int i = 0; i < _tileRects.Count; i++)
+            {
+                var baseRect = _tileRects[i];
+                var roiPixel = ToPixelRectClamped(baseRect, _frameSize);
+
+                if (roiPixel.Width <= 0 || roiPixel.Height <= 0)
+                {
+                    arr0[i] = new TranslationPreviewCoord(
+                        new PixelRect(0, 0, 0, 0),
+                        0,
+                        0);
+                    continue;
+                }
+
+                int offsetX = (previewWidth - roiPixel.Width) / 2;
+                int offsetY = (previewHeight - roiPixel.Height) / 2;
+
+                if (offsetX < 0) offsetX = 0;
+                if (offsetY < 0) offsetY = 0;
+
+                arr0[i] = new TranslationPreviewCoord(roiPixel, offsetX, offsetY);
+            }
+
+            _translationPreviewTable[0] = arr0;
+
+            // 거리별 translation 적용된 ROI
+            foreach (var kv in TranslationOffsets.Table)
+            {
+                int distance = kv.Key;
+
+                var arr = new TranslationPreviewCoord[_tileRects.Count];
+
+                for (int i = 0; i < _tileRects.Count; i++)
+                {
+                    var baseRect = _tileRects[i];
+
+                    var t = GetTransformFromDistance(distance, i);
+
+                    var overlap = GetTranslationOverlapRect(baseRect, t);
+                    if (overlap.Width <= 0 || overlap.Height <= 0)
+                        overlap = baseRect;
+
+                    var roiPixel = ToPixelRectClamped(overlap, _frameSize);
+
+                    if (roiPixel.Width <= 0 || roiPixel.Height <= 0)
+                    {
+                        arr[i] = new TranslationPreviewCoord(
+                            new PixelRect(0, 0, 0, 0),
+                            0,
+                            0);
+                        continue;
+                    }
+
+                    int offsetX = (previewWidth - roiPixel.Width) / 2;
+                    int offsetY = (previewHeight - roiPixel.Height) / 2;
+
+                    if (offsetX < 0) offsetX = 0;
+                    if (offsetY < 0) offsetY = 0;
+
+                    arr[i] = new TranslationPreviewCoord(roiPixel, offsetX, offsetY);
+                }
+
+                _translationPreviewTable[distance] = arr;
+            }
+        }
+
+        private static TileTransform GetTransformFromDistance(int distance, int tileIndex)
+        {
+            if (distance <= 0)
+                return new TileTransform(0, 0);
+
+            if (!TranslationOffsets.Table.TryGetValue(distance, out var perTile) || perTile is null)
+                return new TileTransform(0, 0);
+
+            if (!perTile.TryGetValue(tileIndex, out var t))
+                return new TileTransform(0, 0);
+
+            return t;
+        }
+
+        private static Rect IntersectRects(Rect a, Rect b)
+        {
+            double x1 = Math.Max(a.X, b.X);
+            double y1 = Math.Max(a.Y, b.Y);
+            double x2 = Math.Min(a.Right, b.Right);
+            double y2 = Math.Min(a.Bottom, b.Bottom);
+
+            double w = x2 - x1;
+            double h = y2 - y1;
+
+            if (w <= 0 || h <= 0)
+                return new Rect(0, 0, 0, 0);
+
+            return new Rect(x1, y1, w, h);
+        }
+
+        private static Rect GetTranslationOverlapRect(Rect baseRect, TileTransform transform)
+        {
+            if (transform.OffsetX == 0 && transform.OffsetY == 0)
+                return baseRect;
+
+            var shifted = OffsetRect(baseRect, transform.OffsetX, transform.OffsetY);
+            return IntersectRects(baseRect, shifted);
+        }
+
+        /// <summary>
+        /// distance + tileIndex 로 미리 계산된 translation ROI 를 사용해서,
+        /// 전체 이미지에서 해당 영역만 crop 하고
+        /// RowSize x ColSize 크기의 Gray8 Bitmap 중앙에 배치해서 반환 (프리뷰용).
+        /// </summary>
+        public WriteableBitmap GetTranslationCropImage(Bitmap source, int distance, int tileIndex)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (!_gridConfigured || _tileRects.Count == 0)
+                throw new InvalidOperationException("Grid가 아직 설정되지 않았습니다. ConfigureGrid를 먼저 호출하세요.");
+            if (tileIndex < 0 || tileIndex >= _tileRects.Count)
+                throw new ArgumentOutOfRangeException(nameof(tileIndex));
+            if (source.Format != PixelFormats.Gray8)
+                throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={source.Format}");
+
+            if (!_translationPreviewTable.TryGetValue(distance, out var coords) || coords is null)
+                throw new ArgumentOutOfRangeException(nameof(distance), "지원하지 않는 distance 입니다.");
+
+            var coord = coords[tileIndex];
+
+            if (coord.SourceRect.Width <= 0 || coord.SourceRect.Height <= 0)
+                throw new InvalidOperationException("사전 계산된 ROI가 유효하지 않습니다.");
+
+            int previewWidth = _config.ColSize;
+            int previewHeight = _config.RowSize;
+            var previewSize = new PixelSize(previewWidth, previewHeight);
+
+            var preview = new WriteableBitmap(
+                previewSize,
+                new Avalonia.Vector(96, 96),
+                PixelFormats.Gray8,
+                AlphaFormat.Opaque);
+
+            using (var fb = preview.Lock())
+            {
+                int stride = fb.RowBytes;
+                int bufferSize = stride * previewHeight;
+
+                byte[] clearBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                try
+                {
+                    Array.Clear(clearBuffer, 0, bufferSize);
+                    Marshal.Copy(clearBuffer, 0, fb.Address, bufferSize);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(clearBuffer);
+                }
+
+                IntPtr destBase = IntPtr.Add(
+                    fb.Address,
+                    coord.DestOffsetY * stride + coord.DestOffsetX);
+
+                source.CopyPixels(
+                    coord.SourceRect,
+                    destBase,
+                    stride * coord.SourceRect.Height,
+                    stride);
+            }
+
+            return preview;
+        }
+
+        #endregion
+
         #region 타일 사전 구축 (Normalize + Translation 1회 수행)
 
         /// <summary>
@@ -532,6 +736,29 @@ namespace AvaloniaApp.Infrastructure
             }
 
             return tiles;
+        }
+        /// <summary>
+        /// 이미 translation 이 적용된 타일(WriteableBitmap)에 대해
+        /// 평균 밝기를 targetIntensity 로 맞춘다.
+        /// 원본 타일을 그대로 in-place 수정한다.
+        /// </summary>
+        public void NormalizeTileInPlace(WriteableBitmap tile, byte targetIntensity)
+        {
+            if (tile is null) throw new ArgumentNullException(nameof(tile));
+            if (tile.Format != PixelFormats.Gray8)
+                throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={tile.Format}");
+
+            NormalizeInPlace(tile, targetIntensity);
+        }
+
+        /// <summary>
+        /// 이미 translation 이 적용된 타일을 normalize 하고,
+        /// 동일한 인스턴스를 반환한다(체이닝용).
+        /// </summary>
+        public WriteableBitmap NormalizeTile(WriteableBitmap tile, byte targetIntensity)
+        {
+            NormalizeTileInPlace(tile, targetIntensity);
+            return tile;
         }
 
         #endregion

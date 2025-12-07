@@ -31,6 +31,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private readonly RegionAnalysisWorkspace _analysis;
 
+        /// <summary>
+        /// 차트에 표시할 최대 ROI 개수 (최근 N개만 표시)
+        /// </summary>
+        public int MaxRegionsInChart { get; set; } = 6;
         public string Title { get; set; } = "Spectrum Chart";
         public int Width { get; set; } = 600;
         public int Height { get; set; } = 400;
@@ -108,7 +112,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             Series = Array.Empty<ISeries>();
         }
-
         private void RebuildSeries()
         {
             if (_analysis.Regions.Count == 0 || _analysis.RegionTileStats.Count == 0)
@@ -117,16 +120,24 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 return;
             }
 
+            // 1) Regions를 리스트로 복사
+            var regions = _analysis.Regions.ToList();
+
+            // 2) 너무 많으면 뒤에서 MaxRegionsInChart 개만 남기기 (최근 ROI들만)
+            if (regions.Count > MaxRegionsInChart)
+            {
+                regions = regions.Skip(regions.Count - MaxRegionsInChart).ToList();
+            }
+
             var list = new List<ISeries>();
 
-            for (int i = 0; i < _analysis.Regions.Count; i++)
+            foreach (var region in regions)
             {
-                var region = _analysis.Regions[i];
-
                 if (!_analysis.RegionTileStats.TryGetValue(region.Index, out var stats))
                     continue;
 
-                // ErrorValue: Value = mean, Error = half std
+                // stats: 각 밴드별 Mean / StdDev 정보라고 가정
+                // ErrorValue(Y, error)를 만든다. 여기서는 half std 를 error 로 사용.
                 var values = stats
                     .Select(ts =>
                     {
@@ -135,28 +146,43 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     })
                     .ToArray();
 
-                var color = Palette[i % Palette.Length];
+                // Tooltip에서 다시 쓰기 위한 원본 배열
+                var means = stats.Select(ts => ts.Mean).ToArray();
+                var stds = stats.Select(ts => ts.StdDev).ToArray();
+
+                var color = Palette[region.Index % Palette.Length];
 
                 var line = new LineSeries<ErrorValue>
                 {
                     Name = $"ROI {region.Index}",
                     Values = values,
 
-                    // 선 스타일
                     Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
                     Fill = null,
-                    LineSmoothness = 0, // 직선
+                    LineSmoothness = 0,
 
-                    // 포인트(동그라미)
                     GeometrySize = 8,
                     GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 2 },
-                    GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)), // 어두운 배경색 정도
+                    GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)),
 
-                    // 에러바 (표준편차의 절반만 위/아래로)
                     ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
 
-                    XToolTipLabelFormatter = null,
-                    YToolTipLabelFormatter = null
+                    // XToolTipLabelFormatter 는 안 씀
+                    // XToolTipLabelFormatter = null,
+
+                    // 여기만 커스텀: point.Context.Index 로 밴드 인덱스를 가져온다.
+                    YToolTipLabelFormatter = point =>
+                    {
+                        var idx = point.Index; // <= SecondaryValue 대신 이거
+
+                        if (idx < 0 || idx >= means.Length)
+                            return string.Empty;
+
+                        var mean = means[idx];
+                        var std = stds[idx];
+
+                        return $"Mean = {mean:F2}, Std = {std:F2}";
+                    }
                 };
 
                 list.Add(line);
@@ -164,6 +190,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             Series = list.ToArray();
         }
+
+
 
         [RelayCommand]
         private void ClearRegions()
