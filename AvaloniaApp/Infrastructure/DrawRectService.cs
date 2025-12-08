@@ -1,6 +1,8 @@
 ﻿// AvaloniaApp.Infrastructure/DrawRectService.cs
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using SkiaSharp;
 using System;
 using System.Runtime.InteropServices;
 
@@ -242,5 +244,6 @@ namespace AvaloniaApp.Infrastructure
 
             return (mean, stdDev);
         }
+
     }
 }

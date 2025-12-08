@@ -5,58 +5,56 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
              xmlns:models="using:AvaloniaApp.Core.Models"
+             xmlns:conv="using:AvaloniaApp.Presentation.Converters"
              mc:Ignorable="d"
              d:DesignWidth="1000"
              d:DesignHeight="600"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
              x:DataType="vm:CameraViewModel">
 
-    <Grid RowDefinitions="*,Auto" Margin="4">
-        <Border Grid.Row="0" Margin="4" Background="Gray">
-            <Grid>
+        <UserControl.Resources>
+            <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
+        </UserControl.Resources>
+
+        <Grid RowDefinitions="*,Auto" Margin="4">
+            <Border Grid.Row="0" Margin="4" Background="Gray">
+              <Grid>
                 <!-- 1) 카메라 이미지 -->
                 <Image x:Name="CameraImage"
                        Source="{Binding DisplayImage}"
                        Stretch="Uniform" />
 
-                <!-- 2) 이미 확정된 ROI (노란색) -->
+                <!-- 2) 이미 확정된 ROI -->
                 <ItemsControl ItemsSource="{Binding Regions}"
                               IsHitTestVisible="False">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Canvas />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <Canvas />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
 
-                    <!-- Canvas의 직접 자식인 ContentPresenter 위치 지정 -->
-                    <ItemsControl.Styles>
-                        <Style Selector="ItemsControl > ContentPresenter"
-                               x:DataType="models:SelectionRegion">
-                            <Setter Property="Canvas.Left" Value="{Binding X}" />
-                            <Setter Property="Canvas.Top"  Value="{Binding Y}" />
-                        </Style>
-                    </ItemsControl.Styles>
+                  <ItemsControl.Styles>
+                    <Style Selector="ItemsControl > ContentPresenter"
+                           x:DataType="models:SelectionRegion">
+                      <Setter Property="Canvas.Left" Value="{Binding X}" />
+                      <Setter Property="Canvas.Top"  Value="{Binding Y}" />
+                    </Style>
+                  </ItemsControl.Styles>
 
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:SelectionRegion">
-                            <Grid>
-                                <Rectangle Width="{Binding Width}"
-                                           Height="{Binding Height}"
-                                           Stroke="LightGreen"
-                                           StrokeThickness="1"
-                                           Fill="Transparent" />
-                                <TextBlock Text="{Binding Index}"
-                                           Foreground="LightGreen"
-                                           FontSize="10"
-                                           Margin="2,0,0,0"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:SelectionRegion">
+                      <Grid>
+                        <Rectangle Width="{Binding Width}"
+                                   Height="{Binding Height}"
+                                   Stroke="{Binding ColorIndex, Converter={StaticResource RegionIndexToBrush}}"
+                                   StrokeThickness="1"
+                                   Fill="Transparent" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- 3) 드래그용 Canvas (빨간 박스 + HitTest) -->
+                <!-- 3) 드래그용 Canvas -->
                 <Canvas x:Name="SelectionCanvas"
                         Background="Transparent"
                         IsHitTestVisible="{Binding CanDrawRegions}"
@@ -64,68 +62,76 @@
                         PointerMoved="SelectionCanvas_OnPointerMoved"
                         PointerReleased="SelectionCanvas_OnPointerReleased">
 
-                    <Rectangle x:Name="SelectionRect"
-                               Stroke="Red"
-                               StrokeThickness="1"
-                               Fill="Transparent"
-                               IsHitTestVisible="False"
-                               Width="0" Height="0" />
+                  <Rectangle x:Name="SelectionRect"
+                             Stroke="{Binding NextRegionBrush}"
+                             StrokeThickness="1"
+                             Fill="Transparent"
+                             IsHitTestVisible="False"
+                             Width="0"
+                             Height="0" />
                 </Canvas>
-            </Grid>
-        </Border>
+              </Grid>
+            </Border>
 
-        <!-- 아래 버튼/컨트롤 부분은 기존 그대로 -->
-        <StackPanel Grid.Row="1"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    Margin="0,8,0,8"
-                    Spacing="8">
+            <!-- 아래 버튼/컨트롤 부분은 기존 그대로 -->
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Margin="0,8,0,8"
+                        Spacing="8">
 
-            <Button Content="Start"
-                    Width="90"
-                    Command="{Binding StartPreviewCommand}" />
+                <Button Content="Start"
+                        Width="90"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Command="{Binding StartPreviewCommand}" />
 
-            <Button Content="Stop"
-                    Width="90"
-                    Command="{Binding StopPreviewCommand}" />
+                <Button Content="Stop"
+                        Width="90"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Command="{Binding StopPreviewCommand}" />
 
-            <TextBlock Text="Idx : "
-                       Margin="16,0,4,0"
-                       VerticalAlignment="Center" />
+                <Button Content="Save"
+                        Width="90"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Command="{Binding SaveImageSetAsync}" />
 
-            <Button Content="&lt;"
-                    Width="30"
-                    Command="{Binding PrevIndexCommand}" />
+                <TextBlock Text="Idx : "
+                        Margin="16,0,4,0"
+                        VerticalAlignment="Center" />
 
-            <TextBox Width="40"
-                     Margin="4,0"
-                     Text="{Binding SelectedCropIndexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <ComboBox Width="80"
+                        Margin="4,0"
+                        ItemsSource="{Binding CropIndexOptions}"
+                        SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />
 
-            <Button Content="&gt;"
-                    Width="30"
-                    Command="{Binding NextIndexCommand}" />
+                <CheckBox Content="Normalize"
+                          Margin="16,0,4,0"
+                          IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
+                          VerticalAlignment="Center"/>
 
-            <CheckBox Content="Normalize"
-                      Margin="16,0,4,0"
-                      IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
-                      VerticalAlignment="Center"
-                      IsEnabled="{Binding IsStop}" />
+                <TextBlock Text="Target Intensity:"
+                           Margin="16,0,4,0"
+                           VerticalAlignment="Center" />
 
-            <TextBlock Text="Target Intensity:"
-                       Margin="16,0,4,0"
-                       VerticalAlignment="Center" />
+                <TextBox Width="60"
+                         Text="{Binding TargetIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-            <TextBox Width="60"
-                     Text="{Binding TargetIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Content="Translation"
+                        Width="120"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Command="{Binding GetTranslationOffsetsAsync}" />
 
-            <TextBlock Text="Distance : "
-                       Margin="16,0,4,0"
-                       VerticalAlignment="Center" />
+                <TextBlock Text="Distance : "
+                           Margin="16,0,4,0"
+                           VerticalAlignment="Center" />
 
-            <ComboBox Width="80"
-                      ItemsSource="{Binding AvailableDistances}"
-                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"
-                      IsEnabled="{Binding IsStop}" />
-        </StackPanel>
-    </Grid>
+                <ComboBox Width="80"
+                          ItemsSource="{Binding AvailableDistances}"
+                          SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"/>
+            </StackPanel>
+        </Grid>
 </UserControl>

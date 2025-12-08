@@ -25,6 +25,10 @@
         <DataTemplate DataType="{x:Type vm:ChartViewModel}">
             <v:ChartView />
         </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:StatusViewModel}">
+		    <v:StatusView/>
+        </DataTemplate>
     </Window.DataTemplates>
 
     <ContentControl Content="{Binding}"/>

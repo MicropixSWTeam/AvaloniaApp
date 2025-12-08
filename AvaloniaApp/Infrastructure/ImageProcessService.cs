@@ -29,6 +29,7 @@ namespace AvaloniaApp.Infrastructure
 
         // translation 프리뷰 좌표 캐시: distance -> [tileIndex] -> 사전 계산된 정보
         private readonly Dictionary<int, TranslationPreviewCoord[]> _translationPreviewTable = new();
+        private readonly List<TranslationPreviewCoord> _translationPreviewCoordArray = new();
 
         private readonly struct TranslationPreviewCoord
         {
@@ -122,6 +123,79 @@ namespace AvaloniaApp.Infrastructure
             BuildTranslationPreviewTable();
 
             _gridConfigured = true;
+        }
+        // ImageProcessService.cs 안, 클래스 내부에 추가
+
+        /// <summary>
+        /// 현재 Grid(ROW x COL) 설정을 기준으로,
+        /// 기본 인덱스(위에서 아래, 왼→오른쪽) 순서로 타일 인덱스를 반환.
+        /// 예) 3x5 → 0 1 2 3 4 / 5 6 7 8 9 / 10 11 12 13 14
+        /// </summary>
+        public IEnumerable<int> GetTileIndicesTopToBottom()
+        {
+            if (!_gridConfigured)
+                throw new InvalidOperationException("Grid가 아직 설정되지 않았습니다.");
+
+            int rowCount = _config.RowCount;
+            int colCount = _config.ColCount;
+
+            for (int row = 0; row < rowCount; row++)
+            {
+                for (int col = 0; col < colCount; col++)
+                {
+                    yield return row * colCount + col;
+                }
+            }
+        }
+        /// <summary>
+        /// 현재 Grid(ROW x COL) 설정을 기준으로,
+        /// "아래 행 → 위 행" 순서로 타일 인덱스를 반환.
+        /// 예) 3x5:
+        ///   반환 순서: 10 11 12 13 14, 5 6 7 8 9, 0 1 2 3 4
+        ///   (1-based로 보면: 11..15, 6..10, 1..5)
+        /// </summary>
+        public IEnumerable<int> GetTileIndicesBottomToTop()
+        {
+            if (!_gridConfigured)
+                throw new InvalidOperationException("Grid가 아직 설정되지 않았습니다.");
+
+            int rowCount = _config.RowCount;
+            int colCount = _config.ColCount;
+
+            for (int row = rowCount - 1; row >= 0; row--)
+            {
+                for (int col = 0; col < colCount; col++)
+                {
+                    yield return row * colCount + col;
+                }
+            }
+        }
+
+        /// <summary>
+        /// "위→아래, 왼→오른쪽" 기준 인덱스를
+        /// 세로로 플립한 인덱스로 변환.
+        /// 예) 3x5:
+        ///   0→10, 1→11, 2→12, 3→13, 4→14,
+        ///   5→5, 6→6, 7→7, 8→8, 9→9,
+        ///   10→0, 11→1, 12→2, 13→3, 14→4
+        /// </summary>
+        public int FlipVerticalIndex(int index)
+        {
+            if (!_gridConfigured)
+                throw new InvalidOperationException("Grid가 아직 설정되지 않았습니다.");
+
+            int colCount = _config.ColCount;
+            int rowCount = _config.RowCount;
+
+            int total = rowCount * colCount;
+            if (index < 0 || index >= total)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            int row = index / colCount;
+            int col = index % colCount;
+
+            int flippedRow = rowCount - 1 - row;
+            return flippedRow * colCount + col;
         }
 
         #endregion
@@ -519,6 +593,20 @@ namespace AvaloniaApp.Infrastructure
 
         #region Translation preview precompute
 
+        /// <summary>
+        /// 현재 Grid 설정(_tileRects, _frameSize, _config)을 유지한 채
+        /// distance / tileIndex 별 translation 프리뷰 캐시를 다시 만든다.
+        /// - TranslationOffsets.SetRuntimeOffsets(...) 호출 후에 부르면
+        ///   런타임 보정 결과가 프리뷰에 반영된다.
+        /// </summary>
+        public void RebuildTranslationPreviewTable()
+        {
+            if (!_gridConfigured)
+                return;
+
+            BuildTranslationPreviewTable();
+        }
+
         private void BuildTranslationPreviewTable()
         {
             _translationPreviewTable.Clear();
@@ -567,6 +655,7 @@ namespace AvaloniaApp.Infrastructure
                 {
                     var baseRect = _tileRects[i];
 
+                    // 정적 Table + 런타임 보정 결과를 모두 포함해서 transform 을 가져온다.
                     var t = GetTransformFromDistance(distance, i);
 
                     var overlap = GetTranslationOverlapRect(baseRect, t);
@@ -599,16 +688,8 @@ namespace AvaloniaApp.Infrastructure
 
         private static TileTransform GetTransformFromDistance(int distance, int tileIndex)
         {
-            if (distance <= 0)
-                return new TileTransform(0, 0);
-
-            if (!TranslationOffsets.Table.TryGetValue(distance, out var perTile) || perTile is null)
-                return new TileTransform(0, 0);
-
-            if (!perTile.TryGetValue(tileIndex, out var t))
-                return new TileTransform(0, 0);
-
-            return t;
+            // 정적 테이블 + 런타임 보정 테이블을 모두 고려해서 가져온다.
+            return TranslationOffsets.GetTransformOrDefault(distance, tileIndex);
         }
 
         private static Rect IntersectRects(Rect a, Rect b)
@@ -700,7 +781,6 @@ namespace AvaloniaApp.Infrastructure
         }
 
         #endregion
-
         #region 타일 사전 구축 (Normalize + Translation 1회 수행)
 
         /// <summary>
@@ -766,9 +846,82 @@ namespace AvaloniaApp.Infrastructure
         #region 위상 상관 기반 오프셋 계산
 
         /// <summary>
+        /// MathNet.Numerics 의 Managed Provider 는 2D FFT(Forward2D/Inverse2D)를
+        /// 지원하지 않으므로, 1D FFT(행 → 열 순서)를 이용해서 2D FFT를 직접 구현.
+        /// data 는 행 우선(row-major) [y * width + x] 레이아웃을 따른다.
+        /// </summary>
+        private static void Forward2DManaged(Complex[] data, int height, int width, FourierOptions options)
+        {
+            if (data is null) throw new ArgumentNullException(nameof(data));
+            if (data.Length != height * width)
+                throw new ArgumentException("data length != height*width");
+
+            // 1) 행 방향 FFT
+            var row = new Complex[width];
+            for (int y = 0; y < height; y++)
+            {
+                int offset = y * width;
+                Array.Copy(data, offset, row, 0, width);
+                Fourier.Forward(row, options);
+                Array.Copy(row, 0, data, offset, width);
+            }
+
+            // 2) 열 방향 FFT
+            var col = new Complex[height];
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    col[y] = data[y * width + x];
+                }
+
+                Fourier.Forward(col, options);
+
+                for (int y = 0; y < height; y++)
+                {
+                    data[y * width + x] = col[y];
+                }
+            }
+        }
+
+        private static void Inverse2DManaged(Complex[] data, int height, int width, FourierOptions options)
+        {
+            if (data is null) throw new ArgumentNullException(nameof(data));
+            if (data.Length != height * width)
+                throw new ArgumentException("data length != height*width");
+
+            // 1) 행 방향 iFFT
+            var row = new Complex[width];
+            for (int y = 0; y < height; y++)
+            {
+                int offset = y * width;
+                Array.Copy(data, offset, row, 0, width);
+                Fourier.Inverse(row, options);
+                Array.Copy(row, 0, data, offset, width);
+            }
+
+            // 2) 열 방향 iFFT
+            var col = new Complex[height];
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    col[y] = data[y * width + x];
+                }
+
+                Fourier.Inverse(col, options);
+
+                for (int y = 0; y < height; y++)
+                {
+                    data[y * width + x] = col[y];
+                }
+            }
+        }
+
+        /// <summary>
         /// 위상 상관(Phase Correlation)을 사용하여 기준 타일(referenceIndex)을 기준으로
         /// 나머지 타일들의 평행 이동 오프셋(정수 픽셀)을 계산.
-        ///
+        /// 
         /// - tiles: 동일 크기 Gray8 WriteableBitmap 타일들 (예: BuildNormalizedTiles 결과)
         /// - referenceIndex: 기준 타일 인덱스 (예: 7)
         /// - 반환: tiles.Count 개수의 TileTransform 배열
@@ -793,6 +946,8 @@ namespace AvaloniaApp.Infrastructure
 
             if (width <= 0 || height <= 0)
                 throw new InvalidOperationException("타일 크기가 유효하지 않습니다.");
+
+            var options = FourierOptions.Default;
 
             // 기준 타일 FFT 준비
             var refFreq = new Complex[width * height];
@@ -821,7 +976,8 @@ namespace AvaloniaApp.Infrastructure
                     ArrayPool<byte>.Shared.Return(buffer);
                 }
 
-                Fourier.Forward2D(refFreq, height, width, FourierOptions.Default);
+                // 2D FFT (Managed 구현)
+                Forward2DManaged(refFreq, height, width, options);
             }
 
             var results = new TileTransform[tiles.Count];
@@ -871,7 +1027,7 @@ namespace AvaloniaApp.Infrastructure
                     }
                 }
 
-                Fourier.Forward2D(tileFreq, height, width, FourierOptions.Default);
+                Forward2DManaged(tileFreq, height, width, options);
 
                 // 교차 파워 스펙트럼 (정규화)
                 var crossPower = new Complex[width * height];
@@ -886,7 +1042,7 @@ namespace AvaloniaApp.Infrastructure
                 }
 
                 // 역 FFT → 위상 상관 맵
-                Fourier.Inverse2D(crossPower, height, width, FourierOptions.Default);
+                Inverse2DManaged(crossPower, height, width, options);
 
                 // 최대값 위치 찾기
                 int peakIndex = 0;
@@ -918,5 +1074,6 @@ namespace AvaloniaApp.Infrastructure
         }
 
         #endregion
+
     }
 }

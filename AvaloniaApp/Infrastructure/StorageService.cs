@@ -1,8 +1,14 @@
-﻿using Avalonia;
+﻿// ==============================
+// AvaloniaApp.Infrastructure/StorageService.cs
+// - 원본 전체 이미지 + 원본 타일 + 처리된 타일 + stitched 전체 이미지 저장 지원
+// ==============================
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using AvaloniaApp.Infrastructure;
+using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -52,21 +58,17 @@ namespace AvaloniaApp.Infrastructure
                 }
             };
 
-            // Avalonia Storage API 는 CancellationToken 을 직접 받지 않으므로
-            // ct 는 호출 측에서만 관리 (여기서는 단순히 무시)
             var file = await provider.SaveFilePickerAsync(options);
             if (file is null)
                 return; // 사용자 취소
 
             await using var stream = await file.OpenWriteAsync();
-            bitmap.Save(stream); // 확장자에 맞춰 PNG로 저장
+            bitmap.Save(stream); // PNG 저장
         }
 
         /// <summary>
-        /// stitched + tiles 묶음을 한 번에 저장:
-        /// 1) 부모 폴더 선택
-        /// 2) 그 안에 sessionName(없으면 timestamp) 이름의 서브 폴더 생성
-        /// 3) 서브 폴더 안에 stitched.png + tile_00.png... 저장
+        /// (기존) stitched + tiles 묶음을 한 번에 저장.
+        /// 그대로 두고, 필요 시 다른 곳에서 사용 가능.
         /// </summary>
         public async Task SaveImageSetWithFolderDialogAsync(
             Bitmap stitched,
@@ -76,6 +78,61 @@ namespace AvaloniaApp.Infrastructure
         {
             if (stitched is null) throw new ArgumentNullException(nameof(stitched));
             if (tiles is null) throw new ArgumentNullException(nameof(tiles));
+
+            var provider = GetStorageProvider();
+
+            if (!provider.CanPickFolder)
+                return;
+
+            var parents = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                AllowMultiple = false,
+                Title = "이미지 세트를 저장할 폴더를 선택하세요"
+            });
+
+            if (parents is null || parents.Count == 0)
+                return;
+
+            var parent = parents[0];
+
+            var folderName = string.IsNullOrWhiteSpace(sessionName)
+                ? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"
+                : sessionName.Trim();
+
+            var subFolder = await parent.CreateFolderAsync(folderName);
+            if (subFolder is null)
+                return;
+
+            await SaveBitmapToFolderAsync(subFolder, "stitched.png", stitched, ct);
+
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var tile = tiles[i];
+                if (tile is null)
+                    continue;
+
+                var fileName = $"tile_{i:D2}.png";
+                await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
+            }
+        }
+
+        /// <summary>
+        /// 원본 전체 이미지 + 원본 crop 타일 + 처리된(translation+normalize) 타일 + stitched 전체 이미지를 한 번에 저장.
+        /// </summary>
+        public async Task SaveFullImageSetWithFolderDialogAsync(
+            Bitmap fullImage,
+            IReadOnlyList<Bitmap> originalTiles,
+            IReadOnlyList<Bitmap> processedTiles,
+            Bitmap stitched,
+            string? sessionName,
+            CancellationToken ct = default)
+        {
+            if (fullImage is null) throw new ArgumentNullException(nameof(fullImage));
+            if (originalTiles is null) throw new ArgumentNullException(nameof(originalTiles));
+            if (processedTiles is null) throw new ArgumentNullException(nameof(processedTiles));
+            if (stitched is null) throw new ArgumentNullException(nameof(stitched));
 
             var provider = GetStorageProvider();
 
@@ -104,19 +161,35 @@ namespace AvaloniaApp.Infrastructure
             if (subFolder is null)
                 return;
 
-            // 4) stitched 저장
+            // 4) 원본 전체 이미지 저장
+            await SaveBitmapToFolderAsync(subFolder, "full_original.png", fullImage, ct);
+
+            // 5) stitched 전체 이미지 저장
             await SaveBitmapToFolderAsync(subFolder, "stitched.png", stitched, ct);
 
-            // 5) 타일들 저장
-            for (int i = 0; i < tiles.Count; i++)
+            // 6) 원본 crop 타일 저장
+            for (int i = 0; i < originalTiles.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var tile = tiles[i];
+                var tile = originalTiles[i];
                 if (tile is null)
                     continue;
 
-                var fileName = $"tile_{i:D2}.png";
+                var fileName = $"orig_tile_{i:D2}.png";
+                await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
+            }
+
+            // 7) 처리된(translation+normalize) 타일 저장
+            for (int i = 0; i < processedTiles.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var tile = processedTiles[i];
+                if (tile is null)
+                    continue;
+
+                var fileName = $"proc_tile_{i:D2}.png";
                 await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
             }
         }

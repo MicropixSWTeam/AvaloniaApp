@@ -148,5 +148,13 @@ namespace AvaloniaApp.Presentation.Views.UserControls
 
             e.Handled = true;
         }
+
+        private void TextBlock_ActualThemeVariantChanged(object? sender, EventArgs e)
+        {
+        }
+
+        private void ComboBox_ActualThemeVariantChanged(object? sender, EventArgs e)
+        {
+        }
     }
 }

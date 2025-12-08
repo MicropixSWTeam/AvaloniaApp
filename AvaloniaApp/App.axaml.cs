@@ -52,6 +52,7 @@ namespace AvaloniaApp
             services.AddSingleton<ChartViewModel>();
             services.AddSingleton<StorageViewModel>();
             services.AddSingleton<MainWindowViewModel>();
+            services.AddSingleton<StatusViewModel>();
             services.AddSingleton<PopupHostWindowViewModel>();    
 
             // View
@@ -62,6 +63,7 @@ namespace AvaloniaApp
             services.AddSingleton<TabView>();
             services.AddSingleton<StorageView>();
             services.AddSingleton<MainWindow>();
+            services.AddSingleton<StatusView>();
             services.AddTransient<PopupHostWindow>();
             services.AddTransient<Func<PopupHostWindow>>(sp =>
             {

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using static AvaloniaEdit.Document.TextDocumentWeakEventManager;
 
 namespace AvaloniaApp.Core.Models
 {
@@ -137,6 +138,59 @@ namespace AvaloniaApp.Core.Models
                     [14] = new TileTransform(-8, -22),
                 },
             };
+        // ===== Runtime calibration (phase correlation / template 등) support =====
+
+        // 거리별(runtime) 오프셋 테이블
+        private static readonly Dictionary<int, Dictionary<int, TileTransform>> _runtimeTable
+            = new();
+
+        /// <summary>
+        /// 계산된 타일 오프셋들을 런타임 테이블에 저장한다.
+        /// 같은 distance 에 대해 다시 호출하면 기존 값을 덮어쓴다.
+        /// offsets[i] 는 타일 인덱스 i 에 해당하는 오프셋으로 본다.
+        /// </summary>
+        public static void SetRuntimeOffsets(int distance, IReadOnlyList<TileTransform> offsets)
+        {
+            if (offsets is null) throw new ArgumentNullException(nameof(offsets));
+
+            var inner = new Dictionary<int, TileTransform>(offsets.Count);
+            for (int i = 0; i < offsets.Count; i++)
+            {
+                inner[i] = offsets[i];
+            }
+
+            _runtimeTable[distance] = inner;
+        }
+
+        /// <summary>
+        /// 정적 Table + 런타임 보정 결과를 모두 고려해서
+        /// 해당 distance / tileIndex 의 translation 을 가져온다.
+        /// </summary>
+        public static TileTransform GetTransformOrDefault(int distance, int tileIndex)
+        {
+            if (distance <= 0)
+                return new TileTransform(0, 0);
+
+            // 1) 런타임 테이블 우선
+            if (_runtimeTable.TryGetValue(distance, out var runtime) &&
+                runtime is not null &&
+                runtime.TryGetValue(tileIndex, out var rt))
+            {
+                return rt;
+            }
+
+            // 2) 정적 Table (수동 입력 값)
+            if (Table.TryGetValue(distance, out var perTile) &&
+                perTile is not null &&
+                perTile.TryGetValue(tileIndex, out var st))
+            {
+                return st;
+            }
+
+            // 3) 둘 다 없으면 (0,0)
+            return new TileTransform(0, 0);
+        }
+
     }
 
     public readonly record struct CropGridConfig(
@@ -152,7 +206,12 @@ namespace AvaloniaApp.Core.Models
     /// </summary>
     public sealed class SelectionRegion
     {
+        // 내부 ID (RegionTileStats 키 용)
         public int Index { get; }
+
+        // 팔레트 색 인덱스 (0..N-1)
+        public int ColorIndex { get; }
+
         public Rect ControlRect { get; }      // CameraView 캔버스 좌표
         public Rect ImageRect { get; }        // 타일 이미지 좌표
         public double Mean { get; }
@@ -166,18 +225,21 @@ namespace AvaloniaApp.Core.Models
 
         public SelectionRegion(
             int index,
+            int colorIndex,
             Rect controlRect,
             Rect imageRect,
             double mean,
             double stdDev)
         {
             Index = index;
+            ColorIndex = colorIndex;
             ControlRect = controlRect;
             ImageRect = imageRect;
             Mean = mean;
             StdDev = stdDev;
         }
     }
+
 
     /// <summary>
     /// 하나의 ROI에 대해, 각 타일별 mean / stdDev 배열 (차트용).
@@ -228,13 +290,43 @@ namespace AvaloniaApp.Core.Models
         /// ChartViewModel에서 Subscribe해서 Series 재구성.
         /// </summary>
         public event EventHandler? Changed;
+        public int NextColorIndex
+        {
+            get
+            {
+                var used = _regions.Select(r => r.ColorIndex).ToHashSet();
+                int idx = 0;
+                while (used.Contains(idx)) idx++;
+                return idx;
+            }
+        }
+        /// <summary>
+        /// ROI 최대 개수. 0 이하이면 제한 없음.
+        /// 예) 32개까지만 허용.
+        /// </summary>
+        public int MaxRegions { get; set; } = 7;
 
-        public void AddRegion(SelectionRegion region, IReadOnlyList<TileStats> tileStats)
+        /// <summary>
+        /// 현재 ROI 개수가 MaxRegions 에 도달했는지 여부.
+        /// </summary>
+        public bool IsLimitReached =>
+            MaxRegions > 0 && _regions.Count >= MaxRegions;
+
+        /// <summary>
+        /// ROI 추가 시도.
+        /// - MaxRegions에 도달한 경우 false 반환(추가 안 함).
+        /// - 성공 시 true 반환.
+        /// </summary>
+        public bool TryAddRegion(SelectionRegion region, IReadOnlyList<TileStats> tileStats)
         {
             if (region is null) throw new ArgumentNullException(nameof(region));
             if (tileStats is null) throw new ArgumentNullException(nameof(tileStats));
 
-            // 같은 Index가 있으면 먼저 제거
+            // 개수 제한 체크: 이미 MaxRegions 에 도달했다면 추가 금지
+            if (IsLimitReached)
+                return false;
+
+            // 같은 Index 가 있으면 먼저 제거 (Index 재사용 방지)
             var existing = _regions.FirstOrDefault(r => r.Index == region.Index);
             if (existing is not null)
             {
@@ -244,7 +336,9 @@ namespace AvaloniaApp.Core.Models
 
             _regions.Add(region);
             RegionTileStats[region.Index] = tileStats;
+
             OnChanged();
+            return true;
         }
 
         public void RemoveRegion(SelectionRegion region)
@@ -269,6 +363,7 @@ namespace AvaloniaApp.Core.Models
 
         private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
     }
+
 
     /// <summary>
     /// 현재 프레임 + 타일(정규화된 타일 포함) + ROI 영역 + ROI별 시리즈를

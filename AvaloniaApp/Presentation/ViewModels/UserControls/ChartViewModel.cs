@@ -1,6 +1,8 @@
-﻿// AvaloniaApp.Presentation/ViewModels/UserControls/ChartViewModel.cs
+﻿// ===== AvaloniaApp.Presentation/ViewModels/UserControls/ChartViewModel.cs (체크박스 + 색상 연동 버전) =====
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
+using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +13,8 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
@@ -26,38 +30,42 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty]
         private Axis[]? yAxes;
 
+        /// <summary>
+        /// ROI 리스트 + 체크박스용 항목.
+        /// </summary>
+        public ObservableCollection<RegionCheckItem> RegionItems { get; } = new();
+
         [ObservableProperty]
-        private SelectionRegion? selectedRegion;
+        private RegionCheckItem? selectedRegionItem;
 
         private readonly RegionAnalysisWorkspace _analysis;
-
+        private readonly ImageProcessService _imageProcessService;
         /// <summary>
-        /// 차트에 표시할 최대 ROI 개수 (최근 N개만 표시)
+        /// 차트에 동시에 표시할 최대 ROI 개수 (최근 N개).
         /// </summary>
         public int MaxRegionsInChart { get; set; } = 6;
-        public string Title { get; set; } = "Spectrum Chart";
-        public int Width { get; set; } = 600;
-        public int Height { get; set; } = 400;
 
+        public string Title { get; set; } = "Spectrum Chart";
+        public int Width { get; set; } = 900;
+        public int Height { get; set; } = 600;
+
+        /// <summary>
+        /// 다른 View(XAML 등)에서 필요하면 직접 Regions에 접근할 수 있도록 노출.
+        /// </summary>
         public IEnumerable<SelectionRegion> Regions => _analysis.Regions;
 
-        // ROI 색상 팔레트 (차트 + 카메라 ROI에 같이 쓸 수 있도록 고정 팔레트)
-        private static readonly SKColor[] Palette =
-        {
-            new SKColor( 59, 130, 246), // 파랑
-            new SKColor( 34, 197,  94), // 초록
-            new SKColor(239,  68,  68), // 레드
-            new SKColor(234, 179,   8), // 노랑
-            new SKColor( 56, 189, 248), // 시안
-            new SKColor(168,  85, 247), // 보라
-        };
-
-        public ChartViewModel(RegionAnalysisWorkspace analysis)
+        public ChartViewModel(RegionAnalysisWorkspace analysis,ImageProcessService imageProcessService)
         {
             _analysis = analysis;
-            _analysis.Changed += (_, __) => RebuildSeries();
+            _imageProcessService = imageProcessService;
 
-            // X축: 15개 밴드 (410~690nm), 항상 전부 보이도록 MinStep = 1
+            _analysis.Changed += (_, __) =>
+            {
+                SyncRegionItems();
+                RebuildSeries();
+            };
+
+            // 축 초기 설정
             XAxes = new Axis[]
             {
                 new Axis
@@ -76,17 +84,14 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                     TextSize = 13,
 
-                    // 카테고리 축에서 모든 tick 을 보이게
                     MinStep = 1,
 
-                    // 눈금/축선 색
                     SeparatorsPaint = new SolidColorPaint(new SKColor(60, 72, 88)),
                     TicksPaint       = new SolidColorPaint(new SKColor(60, 72, 88)),
                     ShowSeparatorLines = true
                 }
             };
 
-            // Y축: Intensity (0~255 고정)
             YAxes = new Axis[]
             {
                 new Axis
@@ -96,9 +101,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     NameTextSize = 16,
                     NamePadding = new LiveChartsCore.Drawing.Padding(0, 0, 10, 0),
 
-                    MinLimit = 0,
-                    MaxLimit = 255,
-                    MinStep  = 51,
+                    MinLimit = -50,
+                    MaxLimit = 300,
+                    MinStep  = 50,
                     Labeler  = value => value.ToString("0"),
 
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
@@ -111,6 +116,51 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             };
 
             Series = Array.Empty<ISeries>();
+
+            // 초기 동기화
+            SyncRegionItems();
+            RebuildSeries();
+        }
+
+        partial void OnSelectedRegionItemChanged(RegionCheckItem? value)
+        {
+            // 필요시 선택 변경에 따른 추가 동작 가능
+        }
+
+        private void SyncRegionItems()
+        {
+            // 기존 체크 상태 보존
+            var checkedMap = RegionItems.ToDictionary(i => i.Region.Index, i => i.IsChecked);
+
+            foreach (var item in RegionItems)
+            {
+                item.PropertyChanged -= RegionItemOnPropertyChanged;
+            }
+
+            RegionItems.Clear();
+
+            foreach (var region in _analysis.Regions)
+            {
+                var item = new RegionCheckItem(region);
+                if (checkedMap.TryGetValue(region.Index, out var isChecked))
+                    item.IsChecked = isChecked;
+
+                item.PropertyChanged += RegionItemOnPropertyChanged;
+                RegionItems.Add(item);
+            }
+
+            if (SelectedRegionItem is not null && !RegionItems.Contains(SelectedRegionItem))
+            {
+                SelectedRegionItem = null;
+            }
+        }
+
+        private void RegionItemOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(RegionCheckItem.IsChecked))
+            {
+                RebuildSeries();
+            }
         }
         private void RebuildSeries()
         {
@@ -120,42 +170,69 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 return;
             }
 
-            // 1) Regions를 리스트로 복사
-            var regions = _analysis.Regions.ToList();
+            // 체크된 ROI들만 대상으로
+            var checkedRegions = RegionItems
+                .Where(i => i.IsChecked)
+                .Select(i => i.Region)
+                .ToList();
 
-            // 2) 너무 많으면 뒤에서 MaxRegionsInChart 개만 남기기 (최근 ROI들만)
-            if (regions.Count > MaxRegionsInChart)
+            if (checkedRegions.Count == 0)
             {
-                regions = regions.Skip(regions.Count - MaxRegionsInChart).ToList();
+                Series = Array.Empty<ISeries>();
+                return;
+            }
+
+            // 너무 많으면 뒤에서 MaxRegionsInChart 개만 남김 (최근 ROI 위주)
+            if (checkedRegions.Count > MaxRegionsInChart)
+            {
+                checkedRegions = checkedRegions
+                    .Skip(checkedRegions.Count - MaxRegionsInChart)
+                    .ToList();
             }
 
             var list = new List<ISeries>();
 
-            foreach (var region in regions)
+            // ★ 타일 순서를 "아래 행 → 위 행"으로 가져오기
+            var order = _imageProcessService
+                .GetTileIndicesBottomToTop()
+                .ToArray();   // 예: 10 11 12 13 14, 5 6 7 8 9, 0 1 2 3 4
+
+            foreach (var region in checkedRegions)
             {
                 if (!_analysis.RegionTileStats.TryGetValue(region.Index, out var stats))
                     continue;
 
-                // stats: 각 밴드별 Mean / StdDev 정보라고 가정
-                // ErrorValue(Y, error)를 만든다. 여기서는 half std 를 error 로 사용.
-                var values = stats
-                    .Select(ts =>
-                    {
-                        var halfStd = ts.StdDev / 2.0;
-                        return new ErrorValue(ts.Mean, halfStd);
-                    })
-                    .ToArray();
+                // stats: grid 기준 순서(0..TileCount-1)
+                // order 순서대로 재정렬
+                var orderedValues = new List<ErrorValue>(order.Length);
+                var orderedMeans = new List<double>(order.Length);
+                var orderedStds = new List<double>(order.Length);
 
-                // Tooltip에서 다시 쓰기 위한 원본 배열
-                var means = stats.Select(ts => ts.Mean).ToArray();
-                var stds = stats.Select(ts => ts.StdDev).ToArray();
+                foreach (var idx in order)
+                {
+                    if (idx < 0 || idx >= stats.Count)
+                        continue;
 
-                var color = Palette[region.Index % Palette.Length];
+                    var ts = stats[idx];
+                    var m = ts.Mean;
+                    var std = ts.StdDev;
+
+                    orderedMeans.Add(m);
+                    orderedStds.Add(std);
+
+                    var halfStd = std / 2.0;
+                    orderedValues.Add(new ErrorValue(m, halfStd));
+                }
+
+                var means = orderedMeans.ToArray();
+                var stds = orderedStds.ToArray();
+
+                var color = RegionColorPalette.GetSkColor(region.ColorIndex);
 
                 var line = new LineSeries<ErrorValue>
                 {
                     Name = $"ROI {region.Index}",
-                    Values = values,
+                    Values = orderedValues.ToArray(),
 
                     Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
                     Fill = null,
@@ -167,13 +244,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
                     ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
 
-                    // XToolTipLabelFormatter 는 안 씀
-                    // XToolTipLabelFormatter = null,
-
-                    // 여기만 커스텀: point.Context.Index 로 밴드 인덱스를 가져온다.
+                    // ★ Tooltip도 재정렬된 배열(means/stds)에 맞게 인덱싱
                     YToolTipLabelFormatter = point =>
                     {
-                        var idx = point.Index; // <= SecondaryValue 대신 이거
+                        var idx = point.Index; // 너가 현재 쓰고 있는 인덱스 속성 그대로 사용
 
                         if (idx < 0 || idx >= means.Length)
                             return string.Empty;
@@ -192,20 +266,54 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
 
 
-
         [RelayCommand]
         private void ClearRegions()
         {
             _analysis.Clear();
-            SelectedRegion = null;
+            RegionItems.Clear();
+            Series = Array.Empty<ISeries>();
         }
 
+        /// <summary>
+        /// 체크된 ROI들을 모두 제거.
+        /// </summary>
         [RelayCommand]
-        private void RemoveSelectedRegion()
+        private void RemoveCheckedRegions()
         {
-            if (SelectedRegion is null) return;
-            _analysis.RemoveRegion(SelectedRegion);
-            SelectedRegion = null;
+            var toRemove = RegionItems
+                .Where(i => i.IsChecked)
+                .Select(i => i.Region)
+                .ToList();
+
+            if (toRemove.Count == 0)
+                return;
+
+            foreach (var region in toRemove)
+            {
+                _analysis.RemoveRegion(region);
+            }
+        }
+    }
+    /// <summary>
+    /// ChartView에서 ROI 리스트를 표시하기 위한 체크박스용 ViewModel 항목.
+    /// </summary>
+    public partial class RegionCheckItem : ObservableObject
+    {
+        public SelectionRegion Region { get; }
+
+
+        [ObservableProperty]
+        private bool isChecked = true; // 기본값: 차트에 표시
+
+
+        public int Index => Region.Index;
+        public double Mean => Region.Mean;
+        public double StdDev => Region.StdDev;
+
+
+        public RegionCheckItem(SelectionRegion region)
+        {
+            Region = region;
         }
     }
 }

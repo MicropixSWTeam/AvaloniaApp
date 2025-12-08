@@ -1,4 +1,5 @@
-﻿using SkiaSharp;
+﻿using Avalonia.Media;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,23 +10,25 @@ namespace AvaloniaApp.Core.Models
 {
     public static class RegionColorPalette
     {
-        private static readonly SKColor[] Colors =
+        private static readonly (byte r, byte g, byte b)[] Palette =
         {
-            SKColors.Red,
-            SKColors.LimeGreen,
-            SKColors.DeepSkyBlue,
-            SKColors.Orange,
-            SKColors.Magenta,
-            SKColors.Cyan,
-            SKColors.Gold,
-            SKColors.MediumPurple
+            (255, 0, 0),
+            (255, 165, 0),
+            (255, 255, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (128, 0, 128),
+            (0, 0, 0)
         };
-
-        public static SKColor GetChartColor(int regionIndex)
+        public static SKColor GetSkColor(int index)
         {
-            if (regionIndex <= 0) return Colors[0];
-            int idx = (regionIndex - 1) % Colors.Length;
-            return Colors[idx];
+            var (r, g, b) = Palette[index % Palette.Length];
+            return new SKColor(r, g, b);
+        }
+        public static Color GetAvaloniaColor(int index)
+        {
+            var (r, g, b) = Palette[index % Palette.Length];
+            return Color.FromRgb(r, g, b);
         }
     }
 }

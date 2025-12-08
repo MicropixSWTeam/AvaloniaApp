@@ -1,5 +1,6 @@
 ﻿// AvaloniaApp.Presentation/ViewModels/UserControls/CameraViewModel.cs
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
@@ -48,7 +49,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         // 거리 선택 (0 = translation 없음)
         [ObservableProperty]
-        private int selectedDistance = 0;
+        private int selectedDistance = 40;
+        public ObservableCollection<int> CropIndexOptions { get; } = new();
 
         // Stop 상태
         [ObservableProperty]
@@ -57,8 +59,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         /// <summary>
         /// 실제 드로잉 가능 여부 = Stop 상태 + Draw 모드
         /// </summary>
-        public bool CanDrawRegions => IsStop;
-
+        public bool CanDrawRegions => IsStop && !_analysis.IsLimitReached;
         // 최근 드래그 중인 선택 영역(컨트롤 좌표)
         private Rect _selectionRectInControl;
         public Rect SelectionRectInControl
@@ -100,7 +101,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         /// (_analysis.Regions 그대로 노출)
         /// </summary>
         public ObservableCollection<SelectionRegion> Regions => _analysis.Regions;
-
+        public IBrush NextRegionBrush
+            => new SolidColorBrush(RegionColorPalette.GetAvaloniaColor(_analysis.NextColorIndex));
         // grid 설정 (현재 카메라 해상도 기준 5x3, 1064x1012)
         private readonly CropGridConfig _gridConfig =
             new CropGridConfig(
@@ -133,6 +135,14 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _drawRectService = drawRectService;
             _storageService = storageService;
             _analysis = analysis;
+
+            _analysis.MaxRegions = 7;
+
+            // ROI 개수 변동 시 그릴 수 있는지 여부 업데이트
+            _analysis.Changed += (_, __) =>
+            {
+                OnPropertyChanged(nameof(NextRegionBrush));
+            };
         }
 
         /// <summary>
@@ -284,7 +294,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 });
             });
         }
-
         [RelayCommand]
         public async Task SaveImageSetAsync()
         {
@@ -295,69 +304,147 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             if (Image is null)
                 return;
 
-            // 현재 Image + SelectedDistance + TargetIntensity 기준으로
-            // 정규화+translation된 타일들을 캐시에서 얻거나 새로 계산
-            var tiles = GetOrBuildNormalizedTiles(Image);   // IReadOnlyList<WriteableBitmap>
+            var src = Image;
 
-            // WriteableBitmap -> Bitmap 업캐스트용 리스트
-            var tileBitmaps = tiles.Cast<Bitmap>().ToList(); // List<Bitmap>
+            // Grid 보장
+            EnsureGridConfigured(src);
 
-            // 타일 그대로 붙여서 전체 stitched 이미지 생성
-            // (translation은 BuildNormalizedTiles 안에서 이미 적용된 상태라고 가정)
-            var stitched = _imageProcessService.StitchTiles(tileBitmaps);
+            // 1) 현재 Image + SelectedDistance + TargetIntensity 기준으로
+            //    정규화+translation된 타일들을 캐시에서 얻거나 새로 계산
+            var processedTiles = GetOrBuildNormalizedTiles(src);   // IReadOnlyList<WriteableBitmap>
+
+            // WriteableBitmap -> Bitmap 업캐스트용 리스트 (캐시 참조, 여기서 Dispose 하지 않음)
+            var processedBitmaps = new List<Bitmap>(processedTiles.Count);
+            foreach (var t in processedTiles)
+            {
+                processedBitmaps.Add(t);
+            }
+
+            // 2) 원본 crop 타일 (translation/normalize 없이 grid 기준으로만 crop)
+            var originalBitmaps = new List<Bitmap>(_imageProcessService.TileCount);
+            for (int i = 0; i < _imageProcessService.TileCount; i++)
+            {
+                var tile = _imageProcessService.CropTile(src, i); // 새 WriteableBitmap 생성
+                originalBitmaps.Add(tile);
+            }
+
+            // 3) 처리된 타일들로 전체 stitched 이미지 생성
+            //    (translation은 BuildNormalizedTiles 안에서 이미 적용된 상태라고 가정)
+            var stitched = _imageProcessService.StitchTiles(processedBitmaps);
 
             try
             {
                 // sessionName: null이면 StorageService 내부에서 Timestamp로 폴더 이름 생성
-                await _storageService.SaveImageSetWithFolderDialogAsync(
-                    stitched,
-                    tileBitmaps,
+                await _storageService.SaveFullImageSetWithFolderDialogAsync(
+                    fullImage: src,
+                    originalTiles: originalBitmaps,
+                    processedTiles: processedBitmaps,
+                    stitched: stitched,
                     sessionName: null,
                     ct: CancellationToken.None);
             }
             finally
             {
-                // stitched는 여기서만 쓰는 임시 비트맵이므로 해제
+                // stitched 는 여기서만 쓰는 임시 비트맵이므로 해제
                 stitched.Dispose();
+
+                // originalBitmaps 도 여기서만 쓰는 임시 비트맵이므로 해제
+                foreach (var tile in originalBitmaps)
+                {
+                    tile?.Dispose();
+                }
+
+                // processedBitmaps 는 Normalize 캐시의 인스턴스를 가리키므로
+                // 여기서 Dispose 하면 안 된다.
             }
         }
 
         [RelayCommand]
-        private void NextIndex()
+        public async Task GetTranslationOffsetsAsync()
         {
-            if (!_gridConfigured || _imageProcessService.TileCount == 0)
-                return;
-
-            int max = _imageProcessService.TileCount - 1;
-
-            if (SelectedCropIndex < 0)
+            await RunSafeAsync(async ct =>
             {
-                SelectedCropIndex = 0;
-            }
-            else if (SelectedCropIndex < max)
-            {
-                SelectedCropIndex++;
-            }
-        }
+                // 1) Stop 상태 + 유효한 프레임인지 확인
+                if (!IsStop)
+                    return;
 
-        [RelayCommand]
-        private void PrevIndex()
-        {
-            if (!_gridConfigured || _imageProcessService.TileCount == 0)
-                return;
+                if (Image is null)
+                    return;
 
-            if (SelectedCropIndex > 0)
-            {
-                SelectedCropIndex--;
-            }
-            else if (SelectedCropIndex == 0)
-            {
-                SelectedCropIndex = -1; // 전체 이미지로 돌아가기
-            }
+                // distance 0 은 "translation 없음" 이므로 보정할 필요가 없다.
+                //if (SelectedDistance <= 0)
+                //    return;
+
+                var src = Image;
+
+                // 2) 위상 상관 계산은 CPU 작업이므로 백그라운드 스레드에서 수행
+                var offsets = await Task.Run<IReadOnlyList<TileTransform>>(() =>
+                {
+                    // Grid 보장
+                    EnsureGridConfigured(src);
+
+                    // (a) translation 이 전혀 적용되지 않은 정규화 타일 생성
+                    var tiles = _imageProcessService.BuildNormalizedTiles(
+                        src,
+                        _ => new TileTransform(0, 0),   // distance=0 과 동일, translation 없음
+                        TargetIntensity);
+
+                    try
+                    {
+                        // (b) 가운데 타일(3x5 기준 인덱스 7)을 reference 로 사용해서
+                        //     나머지 타일들의 평행 이동 오프셋 계산
+                        int referenceIndex = 7;
+                        if (referenceIndex < 0 || referenceIndex >= tiles.Count)
+                            referenceIndex = 0;
+
+                        return _imageProcessService.ComputePhaseCorrelationOffsets(
+                            tiles,
+                            referenceIndex: referenceIndex);
+                    }
+                    finally
+                    {
+                        // FFT 계산이 끝났으면 임시 타일은 즉시 해제
+                        foreach (var tile in tiles)
+                        {
+                            tile.Dispose();
+                        }
+                    }
+                }, ct);
+
+                // 3) 현재 SelectedDistance 에 대한 runtime translation 테이블에 저장
+                //    (정적 Table 은 건드리지 않는다)
+                TranslationOffsets.SetRuntimeOffsets(SelectedDistance, offsets);
+
+                // 4) 프리뷰용 translation ROI 캐시 재구축 + 정규화 타일 캐시 무효화
+                InvalidateNormalizedTilesCache();
+                _imageProcessService.RebuildTranslationPreviewTable();
+
+                // 5) 현재 선택된 타일 프리뷰/표시 이미지 갱신
+                UpdatePreviewImages();
+                OnPropertyChanged(nameof(DisplayImage));
+
+                await Task.CompletedTask;
+            });
         }
 
         // ===== 내부 헬퍼 =====
+        private int AllocateColorIndex()
+        {
+            // 현재 사용 중인 색 인덱스 수집
+            var used = _analysis.Regions
+                .Select(r => r.ColorIndex)
+                .Distinct()
+                .ToHashSet();
 
+            for (int i = 0; i < 7; i++)
+            {
+                if (!used.Contains(i))
+                    return i;   // 비어 있는 색 슬롯
+            }
+
+            // MaxRegions <= RoiColorCount 조건이면 여기 올 일이 없음. 방어적 fallback.
+            return 0;
+        }
         private void EnsureGridConfigured(Bitmap frame)
         {
             var size = frame.PixelSize;
@@ -367,9 +454,15 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 _imageProcessService.ConfigureGrid(size, _gridConfig);
                 _gridConfigured = true;
                 _gridFrameSize = size;
+
+                // ▼ dropdown용 인덱스 리스트 갱신 (0..TileCount-1, UI 인덱스)
+                CropIndexOptions.Clear();
+                for (int i = 0; i < _imageProcessService.TileCount; i++)
+                {
+                    CropIndexOptions.Add(i);
+                }
             }
         }
-
         /// <summary>
         /// 현재 Image, SelectedCropIndex, SelectedDistance, TargetIntensity, NormalizePreviewEnabled
         /// 를 기반으로 프리뷰 타일 이미지들을 갱신.
@@ -379,46 +472,49 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             CroppedPreviewImage = null;
             NormalizedPreviewImage = null;
 
+
             if (Image is null)
                 return;
+
 
             if (SelectedCropIndex < 0)
                 return; // 전체 이미지 모드
 
+
             EnsureGridConfigured(Image);
 
-            if (SelectedCropIndex >= _imageProcessService.TileCount)
+
+            // UI 인덱스(아래→위)를 grid 인덱스(위→아래)로 변환
+            int gridIndex = _imageProcessService.FlipVerticalIndex(SelectedCropIndex);
+
+
+            if (gridIndex < 0 || gridIndex >= _imageProcessService.TileCount)
                 return;
-            // 원본 타일
-            var rawTile = _imageProcessService.GetTranslationCropImage(Image, SelectedDistance, SelectedCropIndex);
+
+
+            // 원본 타일 (translation preview 사용)
+            var rawTile = _imageProcessService.GetTranslationCropImage(Image, SelectedDistance, gridIndex);
             CroppedPreviewImage = rawTile;
+
 
             // normalize 프리뷰
             if (NormalizePreviewEnabled)
             {
-                var normTile = _imageProcessService.NormalizeTile(rawTile,TargetIntensity);
+                var normTile = _imageProcessService.NormalizeTile(rawTile, TargetIntensity);
                 NormalizedPreviewImage = normTile;
             }
         }
 
         /// <summary>
         /// 거리 + 타일 인덱스에 대응하는 translation 값.
-        /// - 거리 <= 0 or 테이블에 없음 → (0,0)
-        /// - 해당 타일 인덱스 데이터 없음 (예: 가운데 7번) → (0,0)
+        /// - 0 이하면 (0,0)
+        /// - TranslationOffsets 의 정적 Table + 런타임 테이블을 모두 고려한다.
         /// </summary>
         private static TileTransform GetTileTransform(int distance, int tileIndex)
         {
-            if (distance <= 0)
-                return new TileTransform(0, 0);
-
-            if (!TranslationOffsets.Table.TryGetValue(distance, out var perTile))
-                return new TileTransform(0, 0);
-
-            if (!perTile.TryGetValue(tileIndex, out var t))
-                return new TileTransform(0, 0);
-
-            return t;
+            return TranslationOffsets.GetTransformOrDefault(distance, tileIndex);
         }
+
 
         /// <summary>
         /// 정규화 타일 캐시 초기화(Dispose 포함).
@@ -497,22 +593,25 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             if (_imageProcessService.TileCount <= 0)
                 return;
 
+            // UI 인덱스 → grid 인덱스로 변환
+            int baseIndex = _imageProcessService.FlipVerticalIndex(SelectedCropIndex);
+
             // 2) 정규화 타일 캐시 가져오기 (없으면 생성)
             IReadOnlyList<WriteableBitmap> tiles;
             try
             {
-                tiles = GetOrBuildNormalizedTiles(Image);
+                // 여기서 Image는 위에서 null 체크 했으므로 ! 사용해도 안전
+                tiles = GetOrBuildNormalizedTiles(Image!);
             }
             catch
             {
-                // 포맷 문제 등으로 Normalize 실패 시 안전하게 종료
                 return;
             }
 
-            if (SelectedCropIndex >= tiles.Count)
+            if (baseIndex < 0 || baseIndex >= tiles.Count)
                 return;
 
-            var baseTile = tiles[SelectedCropIndex];
+            var baseTile = tiles[baseIndex];
             if (baseTile is null)
                 return;
 
@@ -602,20 +701,26 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             SelectedRegionMean = regionMean;
             SelectedRegionStdDev = regionStd;
 
-            // 6) SelectionRegion 인덱스 부여 (1,2,3,...)
+            // 6) 내부용 ID(Index) 부여 (1,2,3,...)
             int newIndex = _analysis.Regions.Count == 0
                 ? 1
                 : _analysis.Regions.Max(r => r.Index) + 1;
 
+            // 색 인덱스 할당
+            int colorIndex = AllocateColorIndex();
+
             var region = new SelectionRegion(
                 newIndex,
+                colorIndex,
                 SelectionRectInControl, // CameraView 캔버스 좌표
                 baseRectInTile,         // 기준 타일 좌표
                 regionMean,
                 regionStd);
 
-            // 7) Workspace에 등록 → Chart + ROI 오버레이 둘 다 갱신
-            _analysis.AddRegion(region, tileStatsList);
+            // 7) Workspace에 등록
+            bool added = _analysis.TryAddRegion(region, tileStatsList);
+            if (!added)
+                return;
         }
     }
 }
