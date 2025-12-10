@@ -65,7 +65,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 RebuildSeries();
             };
 
-            // 축 초기 설정
+            var wavelengthLabels = new[]
+            {
+                "410","430","450","470","490",
+                "510","530","550","570","590",
+                "610","630","650","670","690"
+            };
+
             XAxes = new Axis[]
             {
                 new Axis
@@ -75,20 +81,23 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     NameTextSize = 16,
                     NamePadding = new LiveChartsCore.Drawing.Padding(0, 10, 0, 0),
 
-                    Labels = new[]
-                    {
-                        "410","430","450","470","490",
-                        "510","530","550","570","590",
-                        "610","630","650","670","690"
-                    },
+                    // 기존 라벨 그대로
+                    Labels = wavelengthLabels,
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                     TextSize = 13,
 
                     MinStep = 1,
 
-                    SeparatorsPaint = new SolidColorPaint(new SKColor(60, 72, 88)),
-                    TicksPaint       = new SolidColorPaint(new SKColor(60, 72, 88)),
-                    ShowSeparatorLines = true
+                    // ★ 좌우로 살짝 여유를 줘서 그래프가 박스 안에 들어온 느낌
+                    //   포인트 인덱스가 0 ~ 14 라고 보면,
+                    //   -0.5 ~ 14.5 로 범위를 넓혀서 좌우에 margin 을 만듦.
+                    MinLimit = -0.5,
+                    MaxLimit = wavelengthLabels.Length - 0.5,
+
+                    // ★ 내부 격자선/틱 제거 (지저분한 검은선 없애기)
+                    SeparatorsPaint = null,
+                    TicksPaint = null,
+                    ShowSeparatorLines = false
                 }
             };
 
@@ -109,11 +118,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
                     TextSize = 13,
 
-                    SeparatorsPaint = new SolidColorPaint(new SKColor(60, 72, 88)),
-                    TicksPaint       = new SolidColorPaint(new SKColor(60, 72, 88)),
-                    ShowSeparatorLines = true
+                    // ★ 내부 가로 격자선/틱 모두 제거
+                    SeparatorsPaint = null,
+                    TicksPaint = null,
+                    ShowSeparatorLines = false
                 }
             };
+
 
             Series = Array.Empty<ISeries>();
 
@@ -234,21 +245,19 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     Name = $"ROI {region.Index}",
                     Values = orderedValues.ToArray(),
 
-                    Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
-                    Fill = null,
-                    LineSmoothness = 0,
+                    Stroke = new SolidColorPaint(color) { StrokeThickness = 2.5f }, // 살짝 더 두껍게
+                    Fill = null, // 배경 채우기 없이 라인만 선명하게
+                    LineSmoothness = 0, // 스펙트럼은 직선 느낌이 좋아서 0 유지
 
-                    GeometrySize = 8,
+                    GeometrySize = 6, // 8 → 6 으로 줄여서 덜 답답하게
                     GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 2 },
                     GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)),
 
                     ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
 
-                    // ★ Tooltip도 재정렬된 배열(means/stds)에 맞게 인덱싱
                     YToolTipLabelFormatter = point =>
                     {
-                        var idx = point.Index; // 너가 현재 쓰고 있는 인덱스 속성 그대로 사용
-
+                        var idx = point.Index;
                         if (idx < 0 || idx >= means.Length)
                             return string.Empty;
 
@@ -258,6 +267,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         return $"Mean = {mean:F2}, Std = {std:F2}";
                     }
                 };
+
 
                 list.Add(line);
             }

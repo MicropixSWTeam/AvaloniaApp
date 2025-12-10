@@ -12,13 +12,13 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
              x:DataType="vm:CameraViewModel">
 
-        <UserControl.Resources>
-            <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
-        </UserControl.Resources>
+    <UserControl.Resources>
+        <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
+    </UserControl.Resources>
 
-        <Grid RowDefinitions="*,Auto" Margin="4">
-            <Border Grid.Row="0" Margin="4" Background="Gray">
-              <Grid>
+    <Grid RowDefinitions="*,Auto" Margin="4">
+        <Border Grid.Row="0" Margin="4" Background="Gray">
+            <Grid>
                 <!-- 1) 카메라 이미지 -->
                 <Image x:Name="CameraImage"
                        Source="{Binding DisplayImage}"
@@ -27,31 +27,31 @@
                 <!-- 2) 이미 확정된 ROI -->
                 <ItemsControl ItemsSource="{Binding Regions}"
                               IsHitTestVisible="False">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <Canvas />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-                  <ItemsControl.Styles>
-                    <Style Selector="ItemsControl > ContentPresenter"
-                           x:DataType="models:SelectionRegion">
-                      <Setter Property="Canvas.Left" Value="{Binding X}" />
-                      <Setter Property="Canvas.Top"  Value="{Binding Y}" />
-                    </Style>
-                  </ItemsControl.Styles>
+                    <ItemsControl.Styles>
+                        <Style Selector="ItemsControl > ContentPresenter"
+                               x:DataType="models:SelectionRegion">
+                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                            <Setter Property="Canvas.Top"  Value="{Binding Y}" />
+                        </Style>
+                    </ItemsControl.Styles>
 
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:SelectionRegion">
-                      <Grid>
-                        <Rectangle Width="{Binding Width}"
-                                   Height="{Binding Height}"
-                                   Stroke="{Binding ColorIndex, Converter={StaticResource RegionIndexToBrush}}"
-                                   StrokeThickness="1"
-                                   Fill="Transparent" />
-                      </Grid>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:SelectionRegion">
+                            <Grid>
+                                <Rectangle Width="{Binding Width}"
+                                           Height="{Binding Height}"
+                                           Stroke="{Binding ColorIndex, Converter={StaticResource RegionIndexToBrush}}"
+                                           StrokeThickness="1"
+                                           Fill="Transparent" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
                 <!-- 3) 드래그용 Canvas -->
@@ -62,76 +62,85 @@
                         PointerMoved="SelectionCanvas_OnPointerMoved"
                         PointerReleased="SelectionCanvas_OnPointerReleased">
 
-                  <Rectangle x:Name="SelectionRect"
-                             Stroke="{Binding NextRegionBrush}"
-                             StrokeThickness="1"
-                             Fill="Transparent"
-                             IsHitTestVisible="False"
-                             Width="0"
-                             Height="0" />
+                    <Rectangle x:Name="SelectionRect"
+                               Stroke="{Binding NextRegionBrush}"
+                               StrokeThickness="1"
+                               Fill="Transparent"
+                               IsHitTestVisible="False"
+                               Width="0"
+                               Height="0" />
                 </Canvas>
-              </Grid>
-            </Border>
+            </Grid>
+        </Border>
 
-            <!-- 아래 버튼/컨트롤 부분은 기존 그대로 -->
-            <StackPanel Grid.Row="1"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        Margin="0,8,0,8"
-                        Spacing="8">
+        <!-- 아래 버튼/컨트롤 부분 -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,8,0,8"
+                    Spacing="8">
 
-                <Button Content="Start"
-                        Width="90"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding StartPreviewCommand}" />
+            <Button Content="Start"
+                    Width="90"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Command="{Binding StartPreviewCommand}" />
 
-                <Button Content="Stop"
-                        Width="90"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding StopPreviewCommand}" />
+            <Button Content="Stop"
+                    Width="90"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Command="{Binding StopPreviewCommand}" />
 
-                <Button Content="Save"
-                        Width="90"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding SaveImageSetAsync}" />
+            <Button Content="Save"
+                    Width="90"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Command="{Binding SaveImageSetAsync}" />
 
-                <TextBlock Text="Idx : "
-                        Margin="16,0,4,0"
-                        VerticalAlignment="Center" />
+<!--            <TextBlock Text="Idx : "
+                       Margin="16,0,4,0"
+                       VerticalAlignment="Center" />
 
-                <ComboBox Width="80"
-                        Margin="4,0"
-                        ItemsSource="{Binding CropIndexOptions}"
-                        SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />
+            <ComboBox Width="80"
+                      Margin="4,0"
+                      ItemsSource="{Binding CropIndexOptions}"
+                      SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />-->
 
-                <CheckBox Content="Normalize"
-                          Margin="16,0,4,0"
-                          IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
-                          VerticalAlignment="Center"/>
+            <CheckBox Content="Normalize"
+                      Margin="16,0,4,0"
+                      IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
+                      VerticalAlignment="Center"/>
+            <TextBlock Text="Target Intensity:"
+                      Margin="16,0,4,0"
+                      VerticalAlignment="Center" />
 
-                <TextBlock Text="Target Intensity:"
-                           Margin="16,0,4,0"
-                           VerticalAlignment="Center" />
+            <TextBox Width="60"
+                     Text="{Binding TargetIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBox Width="60"
-                         Text="{Binding TargetIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <CheckBox Content="Draw Rect"
+                      Margin="16,0,4,0"
+                      IsChecked="{Binding IsDrawRectMode, Mode=TwoWay}"
+                      VerticalAlignment="Center" />
 
-                <Button Content="Translation"
-                        Width="120"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Command="{Binding GetTranslationOffsetsAsync}" />
+            <CheckBox Content="Translation"
+                      Margin="4,0,4,0"
+                      IsChecked="{Binding IsTranslationMode, Mode=TwoWay}"
+                      VerticalAlignment="Center" />
 
-                <TextBlock Text="Distance : "
-                           Margin="16,0,4,0"
-                           VerticalAlignment="Center" />
+<!--            <Button Content="Translation"
+                    Width="120"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Command="{Binding GetTranslationOffsetsAsync}" />-->
 
-                <ComboBox Width="80"
-                          ItemsSource="{Binding AvailableDistances}"
-                          SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"/>
-            </StackPanel>
-        </Grid>
+<!--            <TextBlock Text="Distance : "
+                       Margin="16,0,4,0"
+                       VerticalAlignment="Center" />
+
+            <ComboBox Width="80"
+                      ItemsSource="{Binding AvailableDistances}"
+                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"/>-->
+        </StackPanel>
+    </Grid>
 </UserControl>

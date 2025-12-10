@@ -4,11 +4,13 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Core.Models;
 using MathNet.Numerics.IntegralTransforms;
+using OpenCvSharp;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Rect = Avalonia.Rect;
 
 namespace AvaloniaApp.Infrastructure
 {
@@ -18,7 +20,7 @@ namespace AvaloniaApp.Infrastructure
     /// - 각 타일 내부에 translation 적용 (dx, dy)
     /// - 각 타일을 targetIntensity(평균 밝기)에 맞게 normalize
     /// - normalize된 타일들을 다시 붙여서 stitching (translation 적용 가능)
-    /// - 위상 상관(Phase Correlation)으로 기준 타일 대비 나머지 타일들의 offset 추정
+    /// - 위상 상관(Phase Correlation) 또는 템플릿 매칭으로 타일 간 offset 추정
     /// </summary>
     public class ImageProcessService
     {
@@ -53,7 +55,7 @@ namespace AvaloniaApp.Infrastructure
         public ImageProcessService()
         {
         }
-
+        
         #region Grid 설정
 
         public void ConfigureGrid(
@@ -124,8 +126,6 @@ namespace AvaloniaApp.Infrastructure
 
             _gridConfigured = true;
         }
-        // ImageProcessService.cs 안, 클래스 내부에 추가
-
         /// <summary>
         /// 현재 Grid(ROW x COL) 설정을 기준으로,
         /// 기본 인덱스(위에서 아래, 왼→오른쪽) 순서로 타일 인덱스를 반환.
@@ -152,7 +152,6 @@ namespace AvaloniaApp.Infrastructure
         /// "아래 행 → 위 행" 순서로 타일 인덱스를 반환.
         /// 예) 3x5:
         ///   반환 순서: 10 11 12 13 14, 5 6 7 8 9, 0 1 2 3 4
-        ///   (1-based로 보면: 11..15, 6..10, 1..5)
         /// </summary>
         public IEnumerable<int> GetTileIndicesBottomToTop()
         {
@@ -174,10 +173,6 @@ namespace AvaloniaApp.Infrastructure
         /// <summary>
         /// "위→아래, 왼→오른쪽" 기준 인덱스를
         /// 세로로 플립한 인덱스로 변환.
-        /// 예) 3x5:
-        ///   0→10, 1→11, 2→12, 3→13, 4→14,
-        ///   5→5, 6→6, 7→7, 8→8, 9→9,
-        ///   10→0, 11→1, 12→2, 13→3, 14→4
         /// </summary>
         public int FlipVerticalIndex(int index)
         {
@@ -259,7 +254,7 @@ namespace AvaloniaApp.Infrastructure
             return translated;
         }
 
-        /// <summary>0
+        /// <summary>
         /// 실시간 프리뷰용: (전체 → crop → translation → normalize)
         /// </summary>
         public WriteableBitmap NormalizeTile(Bitmap source, int tileIndex, TileTransform transform, byte targetIntensity)
@@ -617,7 +612,7 @@ namespace AvaloniaApp.Infrastructure
             int previewWidth = _config.ColSize;
             int previewHeight = _config.RowSize;
 
-            // distance = 0 (translation 없음)
+            // distance = 0 (기본 no-translation)
             var arr0 = new TranslationPreviewCoord[_tileRects.Count];
             for (int i = 0; i < _tileRects.Count; i++)
             {
@@ -781,6 +776,7 @@ namespace AvaloniaApp.Infrastructure
         }
 
         #endregion
+
         #region 타일 사전 구축 (Normalize + Translation 1회 수행)
 
         /// <summary>
@@ -789,9 +785,7 @@ namespace AvaloniaApp.Infrastructure
         ///  - CropTile(source, i, transform(i))
         ///  - NormalizeInPlace(tile, targetIntensity)
         /// 를 한 번만 수행해서 WriteableBitmap 리스트로 반환.
-        ///
-        /// 이후 ROI 분석에서는 이 리스트만 사용해서,
-        /// 같은 타일에 대해 재정규화하지 않는다.
+        /// 이후 ROI 분석에서는 이 리스트만 사용.
         /// </summary>
         public IReadOnlyList<WriteableBitmap> BuildNormalizedTiles(
             Bitmap source,
@@ -817,10 +811,10 @@ namespace AvaloniaApp.Infrastructure
 
             return tiles;
         }
+
         /// <summary>
         /// 이미 translation 이 적용된 타일(WriteableBitmap)에 대해
         /// 평균 밝기를 targetIntensity 로 맞춘다.
-        /// 원본 타일을 그대로 in-place 수정한다.
         /// </summary>
         public void NormalizeTileInPlace(WriteableBitmap tile, byte targetIntensity)
         {
@@ -839,6 +833,130 @@ namespace AvaloniaApp.Infrastructure
         {
             NormalizeTileInPlace(tile, targetIntensity);
             return tile;
+        }
+
+        #endregion
+
+        #region Template Matching 기반 오프셋 계산
+
+        /// <summary>
+        /// 기준 타일(referenceTile)의 referenceRectInReferenceTile 영역을 템플릿으로 사용해서,
+        /// targetTile 에서 가장 잘 맞는 위치를 찾고,
+        /// 그 차이를 TileTransform(dx, dy) 로 반환한다.
+        /// dx, dy 는 "target 타일을 얼마나 평행 이동시키면 기준 타일의 ref 위치에 맞을지"를 의미.
+        /// </summary>
+        public TileTransform ComputeTemplateMatchOffset(
+            WriteableBitmap referenceTile,
+            Rect referenceRectInReferenceTile,
+            WriteableBitmap targetTile)
+        {
+            if (referenceTile is null) throw new ArgumentNullException(nameof(referenceTile));
+            if (targetTile is null) throw new ArgumentNullException(nameof(targetTile));
+
+            if (referenceTile.Format != PixelFormats.Gray8 ||
+                targetTile.Format != PixelFormats.Gray8)
+            {
+                throw new NotSupportedException("현재는 Mono8(Gray8) 타일만 지원합니다.");
+            }
+
+            var refSize = referenceTile.PixelSize;
+            var tgtSize = targetTile.PixelSize;
+
+            if (refSize.Width != tgtSize.Width || refSize.Height != tgtSize.Height)
+                throw new InvalidOperationException("referenceTile과 targetTile의 해상도는 동일해야 합니다.");
+
+            // 기준 Rect를 타일 내부로 클램프 후 정수 PixelRect로 변환
+            var refRectPx = ToPixelRectClamped(referenceRectInReferenceTile, refSize);
+            if (refRectPx.Width <= 0 || refRectPx.Height <= 0)
+                return new TileTransform(0, 0);
+
+            // WriteableBitmap → Mat (Gray8)
+            using var refMat = GrayTileToMat(referenceTile);
+            using var tgtMat = GrayTileToMat(targetTile);
+
+            var tplRect = new OpenCvSharp.Rect(
+                refRectPx.X,
+                refRectPx.Y,
+                refRectPx.Width,
+                refRectPx.Height);
+
+            // 템플릿 크기 방어
+            if (tplRect.Width <= 0 || tplRect.Height <= 0 ||
+                tplRect.X < 0 || tplRect.Y < 0 ||
+                tplRect.Right > refMat.Cols || tplRect.Bottom > refMat.Rows)
+            {
+                return new TileTransform(0, 0);
+            }
+
+            using var template = new Mat(refMat, tplRect);
+
+            int resultCols = tgtMat.Cols - template.Cols + 1;
+            int resultRows = tgtMat.Rows - template.Rows + 1;
+            if (resultCols <= 0 || resultRows <= 0)
+                return new TileTransform(0, 0);
+
+            using var result = new Mat(resultRows, resultCols, MatType.CV_32FC1);
+
+            // 템플릿 매칭 (정규화 상관계수 방식)
+            Cv2.MatchTemplate(tgtMat, template, result, TemplateMatchModes.CCoeffNormed);
+            Cv2.MinMaxLoc(result, out double _, out double maxVal, out _, out OpenCvSharp.Point maxLoc);
+
+            // 기준/매칭 위치의 중심 좌표
+            double refCx = tplRect.X + tplRect.Width / 2.0;
+            double refCy = tplRect.Y + tplRect.Height / 2.0;
+
+            double matchCx = maxLoc.X + tplRect.Width / 2.0;
+            double matchCy = maxLoc.Y + tplRect.Height / 2.0;
+
+            // target 타일을 dx,dy 만큼 평행이동시키면 match 중심이 ref 중심으로 오도록 계산
+            int dx = (int)Math.Round(refCx - matchCx);
+            int dy = (int)Math.Round(refCy - matchCy);
+
+            return new TileTransform(dx, dy);
+        }
+
+        /// <summary>
+        /// Gray8 WriteableBitmap 을 동일 크기의 CV_8UC1 Mat 으로 변환.
+        /// </summary>
+        private static Mat GrayTileToMat(WriteableBitmap tile)
+        {
+            if (tile.Format != PixelFormats.Gray8)
+                throw new NotSupportedException($"현재는 Mono8(Gray8)만 지원합니다. Format={tile.Format}");
+
+            var size = tile.PixelSize;
+            int width = size.Width;
+            int height = size.Height;
+
+            var mat = new Mat(height, width, MatType.CV_8UC1);
+
+            using (var fb = tile.Lock())
+            {
+                int strideSrc = fb.RowBytes;
+                int bufferSize = strideSrc * height;
+                if (bufferSize <= 0)
+                    return mat;
+
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                try
+                {
+                    Marshal.Copy(fb.Address, buffer, 0, bufferSize);
+
+                    IntPtr dstBase = mat.Data;
+                    int strideDst = width; // CV_8UC1 기본 step = width
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        IntPtr dstRow = IntPtr.Add(dstBase, y * strideDst);
+                        Marshal.Copy(buffer, y * strideSrc, dstRow, width);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+            }
+
+            return mat;
         }
 
         #endregion
@@ -921,11 +1039,6 @@ namespace AvaloniaApp.Infrastructure
         /// <summary>
         /// 위상 상관(Phase Correlation)을 사용하여 기준 타일(referenceIndex)을 기준으로
         /// 나머지 타일들의 평행 이동 오프셋(정수 픽셀)을 계산.
-        /// 
-        /// - tiles: 동일 크기 Gray8 WriteableBitmap 타일들 (예: BuildNormalizedTiles 결과)
-        /// - referenceIndex: 기준 타일 인덱스 (예: 7)
-        /// - 반환: tiles.Count 개수의 TileTransform 배열
-        ///   * 기준 타일 위치에는 (0,0)이 들어감
         /// </summary>
         public IReadOnlyList<TileTransform> ComputePhaseCorrelationOffsets(
             IReadOnlyList<WriteableBitmap> tiles,
@@ -976,7 +1089,7 @@ namespace AvaloniaApp.Infrastructure
                     ArrayPool<byte>.Shared.Return(buffer);
                 }
 
-                // 2D FFT (Managed 구현)
+                // 2D FFT
                 Forward2DManaged(refFreq, height, width, options);
             }
 
@@ -1061,7 +1174,7 @@ namespace AvaloniaApp.Infrastructure
                 int peakY = peakIndex / width;
                 int peakX = peakIndex % width;
 
-                // 주기 경계 보정: FFT는 순환 시프트이므로 반대편으로 넘어간 경우 음수 오프셋으로 변환
+                // 주기 경계 보정
                 if (peakX > width / 2)
                     peakX -= width;
                 if (peakY > height / 2)
@@ -1074,6 +1187,5 @@ namespace AvaloniaApp.Infrastructure
         }
 
         #endregion
-
     }
 }

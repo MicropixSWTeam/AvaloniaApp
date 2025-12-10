@@ -110,16 +110,18 @@ namespace AvaloniaApp.Presentation.Views.UserControls
             double w = Math.Abs(current.X - _dragStart.X);
             double h = Math.Abs(current.Y - _dragStart.Y);
 
-            Canvas.SetLeft(SelectionRect, x);
-            Canvas.SetTop(SelectionRect, y);
-            SelectionRect.Width = w;
-            SelectionRect.Height = h;
+            // ★ 최소 1픽셀 보장
+            var rect = EnforceMinSize(new Rect(new Point(x, y), new Size(w, h)), imageRect);
 
-            Vm.SelectionRectInControl = new Rect(new Point(x, y), new Size(w, h));
+            Canvas.SetLeft(SelectionRect, rect.X);
+            Canvas.SetTop(SelectionRect, rect.Y);
+            SelectionRect.Width = rect.Width;
+            SelectionRect.Height = rect.Height;
+
+            Vm.SelectionRectInControl = rect;
 
             e.Handled = true;
         }
-
         private void SelectionCanvas_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
         {
             if (!_isDragging || Vm is null) return;
@@ -138,7 +140,10 @@ namespace AvaloniaApp.Presentation.Views.UserControls
             double w = Math.Abs(end.X - _dragStart.X);
             double h = Math.Abs(end.Y - _dragStart.Y);
 
-            Vm.SelectionRectInControl = new Rect(new Point(x, y), new Size(w, h));
+            // ★ 최소 1픽셀 보장
+            var rect = EnforceMinSize(new Rect(new Point(x, y), new Size(w, h)), imageRect);
+
+            Vm.SelectionRectInControl = rect;
 
             // 여기서 Region 추가 + Chart 업데이트
             Vm.CommitSelectionRect();
@@ -147,6 +152,33 @@ namespace AvaloniaApp.Presentation.Views.UserControls
             SelectionRect.Height = 0;
 
             e.Handled = true;
+        }
+
+        // 최소 선택 크기를 보장하기 위한 유틸리티
+        private static Rect EnforceMinSize(Rect rect, Rect imageRect, double minSize = 1.0)
+        {
+            var x = rect.X;
+            var y = rect.Y;
+            var w = rect.Width;
+            var h = rect.Height;
+
+            // 폭 최소 보장
+            if (w < minSize)
+            {
+                var centerX = x + w / 2.0;
+                x = Math.Clamp(centerX - minSize / 2.0, imageRect.X, imageRect.Right - minSize);
+                w = minSize;
+            }
+
+            // 높이 최소 보장
+            if (h < minSize)
+            {
+                var centerY = y + h / 2.0;
+                y = Math.Clamp(centerY - minSize / 2.0, imageRect.Y, imageRect.Bottom - minSize);
+                h = minSize;
+            }
+
+            return new Rect(new Point(x, y), new Size(w, h));
         }
 
         private void TextBlock_ActualThemeVariantChanged(object? sender, EventArgs e)

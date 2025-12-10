@@ -96,5 +96,6 @@ namespace AvaloniaApp.Core.Pipelines
 
             return _backgroundJobQueue.EnqueueAsync(job, ct).AsTask();
         }
+
     }
 }

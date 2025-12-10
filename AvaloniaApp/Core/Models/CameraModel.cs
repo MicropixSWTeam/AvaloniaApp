@@ -26,7 +26,7 @@ namespace AvaloniaApp.Core.Models
 
         public override string ToString()
         {
-            return $"{Name}";
+            return $"{Name},{SerialNumber}";
         }
     }
 
@@ -56,7 +56,7 @@ namespace AvaloniaApp.Core.Models
 
     /// <summary>
     /// 거리(cm 등)별 타일 translation 테이블.
-    /// key: 거리 (10, 20, 30, 40...)
+    /// key: 거리 (0, 10, 20, 30, 40...)
     /// value: 타일 인덱스 -> (dx, dy)
     /// 타일 인덱스 7(가운데)은 데이터가 없으면 (0,0)으로 취급.
     /// </summary>
@@ -65,6 +65,24 @@ namespace AvaloniaApp.Core.Models
         public static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<int, TileTransform>> Table
             = new Dictionary<int, IReadOnlyDictionary<int, TileTransform>>
             {
+                [0] = new Dictionary<int, TileTransform>
+                {
+                    [0] = new TileTransform(0, 0),
+                    [1] = new TileTransform(0, 0),
+                    [2] = new TileTransform(0, 0),
+                    [3] = new TileTransform(0, 0),
+                    [4] = new TileTransform(0, 0),
+                    [5] = new TileTransform(0, 0),
+                    [6] = new TileTransform(0, 0),
+                    // [7] = new TileTransform(0, 0),
+                    [8] = new TileTransform(0, 0),
+                    [9] = new TileTransform(0, 0),
+                    [10] = new TileTransform(0, 0),
+                    [11] = new TileTransform(0, 0),
+                    [12] = new TileTransform(0, 0),
+                    [13] = new TileTransform(0, 0),
+                    [14] = new TileTransform(0, 0),
+                },
                 [10] = new Dictionary<int, TileTransform>
                 {
                     [0] = new TileTransform(38, 30),
@@ -121,23 +139,24 @@ namespace AvaloniaApp.Core.Models
                 },
                 [40] = new Dictionary<int, TileTransform>
                 {
-                    [0] = new TileTransform(7, 17),
-                    [1] = new TileTransform(0, 11),
-                    [2] = new TileTransform(-6, 5),
-                    [3] = new TileTransform(-16, -1),
-                    [4] = new TileTransform(-22, -7),
-                    [5] = new TileTransform(12, 14),
-                    [6] = new TileTransform(4, 7),
+                    [0] = new TileTransform(-10, 4),
+                    [1] = new TileTransform(6, 5),
+                    [2] = new TileTransform(0, 4),
+                    [3] = new TileTransform(-4, 4),
+                    [4] = new TileTransform(-9, 4),
+                    [5] = new TileTransform(10, 0),
+                    [6] = new TileTransform(5, -1),
                     // [7] 없음
-                    [8] = new TileTransform(-8, -9),
-                    [9] = new TileTransform(-14, -13),
-                    [10] = new TileTransform(17, 8),
-                    [11] = new TileTransform(11, -2),
-                    [12] = new TileTransform(6, -6),
-                    [13] = new TileTransform(-4, -14),
-                    [14] = new TileTransform(-8, -22),
+                    [8] = new TileTransform(-4, 0),
+                    [9] = new TileTransform(-10, 0),
+                    [10] = new TileTransform(11, -3),
+                    [11] = new TileTransform(7, -3),
+                    [12] = new TileTransform(0, -3),
+                    [13] = new TileTransform(-4, -5),
+                    [14] = new TileTransform(-10, -3),
                 },
             };
+
         // ===== Runtime calibration (phase correlation / template 등) support =====
 
         // 거리별(runtime) 오프셋 테이블
@@ -168,7 +187,8 @@ namespace AvaloniaApp.Core.Models
         /// </summary>
         public static TileTransform GetTransformOrDefault(int distance, int tileIndex)
         {
-            if (distance <= 0)
+            // 0도 허용, 음수만 막는다.
+            if (distance < 0)
                 return new TileTransform(0, 0);
 
             // 1) 런타임 테이블 우선
@@ -302,7 +322,6 @@ namespace AvaloniaApp.Core.Models
         }
         /// <summary>
         /// ROI 최대 개수. 0 이하이면 제한 없음.
-        /// 예) 32개까지만 허용.
         /// </summary>
         public int MaxRegions { get; set; } = 7;
 
@@ -322,11 +341,11 @@ namespace AvaloniaApp.Core.Models
             if (region is null) throw new ArgumentNullException(nameof(region));
             if (tileStats is null) throw new ArgumentNullException(nameof(tileStats));
 
-            // 개수 제한 체크: 이미 MaxRegions 에 도달했다면 추가 금지
+            // 개수 제한 체크
             if (IsLimitReached)
                 return false;
 
-            // 같은 Index 가 있으면 먼저 제거 (Index 재사용 방지)
+            // 같은 Index 가 있으면 먼저 제거
             var existing = _regions.FirstOrDefault(r => r.Index == region.Index);
             if (existing is not null)
             {
@@ -404,7 +423,7 @@ namespace AvaloniaApp.Core.Models
             SourceGrayFrame = frame;
             NormalizedTiles = tiles ?? Array.Empty<WriteableBitmap>();
 
-            // 새 프레임이 들어오면 ROI/시리즈는 초기화 (새 측정으로 간주)
+            // 새 프레임이 들어오면 ROI/시리즈는 초기화
             Regions.Clear();
             RegionSeries.Clear();
             _nextRegionIndex = 1;

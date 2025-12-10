@@ -6,4 +6,9 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Enums
 {
+    public enum OperationKey
+    {
+        Normalize,
+        Calibration,
+    }
 }
