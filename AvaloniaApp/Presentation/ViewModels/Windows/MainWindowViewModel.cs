@@ -21,10 +21,10 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly CameraConnectViewModel _cameraConnectViewModel;
         private readonly CameraSettingViewModel _cameraSettingViewModel;
 
-        public MainWindowViewModel(DialogService? dialogService, PopupService popupService, 
+        public MainWindowViewModel(PopupService popupService, 
             UiDispatcher uiDispatcher, BackgroundJobQueue backgroundJobQueue,
             CameraConnectViewModel cameraConnectViewModel,CameraViewModel cameraViewModel, ChartViewModel chartViewModel,CameraSettingViewModel cameraSettingViewModel)
-            : base(dialogService, uiDispatcher, backgroundJobQueue)
+            : base(uiDispatcher, backgroundJobQueue)
         {
             _popupService = popupService;
             _cameraViewModel = cameraViewModel;

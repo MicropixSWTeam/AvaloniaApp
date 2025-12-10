@@ -303,52 +303,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [RelayCommand]
         public async Task StartPreviewAsync()
         {
-            await RunSafeAsync(async ct =>
-            {
-                await _cameraPipeline.EnqueueStartPreviewAsync(
-                    ct,
-                    async bmp =>
-                    {
-                        // 카메라 콜백은 백그라운드 스레드일 수 있으므로 UI 스레드에서 프로퍼티 갱신
-                        await Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            Image = bmp;
-                            IsStop = false;
-                        });
 
-                        await Task.CompletedTask;
-                    });
-            });
         }
 
         [RelayCommand]
         public async Task StopPreviewAsync()
         {
-            await RunSafeAsync(async ct =>
-            {
-                await _cameraPipeline.EnqueueStopPreviewAsync(ct, async () =>
-                {
-                    // 1) 스트리밍 중지 플래그
-                    IsStop = true;
 
-                    // 2) Stop 시점의 현재 프레임 기준으로
-                    //    정규화+translation 타일을 미리 한 번 캐시에 빌드
-                    var src = Image;
-                    if (src is not null)
-                    {
-                        try
-                        {
-                            _ = GetOrBuildNormalizedTiles(src);
-                        }
-                        catch
-                        {
-                            // 실패해도 CommitSelectionRect 에서 다시 시도하므로 무시
-                        }
-                    }
-
-                    await Task.CompletedTask;
-                });
-            });
         }
 
         [RelayCommand]

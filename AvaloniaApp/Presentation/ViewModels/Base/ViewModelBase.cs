@@ -1,127 +1,38 @@
-﻿using AvaloniaApp.Core.Interfaces;
-using AvaloniaApp.Core.Jobs;
+﻿using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Services;
-using CommunityToolkit.Mvvm.ComponentModel;
+using AvaloniaApp.Presentation.ViewModels.Operations;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.Base
 {
-    public abstract partial class ViewModelBase : ObservableObject
+    /// <summary>
+    /// 공통 OperationHostBase를 상속하는 ViewModel 베이스 클래스입니다.
+    /// RunOperationAsync / OperationState 기능을 그대로 사용할 수 있습니다.
+    /// </summary>
+    public abstract partial class ViewModelBase : OperationViewModelBase
     {
-        [ObservableProperty]
-        private bool isBusy;
-
-        [ObservableProperty]
-        private string? lastError;
-
-        protected readonly DialogService? _dialogService;
-        protected readonly BackgroundJobQueue? _backgroundJobQueue;
-        protected readonly UiDispatcher? _uiDispatcher;
-        protected readonly ILogger? _logger;
-
-        public ViewModelBase()
+        /// <summary>
+        /// DI 없이 사용하는 기본 생성자입니다.
+        /// 테스트/디자인 타임 등의 특별한 경우에만 사용합니다.
+        /// </summary>
+        protected ViewModelBase()
         {
         }
 
-        public ViewModelBase(
-            DialogService? dialogService,
+        /// <summary>
+        /// DI를 통해 필요한 서비스를 주입받는 생성자입니다.
+        /// </summary>
+        /// <param name="dialogService">에러 표시 등에 사용할 DialogService.</param>
+        /// <param name="uiDispatcher">UI 스레드 호출용 UiDispatcher.</param>
+        /// <param name="backgroundJobQueue">백그라운드 Job 큐.</param>
+        /// <param name="logger">로그 출력용 ILogger.</param>
+        protected ViewModelBase(
             UiDispatcher uiDispatcher,
-            BackgroundJobQueue backgroundJobQueue)
+            BackgroundJobQueue backgroundJobQueue
+        )
+            : base( uiDispatcher, backgroundJobQueue)
         {
-            _dialogService = dialogService;
-            _uiDispatcher = uiDispatcher;
-            _backgroundJobQueue = backgroundJobQueue;
-        }
-
-        /// <summary>
-        /// Busy / 예외 / 취소를 한 번에 처리하는 공통 비동기 래퍼.
-        /// </summary>
-        protected async Task RunSafeAsync(
-            Func<CancellationToken, Task> operation,
-            bool showErrorDialog = true,
-            CancellationToken token = default)
-        {
-            // 이미 다른 작업이 돌고 있으면 무시
-            if (IsBusy)
-                return;
-
-            IsBusy = true;
-            LastError = null;
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            var ct = cts.Token;
-
-            try
-            {
-                await operation(ct);
-            }
-            catch (OperationCanceledException)
-            {
-                // 취소는 보통 조용히 넘김 (필요하면 상태 메시지만 갱신)
-            }
-            catch (Exception ex)
-            {
-                LastError = ex.Message;
-
-                if (showErrorDialog && _dialogService is not null)
-                {
-                    await _dialogService.ShowMessageAsync(
-                        "오류",
-                        ex.Message);
-                }
-            }
-            finally
-            {
-                IsBusy = false;
-            }
-        }
-
-        /// <summary>
-        /// 결과값이 필요한 경우용 제네릭 버전.
-        /// </summary>
-        protected async Task<T?> RunSafeAsync<T>(
-            Func<CancellationToken, Task<T>> operation,
-            bool showErrorDialog = true,
-            CancellationToken token = default)
-        {
-            if (IsBusy)
-                return default;
-
-            IsBusy = true;
-            LastError = null;
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            var ct = cts.Token;
-
-            try
-            {
-                return await operation(ct);
-            }
-            catch (OperationCanceledException)
-            {
-                return default;
-            }
-            catch (Exception ex)
-            {
-                LastError = ex.Message;
-
-                if (showErrorDialog && _dialogService is not null)
-                {
-                    await _dialogService.ShowMessageAsync(
-                        "오류",
-                        ex.Message);
-                }
-
-                return default;
-            }
-            finally
-            {
-                IsBusy = false;
-            }
         }
     }
 }

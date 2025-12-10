@@ -10,5 +10,9 @@ namespace AvaloniaApp.Core.Enums
     {
         Normalize,
         Calibration,
+        StartCamera,
+        StopCamera,
+        ConnectCamera,
+        LoadSpectrumChart
     }
 }
