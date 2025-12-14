@@ -1,4 +1,6 @@
-﻿using AvaloniaApp.Presentation.Services;
+﻿using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
+using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using System;
@@ -11,5 +13,8 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public class PopupHostWindowViewModel :ViewModelBase
     {
+        public PopupHostWindowViewModel(UiDispatcher uiDispatcher, OperationRunner runner) : base(uiDispatcher, runner)
+        {
+        }
     }
 }

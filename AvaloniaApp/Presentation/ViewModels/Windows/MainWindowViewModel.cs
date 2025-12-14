@@ -2,6 +2,7 @@
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
@@ -16,15 +17,14 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
     public partial class MainWindowViewModel : ViewModelBase
     {
         private readonly PopupService _popupService;
-        private readonly CameraViewModel _cameraViewModel;
+        private readonly CameraViewModelTest _cameraViewModel;
         private readonly ChartViewModel _chartViewModel;
         private readonly CameraConnectViewModel _cameraConnectViewModel;
         private readonly CameraSettingViewModel _cameraSettingViewModel;
 
         public MainWindowViewModel(PopupService popupService, 
-            UiDispatcher uiDispatcher, BackgroundJobQueue backgroundJobQueue,
-            CameraConnectViewModel cameraConnectViewModel,CameraViewModel cameraViewModel, ChartViewModel chartViewModel,CameraSettingViewModel cameraSettingViewModel)
-            : base(uiDispatcher, backgroundJobQueue)
+            UiDispatcher uiDispatcher, OperationRunner runner,
+            CameraConnectViewModel cameraConnectViewModel,CameraViewModelTest cameraViewModel, ChartViewModel chartViewModel,CameraSettingViewModel cameraSettingViewModel):base(uiDispatcher, runner)
         {
             _popupService = popupService;
             _cameraViewModel = cameraViewModel;

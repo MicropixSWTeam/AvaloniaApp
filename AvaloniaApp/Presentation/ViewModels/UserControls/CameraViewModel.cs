@@ -1,34 +1,24 @@
 ﻿// AvaloniaApp.Presentation/ViewModels/UserControls/CameraViewModel.cs
 using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Converters;
+using AvaloniaApp.Presentation.Operations;
 using AvaloniaApp.Presentation.ViewModels.Base;
-using AvaloniaApp.Presentation.Views.UserControls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ExCSS;
-using LiveChartsCore.Measure;
-using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Reflection.Metadata;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
 using Rect = Avalonia.Rect;
 using Size = Avalonia.Size;
 
@@ -152,11 +142,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private byte _normalizedTilesTarget;
 
         public CameraViewModel(
+            UiDispatcher uiDispatcher,
+            OperationRunner runner,
             CameraPipeline cameraPipeline,
             ImageProcessService imageProcessService,
             DrawRectService drawRectService,
             StorageService storageService,
-            RegionAnalysisWorkspace analysis) : base()
+            RegionAnalysisWorkspace analysis) : base(uiDispatcher, runner)
         {
             _cameraPipeline = cameraPipeline;
             _imageProcessService = imageProcessService;
@@ -298,19 +290,11 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             OnPropertyChanged(nameof(CanDrawRegions));
         }
 
-        // ===== Commands =====
+        [RelayCommand]
+        public Task StartPreviewAsync() { return Task.CompletedTask; }
 
         [RelayCommand]
-        public async Task StartPreviewAsync()
-        {
-
-        }
-
-        [RelayCommand]
-        public async Task StopPreviewAsync()
-        {
-
-        }
+        public Task StopPreviewAsync() { return Task.CompletedTask; }
 
         [RelayCommand]
         public async Task SaveImageSetAsync()
@@ -446,7 +430,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 // 필요시 로그
             }
         }
-
 
         // ===== 내부 헬퍼 =====
 

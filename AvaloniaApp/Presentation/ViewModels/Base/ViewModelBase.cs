@@ -1,38 +1,69 @@
-﻿using AvaloniaApp.Core.Jobs;
-using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels.Operations;
-using Microsoft.Extensions.Logging;
+﻿using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
+using CommunityToolkit.Mvvm.ComponentModel;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.Base
 {
-    /// <summary>
-    /// 공통 OperationHostBase를 상속하는 ViewModel 베이스 클래스입니다.
-    /// RunOperationAsync / OperationState 기능을 그대로 사용할 수 있습니다.
-    /// </summary>
-    public abstract partial class ViewModelBase : OperationViewModelBase
+    public abstract partial class ViewModelBase : ObservableObject
     {
-        /// <summary>
-        /// DI 없이 사용하는 기본 생성자입니다.
-        /// 테스트/디자인 타임 등의 특별한 경우에만 사용합니다.
-        /// </summary>
+        [ObservableProperty] private string? lastError;
+
+        protected readonly UiDispatcher _ui;
+        protected readonly OperationRunner _runner;
+
+        private readonly Dictionary<string, OperationState> _states = new();
         protected ViewModelBase()
         {
+
+        }
+        protected ViewModelBase(UiDispatcher uiDispatcher, OperationRunner runner)
+        {
+            _ui = uiDispatcher ?? throw new ArgumentNullException(nameof(uiDispatcher));
+            _runner = runner ?? throw new ArgumentNullException(nameof(runner));
         }
 
-        /// <summary>
-        /// DI를 통해 필요한 서비스를 주입받는 생성자입니다.
-        /// </summary>
-        /// <param name="dialogService">에러 표시 등에 사용할 DialogService.</param>
-        /// <param name="uiDispatcher">UI 스레드 호출용 UiDispatcher.</param>
-        /// <param name="backgroundJobQueue">백그라운드 Job 큐.</param>
-        /// <param name="logger">로그 출력용 ILogger.</param>
-        protected ViewModelBase(
-            UiDispatcher uiDispatcher,
-            BackgroundJobQueue backgroundJobQueue
-        )
-            : base( uiDispatcher, backgroundJobQueue)
+        public OperationState Op(string key)
         {
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Operation key is required.", nameof(key));
+
+            if (!_states.TryGetValue(key, out var s))
+            {
+                s = new OperationState();
+                _states[key] = s;
+            }
+
+            return s;
+        }
+
+        protected Task UiAsync(Action action)
+            => _ui.InvokeAsync(action);
+
+        protected async Task RunOperationAsync(
+            string key,
+            Func<CancellationToken, OperationContext, Task> backgroundWork,
+            Action<OperationOptions>? configure = null,
+            CancellationToken token = default)
+        {
+            if (backgroundWork is null) throw new ArgumentNullException(nameof(backgroundWork));
+
+            var state = Op(key);
+            if (state.IsRunning) return;
+
+            var options = new OperationOptions();
+            configure?.Invoke(options);
+
+            await _runner.RunAsync(
+                state,
+                (ctx, ct) => backgroundWork(ct, ctx),
+                options,
+                token).ConfigureAwait(false);
+
+            await UiAsync(() => LastError = state.Error).ConfigureAwait(false);
         }
     }
 }

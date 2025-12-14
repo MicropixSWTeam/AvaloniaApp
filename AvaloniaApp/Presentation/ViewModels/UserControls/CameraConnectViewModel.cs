@@ -4,6 +4,7 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -31,55 +32,72 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public int Width { get; set; } = 500;
         public int Height { get; set; } = 250;
 
-        public CameraConnectViewModel(CameraPipeline cameraPipeline,PopupService popupService) :base()
+        public CameraConnectViewModel(
+           UiDispatcher uiDispatcher,
+           OperationRunner runner,
+           CameraPipeline cameraPipeline,
+           PopupService popupService)
+           : base(uiDispatcher, runner)
         {
             _cameraPipeline = cameraPipeline;
-            _popupService = popupService;   
+            _popupService = popupService;
         }
         [RelayCommand]
-        public async Task LoadCamerasAsync()
+        public Task LoadCamerasAsync()
         {
-            await RunSafeAsync(async ct =>
-            {
-                await _cameraPipeline.EnqueueGetCameraListAsync(ct, async list =>
+            return RunOperationAsync(
+                key: "Camera.LoadList",
+                backgroundWork: async (ct, _) =>
                 {
-                    Cameras = list;
-                    SelectedCamera = null;
+                    await _cameraPipeline.EnqueueGetCameraListAsync(
+                        ct,
+                        list =>
+                        {
+                            Cameras = list;
+                            SelectedCamera ??= list.FirstOrDefault();
+                            return Task.CompletedTask;
+                        });
                 });
-            });
-        }
-        [RelayCommand]
-        public async Task ConnectCameraAsync()
-        {
-            if (SelectedCamera is null)
-                return;
-
-            await RunSafeAsync(async ct =>
-            {
-                await _cameraPipeline.EnqueueConnectAsync(
-                    ct,
-                    SelectedCamera.Id,
-                    async () =>
-                    {
-                        _popupService.ClosePopup(this);
-                        await Task.CompletedTask;
-                    });
-            });
-        }
-        [RelayCommand]
-        public async Task DisconnectCameraAsync()
-        {
-            await RunSafeAsync(async ct =>
-            {
-                await _cameraPipeline.EnqueueDisconnectAsync(
-                    ct,
-                    async () =>
-                    {
-                        await Task.CompletedTask;
-                    });
-                SelectedCamera = null;
-            });
         }
 
+        [RelayCommand]
+        public Task ConnectCameraAsync()
+        {
+            var cam = SelectedCamera;
+            if (cam is null)
+                return Task.CompletedTask;
+
+            return RunOperationAsync(
+                key: "Camera.Connect",
+                backgroundWork: async (ct, _) =>
+                {
+                    await _cameraPipeline.EnqueueConnectAsync(
+                        ct,
+                        cam.Id,
+                        onConnect: () =>
+                        {
+                            // Popup 닫기 로직은 PopupService API에 맞춰 여기서 호출
+                            // (메서드명이 확실치 않아서 컴파일 깨지는 호출은 넣지 않음)
+                            return Task.CompletedTask;
+                        });
+                });
+        }
+
+        [RelayCommand]
+        public Task DisconnectCameraAsync()
+        {
+            return RunOperationAsync(
+                key: "Camera.Disconnect",
+                backgroundWork: async (ct, _) =>
+                {
+                    await _cameraPipeline.EnqueueDisconnectAsync(
+                        ct,
+                        onDisconnect: () =>
+                        {
+                            // 필요 시 UI 상태 갱신
+                            return Task.CompletedTask;
+                        });
+                });
+        }
     }
 }

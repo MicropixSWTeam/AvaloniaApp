@@ -10,7 +10,7 @@
              d:DesignWidth="1000"
              d:DesignHeight="600"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
-             x:DataType="vm:CameraViewModel">
+             x:DataType="vm:CameraViewModelTest">
 
     <UserControl.Resources>
         <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
@@ -21,11 +21,11 @@
             <Grid>
                 <!-- 1) 카메라 이미지 -->
                 <Image x:Name="CameraImage"
-                       Source="{Binding DisplayImage}"
+                       Source="{Binding PreviewBitmap}"
                        Stretch="Uniform" />
 
                 <!-- 2) 이미 확정된 ROI -->
-                <ItemsControl ItemsSource="{Binding Regions}"
+<!--                <ItemsControl ItemsSource="{Binding Regions}"
                               IsHitTestVisible="False">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -52,10 +52,10 @@
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                </ItemsControl>-->
 
                 <!-- 3) 드래그용 Canvas -->
-                <Canvas x:Name="SelectionCanvas"
+<!--                <Canvas x:Name="SelectionCanvas"
                         Background="Transparent"
                         IsHitTestVisible="{Binding CanDrawRegions}"
                         PointerPressed="SelectionCanvas_OnPointerPressed"
@@ -69,7 +69,7 @@
                                IsHitTestVisible="False"
                                Width="0"
                                Height="0" />
-                </Canvas>
+                </Canvas>-->
             </Grid>
         </Border>
 
@@ -79,7 +79,11 @@
                     HorizontalAlignment="Center"
                     Margin="0,8,0,8"
                     Spacing="8">
-
+            <Button Content="GetCam"
+                    Width="90"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Command="{Binding RefreshCamerasCommand}" />
             <Button Content="Start"
                     Width="90"
                     HorizontalContentAlignment="Center"
@@ -92,20 +96,20 @@
                     VerticalContentAlignment="Center"
                     Command="{Binding StopPreviewCommand}" />
 
-            <Button Content="Save"
+<!--            <Button Content="Save"
                     Width="90"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"
                     Command="{Binding SaveImageSetAsync}" />
 
-<!--            <TextBlock Text="Idx : "
+--><!--            <TextBlock Text="Idx : "
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
             <ComboBox Width="80"
                       Margin="4,0"
                       ItemsSource="{Binding CropIndexOptions}"
-                      SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />-->
+                      SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />--><!--
 
             <CheckBox Content="Normalize"
                       Margin="16,0,4,0"
@@ -126,7 +130,7 @@
             <CheckBox Content="Translation"
                       Margin="4,0,4,0"
                       IsChecked="{Binding IsTranslationMode, Mode=TwoWay}"
-                      VerticalAlignment="Center" />
+                      VerticalAlignment="Center" />-->
 
 <!--            <Button Content="Translation"
                     Width="120"

@@ -15,4 +15,9 @@ namespace AvaloniaApp.Core.Enums
         ConnectCamera,
         LoadSpectrumChart
     }
+    public enum OperationConcurrencyPolicy
+    {
+        IgnoreIfRunning,
+        CancelAndRestart
+    }
 }

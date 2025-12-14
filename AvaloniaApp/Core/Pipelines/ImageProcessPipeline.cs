@@ -18,19 +18,6 @@ namespace AvaloniaApp.Core.Pipelines
     /// </summary>
     public class ImageProcessPipeline
     {
-        private readonly BackgroundJobQueue _backgroundJobQueue;
-        private readonly ImageProcessService _imageProcessService;
-        private readonly UiDispatcher _uiDispatcher;
-
-        public ImageProcessPipeline(
-            BackgroundJobQueue backgroundJobQueue,
-            ImageProcessService imageProcessService,
-            UiDispatcher uiDispatcher)
-        {
-            _backgroundJobQueue = backgroundJobQueue;
-            _imageProcessService = imageProcessService;
-            _uiDispatcher = uiDispatcher;
-        }
 
     }
 }

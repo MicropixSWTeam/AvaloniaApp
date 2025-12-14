@@ -1,90 +1,160 @@
-﻿using OpenCvSharp;
+﻿using Avalonia.Media.Imaging;
+using OpenCvSharp;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
-    public class Model : IAsyncDisposable
+    public sealed class ImageWorkspace : IAsyncDisposable
     {
-        #region CropModel
-        /// <summary>
-        /// Crop시 행 개수
-        /// </summary>
-        int RowCount { get; set; } = 5;
-        /// <summary>
-        /// Crop시 열 개수
-        /// </summary>
-        int ColCount { get; set; } = 3;
-        /// <summary>
-        /// Crop시 WidthSize
-        /// </summary>
-        int WidthSize { get; set; } = 1064;
-        /// <summary>
-        /// Crop시 HeightSize
-        /// </summary>
-        int HeightSize { get; set; } = 1012;
-        /// <summary>
-        /// Crop시 WidthGap
-        /// </summary>
-        int WidthGap { get; set; } = 1064;
-        /// <summary>
-        /// Crop시 HeightGap
-        /// </summary>
-        int HeightGap { get; set; } = 1012;
-        #endregion
-        #region ImageModel
-        /// <summary>
-        /// 원본이미지
-        /// </summary>
-        public Mat? EntireImage { get; set; }
-        /// <summary>
-        /// 잘린 이미지들
-        /// </summary>
-        public List<Mat> CropImages { get; set; } = new();
-        /// <summary>
-        /// Calibration이 적용된 잘린 이미지들
-        /// </summary>
-        public List<Mat> CalibrationCropImages { get; set; } = new();
-        /// <summary>
-        /// Normalize와 Calibration이 적용된 잘린 이미지들
-        /// </summary>
-        public List<Mat> NormalizeCropImages { get; set; } = new();
-        /// <summary>
-        /// 최종적으로 Stitching된 이미지
-        /// </summary>
-        public Mat? StitchImage {  get; set; }
-        #endregion
-        #region CalibrationModel
+        private readonly object _lock = new();
 
-        #endregion
-        #region RectModel
+        private Mat? _entire;
+        private List<Mat> _crops = new();
+        private List<Mat> _calibratedCrops = new();
+        private Mat? _stitched;
 
-        #endregion
-        public void SetSourceImage(Mat Image)
+        public long Version { get; private set; }
+
+        public void ReplaceEntire(Mat mat, bool takeOwnership = true)
         {
+            if (mat is null) throw new ArgumentNullException(nameof(mat));
 
+            lock (_lock)
+            {
+                var old = _entire;
+                _entire = takeOwnership ? mat : mat.Clone();
+                old?.Dispose();
+                Version++;
+            }
         }
-        ValueTask IAsyncDisposable.DisposeAsync()
+
+        public void ReplaceCrops(IReadOnlyList<Mat> mats, bool takeOwnership = true)
         {
-            EntireImage?.Dispose();
-            EntireImage = null;
+            if (mats is null) throw new ArgumentNullException(nameof(mats));
 
-            foreach (var m in CropImages) m.Dispose();
-            CropImages.Clear();
+            lock (_lock)
+            {
+                DisposeAll(_crops);
+                _crops = takeOwnership ? new List<Mat>(mats) : CloneDeep(mats);
+                Version++;
+            }
+        }
 
-            foreach (var m in CalibrationCropImages) m.Dispose();
-            CalibrationCropImages.Clear();
+        public void ReplaceCalibratedCrops(IReadOnlyList<Mat> mats, bool takeOwnership = true)
+        {
+            if (mats is null) throw new ArgumentNullException(nameof(mats));
 
-            foreach (var m in NormalizeCropImages) m.Dispose();
-            NormalizeCropImages.Clear();
+            lock (_lock)
+            {
+                DisposeAll(_calibratedCrops);
+                _calibratedCrops = takeOwnership ? new List<Mat>(mats) : CloneDeep(mats);
+                Version++;
+            }
+        }
 
-            StitchImage?.Dispose();
-            StitchImage = null;
+        public void ReplaceStitched(Mat mat, bool takeOwnership = true)
+        {
+            if (mat is null) throw new ArgumentNullException(nameof(mat));
 
+            lock (_lock)
+            {
+                var old = _stitched;
+                _stitched = takeOwnership ? mat : mat.Clone();
+                old?.Dispose();
+                Version++;
+            }
+        }
+
+        public Mat? GetEntireShared()
+        {
+            lock (_lock)
+            {
+                return _entire is null ? null : new Mat(_entire);
+            }
+        }
+
+        public IReadOnlyList<Mat> GetCalibratedCropsShared()
+        {
+            lock (_lock)
+            {
+                return CloneHeaders(_calibratedCrops);
+            }
+        }
+
+        public IReadOnlyList<Mat> GetCropsShared()
+        {
+            lock (_lock)
+            {
+                return CloneHeaders(_crops);
+            }
+        }
+
+        public Mat? GetStitchedShared()
+        {
+            lock (_lock)
+            {
+                return _stitched is null ? null : new Mat(_stitched);
+            }
+        }
+
+        public void ClearAll()
+        {
+            lock (_lock)
+            {
+                _entire?.Dispose();
+                _entire = null;
+
+                DisposeAll(_crops);
+                _crops.Clear();
+
+                DisposeAll(_calibratedCrops);
+                _calibratedCrops.Clear();
+
+                _stitched?.Dispose();
+                _stitched = null;
+
+                Version++;
+            }
+        }
+
+        private static void DisposeAll(List<Mat> mats)
+        {
+            foreach (var m in mats) m.Dispose();
+        }
+
+        // 깊은 복사(데이터 복제) — 외부가 소유권을 유지해야 하는 경우에만 사용
+        private static List<Mat> CloneDeep(IReadOnlyList<Mat> mats)
+        {
+            var list = new List<Mat>(mats.Count);
+            for (int i = 0; i < mats.Count; i++)
+                list.Add(mats[i].Clone());
+            return list;
+        }
+
+        // 얕은 복사(헤더만) — 외부로 안전하게 노출
+        private static List<Mat> CloneHeaders(List<Mat> mats)
+        {
+            var list = new List<Mat>(mats.Count);
+            for (int i = 0; i < mats.Count; i++)
+                list.Add(new Mat(mats[i]));
+            return list;
+        }
+
+        public ValueTask DisposeAsync()
+        {
             return ValueTask.CompletedTask;
         }
     }
+    public readonly record struct FramePacket(
+        WriteableBitmap Bitmap,
+        long FrameId,
+        DateTimeOffset Timestamp);
 }

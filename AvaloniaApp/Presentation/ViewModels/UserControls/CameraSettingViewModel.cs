@@ -76,36 +76,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [RelayCommand]
         public async Task LoadAsync()
         {
-            await RunSafeAsync(ct => _cameraPipeline.EnqueueLoadCameraParamsAsync(ct,
-                async (exp, g, ga) =>
-                {
-                    _isUpdatingFromCamera = true;
-                    ExposureTime = exp;
-                    Gain = g;
-                    Gamma = ga;
-                    _isUpdatingFromCamera = false;
-                    await Task.CompletedTask;
-                }));
+
         }
         // Apply 버튼에 연결
         [RelayCommand]
         public async Task ApplyAsync()
         {
-            await RunSafeAsync(ct =>
-                _cameraPipeline.EnqueueApplyCameraParamsAsync(
-                    ct,
-                    ExposureTime,
-                    Gain,
-                    Gamma,
-                    async (appliedExp, appliedGain, appliedGamma) =>
-                    {
-                        // 카메라가 근처 값으로 보정한 실제 값으로 UI 동기화
-                        ExposureTime = appliedExp;
-                        Gain = appliedGain;
-                        Gamma = appliedGamma;
 
-                        await Task.CompletedTask;
-                    }));
         }
     }
 }

@@ -7,6 +7,7 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaApp.Presentation.ViewModels.Windows;
@@ -17,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Threading.Tasks;
 
 namespace AvaloniaApp
 {
@@ -24,14 +26,15 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            services.AddSingleton<Model>();
             services.AddSingleton<ImageService>();
-
             // 서비스/도메인
             services.AddSingleton<DialogService>();
 
+            services.AddSingleton(new BackgroundJobQueue(capacity: 200));
+            services.AddHostedService<BackgroundJobWorker>();
+            services.AddSingleton<OperationRunner>();
+
             services.AddSingleton<UiDispatcher>();
-            services.AddSingleton<BackgroundJobQueue>();
             services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<ImageProcessService>();
             services.AddSingleton<PopupService>();
@@ -44,12 +47,7 @@ namespace AvaloniaApp
             services.AddSingleton<RegionAnalysisWorkspace>();
             services.AddSingleton<ImageAnalysisWorkspace>();
 
-
-            // 백그라운드 워커
-            services.AddHostedService<BackgroundJobWorker>();
-
-            // ViewModel
-            services.AddSingleton<CameraViewModel>();
+            services.AddSingleton<CameraViewModelTest>();
             services.AddSingleton<CameraConnectViewModel>();
             services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();
@@ -102,23 +100,39 @@ namespace AvaloniaApp
 
             _host = builder.Build();
 
-            // BackgroundService 시작
-            _host.StartAsync().GetAwaiter().GetResult();
 
-            // 필요한 서비스 꺼내기 (VM, Window 등)
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var vm = _host.Services.GetRequiredService<MainWindowViewModel>();
             mainWindow.DataContext = vm;
+
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow = mainWindow;
 
-                // 여기서 종료 이벤트에 연결해서 Host 정리
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _host.StartAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                });
+
                 desktop.Exit += (_, __) =>
                 {
-                    _host!.StopAsync().GetAwaiter().GetResult();
-                    _host?.Dispose();
+                    try
+                    {
+                        _host!.StopAsync().GetAwaiter().GetResult();
+                        if (_host is IAsyncDisposable ad)
+                            ad.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        else
+                            _host.Dispose();
+                    }
+                    catch { }
                 };
             }
 
