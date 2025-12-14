@@ -12,6 +12,45 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
+    public sealed class FramePacket : IDisposable
+    {
+        private byte[]? _buffer;
+
+
+        public int Width { get; }
+        public int Height { get; }
+        public int Stride { get; }
+        public int Length { get; }
+
+
+        public FramePacket(byte[] buffer, int width, int height, int stride, int length)
+        {
+            _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            Width = width;
+            Height = height;
+            Stride = stride;
+            Length = length;
+        }
+
+
+        public ReadOnlySpan<byte> Span
+        {
+            get
+            {
+                var b = _buffer;
+                return b is null ? ReadOnlySpan<byte>.Empty : b.AsSpan(0, Length);
+            }
+        }
+
+
+        public void Dispose()
+        {
+            var b = _buffer;
+            if (b is null) return;
+            _buffer = null;
+            ArrayPool<byte>.Shared.Return(b);
+        }
+    }
     public sealed class ImageWorkspace : IAsyncDisposable
     {
         private readonly object _lock = new();
@@ -153,8 +192,4 @@ namespace AvaloniaApp.Core.Models
             return ValueTask.CompletedTask;
         }
     }
-    public readonly record struct FramePacket(
-        WriteableBitmap Bitmap,
-        long FrameId,
-        DateTimeOffset Timestamp);
 }

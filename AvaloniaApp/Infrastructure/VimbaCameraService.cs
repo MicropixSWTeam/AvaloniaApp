@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using VmbNET;
 
@@ -36,7 +37,13 @@ namespace AvaloniaApp.Infrastructure
         private long _generation;
         private long _activeGeneration; // 0이면 비활성
         private bool _frameHandlerAttached;
-
+        private readonly Channel<FramePacket> _frames = Channel.CreateBounded<FramePacket>(new BoundedChannelOptions(capacity: 1)
+        {
+            SingleReader = false,
+            SingleWriter = true,
+            AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.Wait // 우리가 수동으로 drop 처리할 것이므로 Wait로 두고 TryWrite를 사용
+        });
         public CameraInfo? ConnectedCameraInfo { get; private set; }
 
         /// <summary>

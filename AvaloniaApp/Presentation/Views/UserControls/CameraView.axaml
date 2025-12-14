@@ -79,11 +79,7 @@
                     HorizontalAlignment="Center"
                     Margin="0,8,0,8"
                     Spacing="8">
-            <Button Content="GetCam"
-                    Width="90"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    Command="{Binding RefreshCamerasCommand}" />
+
             <Button Content="Start"
                     Width="90"
                     HorizontalContentAlignment="Center"

@@ -106,6 +106,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [RelayCommand]
         private async Task StartPreviewAsync()
         {
+            SelectedCamera ??= Cameras.FirstOrDefault();
             var cam = SelectedCamera ?? throw new InvalidOperationException("카메라를 선택하세요.");
 
 
