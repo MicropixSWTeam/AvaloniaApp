@@ -26,7 +26,7 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            services.AddSingleton<ImageService>();
+            services.AddSingleton<ImageProcessor>();
             // 서비스/도메인
             services.AddSingleton<DialogService>();
 
@@ -51,9 +51,7 @@ namespace AvaloniaApp
             services.AddSingleton<CameraConnectViewModel>();
             services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();
-            services.AddSingleton<StorageViewModel>();
             services.AddSingleton<MainWindowViewModel>();
-            services.AddSingleton<StatusViewModel>();
             services.AddSingleton<PopupHostWindowViewModel>();    
 
             // View
@@ -61,10 +59,7 @@ namespace AvaloniaApp
             services.AddSingleton<CameraConnectView>();
             services.AddSingleton<CameraSettingView>();
             services.AddSingleton<ChartView>();
-            services.AddSingleton<TabView>();
-            services.AddSingleton<StorageView>();
             services.AddSingleton<MainWindow>();
-            services.AddSingleton<StatusView>();
             services.AddTransient<PopupHostWindow>();
             services.AddTransient<Func<PopupHostWindow>>(sp =>
             {

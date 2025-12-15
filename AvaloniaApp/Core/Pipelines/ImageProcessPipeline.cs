@@ -18,6 +18,5 @@ namespace AvaloniaApp.Core.Pipelines
     /// </summary>
     public class ImageProcessPipeline
     {
-
     }
 }

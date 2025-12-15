@@ -1,15 +1,8 @@
-﻿using AvaloniaApp.Core.Enums;
-using AvaloniaApp.Core.Interfaces;
-using AvaloniaApp.Core.Jobs;
-using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Operations;
+﻿using AvaloniaApp.Presentation.Operations;
 using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
-using AvaloniaApp.Presentation.Views.UserControls;
 using CommunityToolkit.Mvvm.Input;
-using MsBox.Avalonia.Enums;
 using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.Windows

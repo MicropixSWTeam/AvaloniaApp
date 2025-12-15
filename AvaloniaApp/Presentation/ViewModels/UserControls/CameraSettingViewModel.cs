@@ -1,5 +1,7 @@
-﻿using AvaloniaApp.Core.Interfaces;
+﻿using AutoMapper.Configuration.Annotations;
+using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Pipelines;
+using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +13,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
     public partial class CameraSettingViewModel : ViewModelBase,IPopup
     {
-        private readonly CameraPipeline _cameraPipeline;
+        private readonly VimbaCameraService _camera;
 
         [ObservableProperty]
         private double exposureTime; 
@@ -38,22 +40,20 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public int Width { get; set; } = 400;
         public int Height { get; set; } = 500;
 
-        public CameraSettingViewModel(CameraPipeline cameraPipeline) : base()
+        public CameraSettingViewModel(VimbaCameraService vimbaCameraService) : base()
         {
-            _cameraPipeline = cameraPipeline;
+            _camera = vimbaCameraService;
         }
         partial void OnExposureTimeChanged(double value)
         {
             if (_isUpdatingFromCamera) return;
             QueueAutoApply();
         }
-
         partial void OnGainChanged(double value)
         {
             if (_isUpdatingFromCamera) return;
             QueueAutoApply();
         }
-
         partial void OnGammaChanged(double value)
         {
             if (_isUpdatingFromCamera) return;
@@ -63,26 +63,41 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             var version = ++_autoApplyVersion;
 
-            // 200~300ms 정도 디바운스 (원하는 값으로 조정)
             await Task.Delay(250);
 
-            // 그 사이에 값이 또 바뀌었으면 버림
             if (version != _autoApplyVersion)
                 return;
 
             await ApplyAsync();
         }
-
         [RelayCommand]
         public async Task LoadAsync()
         {
+            await RunOperationAsync(
+                key: "LoadCameraBrightness",
+                backgroundWork: async (ct, ctx) =>
+                {
+                    ctx.ReportIndeterminate("밝기 값 불러오는 중");
+                    var exposure = await _camera.GetExposureTimeAsync(ct);
+                    var gain = await _camera.GetGainAsync(ct);
+                    var gamma = await _camera.GetGammaAsync(ct);
 
+                    await UiInvokeAsync(() =>
+                    {
+                        ExposureTime = exposure;
+                        Gamma = gain;
+                        Gamma = gamma;
+                    }).ConfigureAwait(false);
+                },
+                configure:opt =>
+                {
+                    opt.JobName = "CameraBrightnessLoad";
+                    opt.Timeout = TimeSpan.FromSeconds(3);
+                });
         }
-        // Apply 버튼에 연결
         [RelayCommand]
         public async Task ApplyAsync()
         {
-
         }
     }
 }

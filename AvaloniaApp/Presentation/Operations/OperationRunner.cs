@@ -1,5 +1,5 @@
 ﻿using AvaloniaApp.Core.Jobs;
-using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Services;
 using System;
 using System.Threading;
 using System.Threading.Tasks;

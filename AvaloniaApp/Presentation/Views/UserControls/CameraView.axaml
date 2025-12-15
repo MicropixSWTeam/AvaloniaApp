@@ -20,9 +20,10 @@
         <Border Grid.Row="0" Margin="4" Background="Gray">
             <Grid>
                 <!-- 1) 카메라 이미지 -->
-                <Image x:Name="CameraImage"
+                <Image x:Name="PreviewImage"
                        Source="{Binding PreviewBitmap}"
-                       Stretch="Uniform" />
+                       Stretch="Uniform" 
+                       />
 
                 <!-- 2) 이미 확정된 ROI -->
 <!--                <ItemsControl ItemsSource="{Binding Regions}"
@@ -91,7 +92,7 @@
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"
                     Command="{Binding StopPreviewCommand}" />
-
+            <TextBlock Text="{Binding PreviewFps, StringFormat=FPS: {0:0.0}}" TextAlignment="Center"/>
 <!--            <Button Content="Save"
                     Width="90"
                     HorizontalContentAlignment="Center"

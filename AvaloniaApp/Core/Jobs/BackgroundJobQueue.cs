@@ -34,13 +34,6 @@ namespace AvaloniaApp.Core.Jobs
         {
             if (job is null) throw new ArgumentNullException(nameof(job));
 
-            if (BackgroundJobExecutionContext.IsRunningInside(this))
-            {
-                throw new InvalidOperationException(
-                    "Do not enqueue into the same BackgroundJobQueue from inside a running BackgroundJob. " +
-                    "Call the inner method directly, or use a separate queue.");
-            }
-
             // 이미 외부 취소면 큐에 넣지 않고 즉시 취소 완료
             if (job.ExternalCancellationToken.IsCancellationRequested)
             {
@@ -83,6 +76,13 @@ namespace AvaloniaApp.Core.Jobs
             CancellationToken enqueueToken = default,
             CancellationToken waitToken = default)
         {
+            if (BackgroundJobExecutionContext.IsRunningInside(this))
+            {
+                throw new InvalidOperationException(
+                "Do not EnqueueAndWait into the same BackgroundJobQueue from inside a running BackgroundJob. " +
+                "Call the inner method directly, or use a separate queue.");
+            }
+
             await EnqueueAsync(job, enqueueToken).ConfigureAwait(false);
             await job.Completion.WaitAsync(waitToken).ConfigureAwait(false);
         }

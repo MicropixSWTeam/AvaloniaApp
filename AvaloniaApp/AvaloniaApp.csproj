@@ -51,11 +51,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Presentation\Views\UserControls\StatusView.axaml.cs">
-      <DependentUpon>StatusView.axaml</DependentUpon>
-    </Compile>
-    <Compile Update="Presentation\Views\UserControls\StorageView.axaml.cs">
-      <DependentUpon>StorageView.axaml</DependentUpon>
-    </Compile>
+    <Folder Include="Core\Enums\" />
+    <Folder Include="Application\" />
   </ItemGroup>
 </Project>

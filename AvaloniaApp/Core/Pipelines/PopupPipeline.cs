@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Core.Pipelines
+namespace AvaloniaApp.Core.Pipelines;
+
+public class PopupPipeline
 {
-    public class PopupPipeline
-    {
-    }
 }
+

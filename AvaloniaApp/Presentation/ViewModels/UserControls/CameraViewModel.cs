@@ -9,6 +9,7 @@ using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Pipelines;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.Operations;
+using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -526,11 +527,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _normalizedTilesCache = null;
             _normalizedTilesSource = null;
         }
-
-        /// <summary>
-        /// 현재 Image + SelectedDistance + TargetIntensity 조합에 대해
-        /// 정규화+translation된 타일 배열을 한 번만 생성해서 캐시.
-        /// </summary>
         private IReadOnlyList<WriteableBitmap> GetOrBuildNormalizedTiles(Bitmap source)
         {
             byte ti = TargetIntensity;
@@ -562,16 +558,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             return tiles;
         }
-
-        /// <summary>
-        /// ROI 선택 확정 시 호출.
-        /// - Stop 상태일 때만 동작.
-        /// - 미리 만들어둔(또는 캐시에서 가져온) 정규화 타일에서
-        ///   동일 비율(u1..u2, v1..v2)의 영역을 잘라 Y mean/std 계산.
-        /// - DrawRect 모드: ROI + 스펙트럼 분석만 수행 (translation X)
-        /// - Translation 모드: 같은 rect를 ref 템플릿으로 사용해
-        ///   모든 타일(0..N-1)에 대해 템플릿 매칭으로 translation offset 계산.
-        /// </summary>
         public void CommitSelectionRect()
         {
             // 1) 기본 체크

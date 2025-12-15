@@ -15,22 +15,35 @@ namespace AvaloniaApp.Presentation.Views.UserControls
     {
         private bool _isDragging;
         private Point _dragStart;
-
+        private Action? _invalidateHandler;
         public CameraView()
         {
             InitializeComponent();
-
+            AttachedToVisualTree += OnAttached;
+            DetachedFromVisualTree += OnDetached;
             //SelectionCanvas.SizeChanged += SelectionCanvas_OnSizeChanged;
         }
 
-        private CameraViewModel? Vm => DataContext as CameraViewModel;
+        private CameraViewModelTest? Vm => DataContext as CameraViewModelTest;
 
         private void SelectionCanvas_OnSizeChanged(object? sender, SizeChangedEventArgs e)
         {
             if (Vm is null) return;
-            Vm.ImageControlSize = e.NewSize;
         }
-
+        private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (Vm is not null)
+                Vm.PreviewInvalidated += InvalidatePreviewImage;
+        }
+        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (Vm is not null)
+                Vm.PreviewInvalidated -= InvalidatePreviewImage;
+        }
+        private void InvalidatePreviewImage()
+        {
+            PreviewImage?.InvalidateVisual();
+        }
         //// 실제 화면에 렌더된 이미지 영역(Rect)을 계산 (Image.Stretch = Uniform 기준)
         //private bool TryGetImageRenderRect(out Rect rect)
         //{

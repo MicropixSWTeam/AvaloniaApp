@@ -17,7 +17,7 @@ namespace AvaloniaApp.Core.Jobs
 
         public string Name { get; }
         public Func<CancellationToken, Task> Work { get; }
-        public TimeSpan? Timeout { get; init; }
+        public TimeSpan? Timeout { get; init; } 
         public CancellationToken ExternalCancellationToken { get; }
 
         public Task Completion => _tcs.Task;

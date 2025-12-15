@@ -2,7 +2,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Presentation.Services
 {
     public sealed class UiDispatcher
     {

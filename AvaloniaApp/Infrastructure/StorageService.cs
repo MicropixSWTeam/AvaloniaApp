@@ -117,7 +117,6 @@ namespace AvaloniaApp.Infrastructure
                 await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
             }
         }
-
         /// <summary>
         /// 원본 전체 이미지 + 원본 crop 타일 + 처리된(translation+normalize) 타일 + stitched 전체 이미지를 한 번에 저장.
         /// </summary>
@@ -193,7 +192,6 @@ namespace AvaloniaApp.Infrastructure
                 await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
             }
         }
-
         private static async Task SaveBitmapToFolderAsync(
             IStorageFolder folder,
             string fileName,

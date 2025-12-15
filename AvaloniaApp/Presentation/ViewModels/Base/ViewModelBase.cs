@@ -1,5 +1,5 @@
-﻿using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Operations;
+﻿using AvaloniaApp.Presentation.Operations;
+using AvaloniaApp.Presentation.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
@@ -20,9 +20,9 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
         {
 
         }
-        protected ViewModelBase(UiDispatcher uiDispatcher, OperationRunner runner)
+        protected ViewModelBase(UiDispatcher ui, OperationRunner runner)
         {
-            _ui = uiDispatcher ?? throw new ArgumentNullException(nameof(uiDispatcher));
+            _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _runner = runner ?? throw new ArgumentNullException(nameof(runner));
         }
 
@@ -40,8 +40,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
             return s;
         }
 
-        protected Task UiAsync(Action action)
-            => _ui.InvokeAsync(action);
+        protected Task UiInvokeAsync(Action action) => _ui.InvokeAsync(action);
 
         protected async Task RunOperationAsync(
             string key,
@@ -63,7 +62,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
                 options,
                 token).ConfigureAwait(false);
 
-            await UiAsync(() => LastError = state.Error).ConfigureAwait(false);
+            await UiInvokeAsync(() => LastError = state.Error).ConfigureAwait(false);
         }
     }
 }
