@@ -25,11 +25,17 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private CancellationTokenSource? _consumeCts;
         private Task? _consumeTask;
 
-        private WriteableBitmap? _previewImage;
+        private WriteableBitmap? _previewFullImage;
+        private WriteableBitmap? _previewRectImage;
 
         private int _uiScheduled;              
-        private FrameData? _pendingPacket;   
-        private int _previewActive;            
+    
+        private int _previewActive;
+        private FrameData? _previewFullFrameData;
+        private FrameData? _previewRectFrameData;
+
+        private int _stopCaptureRequested;  
+        private FrameData? _captureFrameData;
 
         private long _lastRenderTs;
         private double _fpsEma;
@@ -130,7 +136,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         PreviewFps = 0;
 
                         Interlocked.Exchange(ref _uiScheduled, 0);
-                        Interlocked.Exchange(ref _pendingPacket, null)?.Dispose();
+                        Interlocked.Exchange(ref _previewFullFrameData, null)?.Dispose();
                     }).ConfigureAwait(false);
                 },
                 configure: opt =>
@@ -165,7 +171,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 _consumeCts?.Dispose();
                 _consumeCts = null;
 
-                Interlocked.Exchange(ref _pendingPacket, null)?.Dispose();
+                Interlocked.Exchange(ref _previewFullFrameData, null)?.Dispose();
                 Interlocked.Exchange(ref _uiScheduled, 0);
             }
         }
@@ -177,10 +183,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             {
                 while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
                 {
-                    while (reader.TryRead(out var packet))
+                    while (reader.TryRead(out var frame))
                     {
                         // 최신 1개만 유지
-                        var old = Interlocked.Exchange(ref _pendingPacket, packet);
+                        var old = Interlocked.Exchange(ref _previewFullFrameData, frame);
                         old?.Dispose();
 
                         // UI 작업은 동시에 1개만 예약 (coalescing)
@@ -195,15 +201,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             catch (OperationCanceledException) { }
             catch { /* log */ }
         }
-
+        public void RequestStopCapture() => Interlocked.Exchange(ref _stopCaptureRequested, 1);
         private void RenderPendingOnUi()
         {
-            // UI 예약 플래그 해제(아래에서 필요 시 재예약)
             Interlocked.Exchange(ref _uiScheduled, 0);
-
-            var packet = Interlocked.Exchange(ref _pendingPacket, null);
-            if (packet is null)
-                return;
+            var packet = Interlocked.Exchange(ref _previewFullFrameData, null);
+            if (packet is null) return;
 
             try
             {
@@ -211,49 +214,48 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     return;
 
                 EnsureSharedPreview(packet.Width, packet.Height);
-                if (_previewImage is null)
-                    return;
 
-                _imageConverter.ConvertFrameDataToWriteableBitmap(_previewImage, packet);
+                if (_previewFullImage is null) return;
+                _imageConverter.ConvertFrameDataToWriteableBitmap(_previewFullImage, packet);
+
+                if (Interlocked.Exchange(ref _stopCaptureRequested, 0) == 1)
+                {
+                    _captureFrameData?.Dispose();
+                    _captureFrameData = FrameData.Clone(packet); // 독립 데이터
+                }
 
                 UpdatePreviewFpsOnUi();
-
-                // View에 "다시 그려" 신호 전달
                 PreviewInvalidated?.Invoke();
             }
             finally
             {
-                packet.Dispose(); // ArrayPool 버퍼 반환 필수
+                packet.Dispose();
             }
-            // UI 처리 중 새 프레임이 들어왔으면 한 번 더 예약
-            if (Volatile.Read(ref _pendingPacket) is not null)
-            {
-                if (Interlocked.Exchange(ref _uiScheduled, 1) == 0)
-                {
-                    _ui.Post(RenderPendingOnUi);
-                }
-            }
+
+
+            if (Volatile.Read(ref _previewFullFrameData) is not null && Interlocked.Exchange(ref _uiScheduled, 1) == 0)
+                _ui.Post(RenderPendingOnUi);
         }
         private void EnsureSharedPreview(int width, int height)
         {
-            if (_previewImage is not null)
+            if (_previewFullImage is not null)
             {
-                var ps = _previewImage.PixelSize;
+                var ps = _previewFullImage.PixelSize;
                 if (ps.Width == width && ps.Height == height)
                     return;
 
-                _previewImage.Dispose();
-                _previewImage = null;
+                _previewFullImage.Dispose();
+                _previewFullImage = null;
             }
 
-            _previewImage = new WriteableBitmap(
+            _previewFullImage = new WriteableBitmap(
                 new PixelSize(width, height),
                 new Vector(96, 96),
                 PixelFormats.Gray8,
                 AlphaFormat.Opaque);
 
             // 인스턴스 교체는 사이즈 변경 때만
-            PreviewBitmap = _previewImage;
+            PreviewBitmap = _previewFullImage;
         }
         private void UpdatePreviewFpsOnUi()
         {
@@ -279,8 +281,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private void ClearPreviewOnUi()
         {
             PreviewBitmap = null;
-            _previewImage?.Dispose();
-            _previewImage = null;
+            _previewFullImage?.Dispose();
+            _previewFullImage = null;
         }
         public async ValueTask DisposeAsync()
         {
