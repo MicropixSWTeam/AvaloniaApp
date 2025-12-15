@@ -268,7 +268,7 @@ namespace AvaloniaApp.Infrastructure
                     return;
                 }
 
-                var packet = FrameData.Rent(buffer, width, height, packedStride, packedLength);
+                var packet = FrameData.Wrap(buffer, width, height, packedStride, packedLength);
 
                 if (!_frames.Writer.TryWrite(packet))
                 {

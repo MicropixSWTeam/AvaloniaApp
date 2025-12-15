@@ -1,14 +1,7 @@
-﻿using Avalonia.Media.Imaging;
-using OpenCvSharp;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
@@ -37,7 +30,7 @@ namespace AvaloniaApp.Core.Models
         // 풀 반환용 delegate(매 프레임 람다 생성 방지)
         private static void ReturnToPool(byte[] b) => ArrayPool<byte>.Shared.Return(b);
         // 스트리밍용: 이미 Rent한 버퍼를 감싸기(Dispose 시 Return)
-        public static FrameData Rent(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, ReturnToPool);
+        public static FrameData Wrap(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, ReturnToPool);
         // 스냅샷/소유: Dispose 시 반환 없음
         public static FrameData Own(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, @return: null);
         // 다른 FrameData로부터 스냅샷(복사본) 생성
@@ -46,6 +39,36 @@ namespace AvaloniaApp.Core.Models
             var dst = new byte[src.Length];
             global::System.Buffer.BlockCopy(src.Bytes, 0, dst, 0, src.Length);
             return FrameData.Own(dst, src.Width, src.Height, src.Stride, src.Length);
+        }
+        public static FrameData CropCopyOwned(FrameData src, OpenCvSharp.Rect roi)
+        {
+            roi = ClampRoi(roi, src.Width, src.Height);
+            if (roi.Width <= 0 || roi.Height <= 0)
+                throw new ArgumentException("Invalid ROI", nameof(roi));
+
+            int w = roi.Width;
+            int h = roi.Height;
+            int dstStride = w;
+            int dstLen = checked(w * h);
+
+            var dst = new byte[dstLen];
+
+            for (int y = 0; y < h; y++)
+            {
+                int srcOff = (roi.Y + y) * src.Stride + roi.X;
+                int dstOff = y * dstStride;
+                global::System.Buffer.BlockCopy(src.Bytes, srcOff, dst, dstOff, w);
+            }
+
+            return Own(dst, w, h, dstStride, dstLen);
+        }
+        static OpenCvSharp.Rect ClampRoi(OpenCvSharp.Rect r, int w, int h)
+        {
+            int x1 = Math.Clamp(r.X, 0, w);
+            int y1 = Math.Clamp(r.Y, 0, h);
+            int x2 = Math.Clamp(r.X + r.Width, 0, w);
+            int y2 = Math.Clamp(r.Y + r.Height, 0, h);
+            return new OpenCvSharp.Rect(x1, y1, Math.Max(0, x2 - x1), Math.Max(0, y2 - y1));
         }
         public void Dispose()
         {
