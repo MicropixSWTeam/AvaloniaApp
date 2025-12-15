@@ -30,14 +30,14 @@ namespace AvaloniaApp.Infrastructure
         private bool _frameHandlerAttached;
 
         // 최신 1프레임만 유지. (드롭 시 Dispose를 우리가 직접 해야 해서 TryWrite + TryRead 방식)
-        private readonly Channel<FramePacket> _frames = Channel.CreateBounded<FramePacket>(
+        private readonly Channel<FrameData> _frames = Channel.CreateBounded<FrameData>(
             new BoundedChannelOptions(1)
             {
                 AllowSynchronousContinuations = false,
                 FullMode = BoundedChannelFullMode.Wait
             });
 
-        public ChannelReader<FramePacket> Frames => _frames.Reader;
+        public ChannelReader<FrameData> Frames => _frames.Reader;
         public CameraInfo? ConnectedCameraInfo { get; private set; }
         public bool IsStreaming => _acquisition is not null;
 
@@ -268,7 +268,7 @@ namespace AvaloniaApp.Infrastructure
                     return;
                 }
 
-                var packet = new FramePacket(buffer, width, height, packedStride, packedLength);
+                var packet = FrameData.Rent(buffer, width, height, packedStride, packedLength);
 
                 if (!_frames.Writer.TryWrite(packet))
                 {

@@ -26,7 +26,7 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            services.AddSingleton<ImageProcessor>();
+            services.AddSingleton<ImageConverter>();
             // 서비스/도메인
             services.AddSingleton<DialogService>();
 

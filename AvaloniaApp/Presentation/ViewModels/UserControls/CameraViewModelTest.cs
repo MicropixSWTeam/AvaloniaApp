@@ -20,21 +20,19 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     public partial class CameraViewModelTest : ViewModelBase
     {
         private readonly VimbaCameraService _cameraService;
-        private readonly ImageProcessor _imageProcessor;
+        private readonly ImageConverter _imageConverter;
 
         private CancellationTokenSource? _consumeCts;
         private Task? _consumeTask;
 
-        private WriteableBitmap? _sharedPreview;
+        private WriteableBitmap? _previewImage;
 
         private int _uiScheduled;              
-        private FramePacket? _pendingPacket;   
+        private FrameData? _pendingPacket;   
         private int _previewActive;            
 
         private long _lastRenderTs;
         private double _fpsEma;
-
-        private FrameSnapshot? _snapshot;// Capture시 프레임을 복사해서 저장
 
         public event Action? PreviewInvalidated;
 
@@ -50,7 +48,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             : base(ui, runner)
         {
             _cameraService = camera ?? throw new ArgumentNullException(nameof(camera));
-            _imageProcessor = new ImageProcessor();
+            _imageConverter = new ImageConverter();
         }
 
         [RelayCommand]
@@ -129,7 +127,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     await UiInvokeAsync(() =>
                     {
                         IsPreviewing = false;
-                        ClearPreviewOnUi();
                         PreviewFps = 0;
 
                         Interlocked.Exchange(ref _uiScheduled, 0);
@@ -214,10 +211,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     return;
 
                 EnsureSharedPreview(packet.Width, packet.Height);
-                if (_sharedPreview is null)
+                if (_previewImage is null)
                     return;
 
-                _imageProcessor.UpdateWriteableBitmap(_sharedPreview, packet);
+                _imageConverter.ConvertFrameDataToWriteableBitmap(_previewImage, packet);
 
                 UpdatePreviewFpsOnUi();
 
@@ -239,24 +236,24 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
         private void EnsureSharedPreview(int width, int height)
         {
-            if (_sharedPreview is not null)
+            if (_previewImage is not null)
             {
-                var ps = _sharedPreview.PixelSize;
+                var ps = _previewImage.PixelSize;
                 if (ps.Width == width && ps.Height == height)
                     return;
 
-                _sharedPreview.Dispose();
-                _sharedPreview = null;
+                _previewImage.Dispose();
+                _previewImage = null;
             }
 
-            _sharedPreview = new WriteableBitmap(
+            _previewImage = new WriteableBitmap(
                 new PixelSize(width, height),
                 new Vector(96, 96),
                 PixelFormats.Gray8,
                 AlphaFormat.Opaque);
 
             // 인스턴스 교체는 사이즈 변경 때만
-            PreviewBitmap = _sharedPreview;
+            PreviewBitmap = _previewImage;
         }
         private void UpdatePreviewFpsOnUi()
         {
@@ -282,8 +279,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private void ClearPreviewOnUi()
         {
             PreviewBitmap = null;
-            _sharedPreview?.Dispose();
-            _sharedPreview = null;
+            _previewImage?.Dispose();
+            _previewImage = null;
         }
         public async ValueTask DisposeAsync()
         {

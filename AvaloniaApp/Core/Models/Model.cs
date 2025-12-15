@@ -12,43 +12,58 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Models
 {
-    /// <summary>
-    /// ArrayPool에서 빌린 프레임 버퍼(Gray8, packed).
-    /// 반드시 Dispose를 호출하여 버퍼를 반환해야 함.
-    /// </summary>
-    public sealed class FramePacket : IDisposable
+    public sealed class FrameData : IDisposable
     {
-        private int _returned;
+        private int _disposed;
+        private readonly Action<byte[]>? _return;
         public int Width { get; }
         public int Height { get; }
         public int Stride { get; }
         public int Length { get; }
-        public byte[] Buffer { get; }
-        public FramePacket(byte[] buffer, int width, int height, int stride, int length)
+        public byte[] Bytes { get; }
+        private FrameData(byte[] bytes, int width, int height, int stride, int length, Action<byte[]>? @return)
         {
-            Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            Bytes = bytes ?? throw new ArgumentNullException(nameof(bytes));
             Width = width;
             Height = height;
             Stride = stride;
             Length = length;
+            _return = @return;
+
+            if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException();
+            if (stride <= 0) throw new ArgumentOutOfRangeException(nameof(stride));
+            if (length <= 0 || length > bytes.Length) throw new ArgumentOutOfRangeException(nameof(length));
+        }
+        // 풀 반환용 delegate(매 프레임 람다 생성 방지)
+        private static void ReturnToPool(byte[] b) => ArrayPool<byte>.Shared.Return(b);
+        // 스트리밍용: 이미 Rent한 버퍼를 감싸기(Dispose 시 Return)
+        public static FrameData Rent(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, ReturnToPool);
+        // 스냅샷/소유: Dispose 시 반환 없음
+        public static FrameData Own(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, @return: null);
+        // 다른 FrameData로부터 스냅샷(복사본) 생성
+        public static unsafe FrameData Clone(FrameData src)
+        {
+            var dst = new byte[src.Length];
+
+            fixed (byte* s0 = src.Bytes)
+            fixed (byte* d0 = dst)
+            {
+                Buffer.MemoryCopy(s0, d0, dst.Length, src.Length);
+            }
+
+            return Own(dst, src.Width, src.Height, src.Stride, src.Length);
         }
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _returned, 1) == 1)
+            if (Interlocked.Exchange(ref _disposed, 1) == 1)
                 return;
 
-            ArrayPool<byte>.Shared.Return(Buffer);
+            _return?.Invoke(Bytes);
         }
     }
-    public sealed class FrameSnapshot
+    public sealed record ChartData
     {
-        public int Width { get; }
-        public int Height { get; }
-        public int Stride { get; }
-        public byte[] Buffer { get; }
-        public FrameSnapshot(int w, int h, int stride, byte[] buf)
-        {
-            Width = w; Height = h; Stride = stride; Buffer = buf;
-        }
+        public double Mean { get; set; }
+        public double StdDev { get; set; }  
     }
 }
