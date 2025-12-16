@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 
 namespace AvaloniaApp.Infrastructure
 {
-    public class DrawRectService
+    public class Drawservice
     {
         /// <summary>
         /// 컨트롤 좌표계에서의 선택 사각형(selectionInControl)을

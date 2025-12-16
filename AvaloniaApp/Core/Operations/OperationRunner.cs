@@ -1,17 +1,18 @@
 ﻿using AvaloniaApp.Core.Jobs;
-using AvaloniaApp.Presentation.Services;
+using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.Operations
+namespace AvaloniaApp.Core.Operations
 {
     public sealed class OperationRunner
     {
         private readonly BackgroundJobQueue _queue;
-        private readonly UiDispatcher _ui;
+        private readonly UiService _ui;
 
-        public OperationRunner(BackgroundJobQueue queue, UiDispatcher ui)
+        public OperationRunner(BackgroundJobQueue queue, UiService ui)
         {
             _queue = queue ?? throw new ArgumentNullException(nameof(queue));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));

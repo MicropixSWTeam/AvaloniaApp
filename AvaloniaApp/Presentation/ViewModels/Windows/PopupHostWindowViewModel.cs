@@ -1,18 +1,11 @@
-﻿using AvaloniaApp.Presentation.Operations;
-using AvaloniaApp.Presentation.Services;
-using AvaloniaApp.Presentation.ViewModels;
+﻿using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public class PopupHostWindowViewModel :ViewModelBase
     {
-        public PopupHostWindowViewModel(UiDispatcher uiDispatcher, OperationRunner runner) : base(uiDispatcher, runner)
+        public PopupHostWindowViewModel(AppService service) : base(service)
         {
         }
     }

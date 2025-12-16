@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.Services
+namespace AvaloniaApp.Infrastructure
 {
     public class DialogService
     {

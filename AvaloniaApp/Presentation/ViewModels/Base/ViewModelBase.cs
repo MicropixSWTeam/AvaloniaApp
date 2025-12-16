@@ -1,5 +1,6 @@
-﻿using AvaloniaApp.Presentation.Operations;
-using AvaloniaApp.Presentation.Services;
+﻿using AvaloniaApp.Core.Operations;
+using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
@@ -8,24 +9,21 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.Base
 {
-    public abstract partial class ViewModelBase : ObservableObject
+    public abstract partial class ViewModelBase : ObservableObject,IAsyncDisposable
     {
         [ObservableProperty] private string? lastError;
 
-        protected readonly UiDispatcher _ui;
-        protected readonly OperationRunner _runner;
+        protected readonly AppService _service;
 
         private readonly Dictionary<string, OperationState> _states = new();
         protected ViewModelBase()
         {
 
         }
-        protected ViewModelBase(UiDispatcher ui, OperationRunner runner)
+        protected ViewModelBase(AppService service)
         {
-            _ui = ui ?? throw new ArgumentNullException(nameof(ui));
-            _runner = runner ?? throw new ArgumentNullException(nameof(runner));
+            _service = service ?? throw new ArgumentNullException(nameof(service));
         }
-
         public OperationState Op(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -40,7 +38,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
             return s;
         }
 
-        protected Task UiInvokeAsync(Action action) => _ui.InvokeAsync(action);
+        protected Task UiInvokeAsync(Action action) => _service.Ui.InvokeAsync(action);
 
         protected async Task RunOperationAsync(
             string key,
@@ -56,13 +54,17 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
             var options = new OperationOptions();
             configure?.Invoke(options);
 
-            await _runner.RunAsync(
+            await _service.OperationRunner.RunAsync(
                 state,
                 (ctx, ct) => backgroundWork(ct, ctx),
                 options,
                 token).ConfigureAwait(false);
 
             await UiInvokeAsync(() => LastError = state.Error).ConfigureAwait(false);
+        }
+        public virtual ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }

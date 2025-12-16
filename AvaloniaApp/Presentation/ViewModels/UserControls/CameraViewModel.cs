@@ -4,12 +4,9 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using AvaloniaApp.Core.Interfaces;
-using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Core.Pipelines;
+using AvaloniaApp.Core.Operations;
 using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Operations;
-using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,7 +14,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Rect = Avalonia.Rect;
@@ -107,9 +103,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public IReadOnlyList<int> AvailableDistances { get; } =
             new[] { 0, 10, 20, 30, 40 };
 
-        private readonly CameraPipeline _cameraPipeline;
         private readonly ImageProcessService _imageProcessService;
-        private readonly DrawRectService _drawRectService;
+        private readonly Drawservice _drawRectService;
         private readonly StorageService _storageService;
         private readonly RegionAnalysisWorkspace _analysis;
 
@@ -143,15 +138,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private byte _normalizedTilesTarget;
 
         public CameraViewModel(
-            UiDispatcher uiDispatcher,
+            UiService uiDispatcher,
             OperationRunner runner,
-            CameraPipeline cameraPipeline,
             ImageProcessService imageProcessService,
-            DrawRectService drawRectService,
+            Drawservice drawRectService,
             StorageService storageService,
-            RegionAnalysisWorkspace analysis) : base(uiDispatcher, runner)
+            RegionAnalysisWorkspace analysis)
         {
-            _cameraPipeline = cameraPipeline;
             _imageProcessService = imageProcessService;
             _drawRectService = drawRectService;
             _storageService = storageService;

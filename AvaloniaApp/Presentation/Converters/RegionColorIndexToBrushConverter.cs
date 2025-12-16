@@ -1,10 +1,9 @@
-﻿using System;
-using System.Globalization;
-using Avalonia.Data;
+﻿using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Presentation.Services;
+using System;
+using System.Globalization;
 
 
 namespace AvaloniaApp.Presentation.Converters

@@ -1,16 +1,14 @@
-﻿using Avalonia;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
+﻿using Avalonia.Media.Imaging;
 using AvaloniaApp.Core.Models;
-using OpenCvSharp;
 using System;
-using System.Runtime.InteropServices;
-using VmbNET;
-using Rect = OpenCvSharp.Rect;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AvaloniaApp.Infrastructure
 {
-    public class ImageConverter
+    public class ImageProcessServiceTest
     {
         public unsafe void ConvertFrameDataToWriteableBitmap(WriteableBitmap bitmap, FrameData frame)
         {

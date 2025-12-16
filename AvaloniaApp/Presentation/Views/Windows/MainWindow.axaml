@@ -29,7 +29,6 @@
         <!-- 실제 메인 화면 -->
         <DockPanel HorizontalAlignment="Left" VerticalAlignment="Top">
 			<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="0">
-                <Button Content="ConnectCamera" Command="{Binding OpenCameraConnectViewAsync}" BorderThickness="0" CornerRadius="0"/>
                 <Button Content="CameraSetting" Command="{Binding OpenCameraSettingViewAsync}" BorderThickness="0" CornerRadius="0"/>
                 <Button Content="Camera" Command="{Binding OpenCameraViewAsync}" BorderThickness="0" CornerRadius="0"/>
                 <Button Content="SpectrumChart" Command="{Binding OpenChartViewAsync}" BorderThickness="0" CornerRadius="0"/>

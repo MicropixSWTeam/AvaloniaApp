@@ -40,7 +40,6 @@ namespace AvaloniaApp.Infrastructure
         public ChannelReader<FrameData> Frames => _frames.Reader;
         public CameraInfo? ConnectedCameraInfo { get; private set; }
         public bool IsStreaming => _acquisition is not null;
-
         public VimbaCameraService() : this(IVmbSystem.Startup(), ownsSystem: true) { }
 
         internal VimbaCameraService(IVmbSystem system, bool ownsSystem)

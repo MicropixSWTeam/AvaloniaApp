@@ -5,10 +5,8 @@ using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Core.Pipelines;
+using AvaloniaApp.Core.Operations;
 using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.Operations;
-using AvaloniaApp.Presentation.Services;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaApp.Presentation.ViewModels.Windows;
 using AvaloniaApp.Presentation.Views.UserControls;
@@ -26,24 +24,23 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            services.AddSingleton<ImageConverter>();
-            services.AddSingleton<ImageProcessor>();
             // 서비스/도메인
-            services.AddSingleton<DialogService>();
+            services.AddSingleton<WorkSpace>();
 
-            services.AddSingleton(new BackgroundJobQueue(capacity: 200));
+            services.AddSingleton(new BackgroundJobQueue(capacity: 128));
             services.AddHostedService<BackgroundJobWorker>();
+            
             services.AddSingleton<OperationRunner>();
 
-            services.AddSingleton<UiDispatcher>();
+            services.AddSingleton<AppService>();
+            services.AddSingleton<DialogService>();
+            services.AddSingleton<UiService>();
             services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<ImageProcessService>();
+            services.AddSingleton<ImageProcessServiceTest>();
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
-            services.AddSingleton<DrawRectService>();
-
-            services.AddSingleton<CameraPipeline>();
-            services.AddSingleton<ImageProcessPipeline>();
+            services.AddSingleton<Drawservice>();
 
             services.AddSingleton<RegionAnalysisWorkspace>();
             services.AddSingleton<ImageAnalysisWorkspace>();

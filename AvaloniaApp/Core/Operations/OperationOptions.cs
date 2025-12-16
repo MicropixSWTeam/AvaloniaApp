@@ -1,6 +1,7 @@
-﻿using System;
+﻿using AvaloniaApp.Presentation.Operations;
+using System;
 
-namespace AvaloniaApp.Presentation.Operations
+namespace AvaloniaApp.Core.Operations
 {
     public sealed class OperationOptions
     {

@@ -1,13 +1,14 @@
-﻿using AvaloniaApp.Presentation.Services;
+﻿using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Presentation.Operations;
 using System;
 using System.Threading;
 
-namespace AvaloniaApp.Presentation.Operations
+namespace AvaloniaApp.Core.Operations
 {
     public sealed class OperationContext
     {
         private readonly OperationState _state;
-        private readonly UiDispatcher? _ui;
+        private readonly UiService? _ui;
         private readonly CancellationToken _lifetime;
 
         private readonly object _gate = new();
@@ -17,7 +18,7 @@ namespace AvaloniaApp.Presentation.Operations
 
         private int _scheduled;
 
-        internal OperationContext(OperationState state, UiDispatcher? ui, CancellationToken lifetime)
+        internal OperationContext(OperationState state, UiService? ui, CancellationToken lifetime)
         {
             _state = state;
             _ui = ui;

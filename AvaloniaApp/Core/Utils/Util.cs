@@ -10,7 +10,7 @@ using VmbNET;
 
 namespace AvaloniaApp.Core.Utils
 {
-    public static class Utils
+    public static class Util
     {
         // Avalonia.Rect (double) → OpenCvSharp.Rect (int)
         public static OpenCvSharp.Rect ToCvRect(Avalonia.Rect rect, int maxWidth, int maxHeight)
@@ -32,7 +32,14 @@ namespace AvaloniaApp.Core.Utils
         }
 
         // OpenCvSharp.Rect → Avalonia.Rect (필요한 경우)
-        public static Avalonia.Rect ToAvaloniaRect(OpenCvSharp.Rect r)
-            => new Avalonia.Rect(r.X, r.Y, r.Width, r.Height);
+        public static Avalonia.Rect ToAvaloniaRect(OpenCvSharp.Rect r) => new Avalonia.Rect(r.X, r.Y, r.Width, r.Height);
+        public static OpenCvSharp.Rect ClampRoi(OpenCvSharp.Rect r, int w, int h)
+        {
+            int x1 = Math.Clamp(r.X, 0, w);
+            int y1 = Math.Clamp(r.Y, 0, h);
+            int x2 = Math.Clamp(r.X + r.Width, 0, w);
+            int y2 = Math.Clamp(r.Y + r.Height, 0, h);
+            return new OpenCvSharp.Rect(x1, y1, Math.Max(0, x2 - x1), Math.Max(0, y2 - y1));
+        }
     }
 }
