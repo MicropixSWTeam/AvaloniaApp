@@ -174,17 +174,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 {
                     while (reader.TryRead(out var frame))
                     {
-                        try
-                        {
-                            var old = Interlocked.Exchange(ref _previewFrameData, frame);
-                            old?.Dispose();
 
-                            _throttler.Run(UpdateUI);
-                        }
-                        finally
-                        {
-                            frame?.Dispose();
-                        }
+                        var old = Interlocked.Exchange(ref _previewFrameData, frame);
+                        old?.Dispose();
+
+                        _throttler.Run(UpdateUI);
+                        
                     }
                 }
             }
