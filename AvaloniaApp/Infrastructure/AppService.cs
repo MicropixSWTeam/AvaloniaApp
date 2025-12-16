@@ -1,4 +1,5 @@
-﻿using AvaloniaApp.Core.Models;
+﻿using AvaloniaApp.Configuration;
+using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Operations;
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,7 @@ namespace AvaloniaApp.Infrastructure
         public StorageService Storage{ get; }
         public PopupService Popup{ get; }
         public WorkSpace WorkSpace { get;}
+        public Options Options { get; }
         public AppService(
             UiService ui,
             OperationRunner operationrunner,
@@ -29,7 +31,9 @@ namespace AvaloniaApp.Infrastructure
             Drawservice draw,
             StorageService storage,
             PopupService popup,
-            WorkSpace workspace) 
+
+            WorkSpace workspace,
+            Options options) 
         { 
             Ui = ui ?? throw new ArgumentNullException(nameof(ui));
             OperationRunner = operationrunner ?? throw new ArgumentNullException( nameof(operationrunner));
@@ -39,6 +43,7 @@ namespace AvaloniaApp.Infrastructure
             Storage = storage ?? throw new ArgumentNullException(nameof(storage));
             Popup = popup ?? throw new ArgumentNullException(nameof(popup));
             WorkSpace = workspace ?? throw new ArgumentNullException(nameof(workspace));
+            Options = options ?? throw new ArgumentNullException(nameof(options));  
         }
     }
 }

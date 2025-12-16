@@ -53,6 +53,5 @@
   <ItemGroup>
     <Folder Include="Core\Enums\" />
     <Folder Include="Application\" />
-    <Folder Include="Presentation\Services\" />
   </ItemGroup>
 </Project>

@@ -25,6 +25,7 @@ namespace AvaloniaApp
         public static void AddAppServices(this IServiceCollection services)
         {
             // 서비스/도메인
+            services.AddSingleton<Options>();
             services.AddSingleton<WorkSpace>();
 
             services.AddSingleton(new BackgroundJobQueue(capacity: 128));
@@ -87,7 +88,7 @@ namespace AvaloniaApp
 
             builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
             // 설정 바인딩
-            builder.Services.Configure<Options>(builder.Configuration.GetSection("Options"));
+            //builder.Services.Configure<Options>(builder.Configuration.GetSection("Options"));
             // DI 등록
             builder.Services.AddAppServices(); // 직접 만든 확장 메서드
 

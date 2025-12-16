@@ -1,4 +1,5 @@
-﻿using AvaloniaApp.Core.Utils;
+﻿using Avalonia;
+using AvaloniaApp.Core.Utils;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -71,15 +72,19 @@ namespace AvaloniaApp.Core.Models
             _return?.Invoke(Bytes);
         }
     }
-    public sealed record IntensityData
+    // 차트에 표시할 데이터
+    public sealed record IntensityData(double mean,double stddev);
+    public sealed class RegionData : IDisposable
     {
-        public double Mean { get; set; }
-        public double StdDev { get; set; }  
-
-        public IntensityData(double mean,double stddev)
+        public int Id { get; set; } 
+        public int ColorIndex { get; set; }
+        public Rect Rect { get; set; }
+        public List<IntensityData> IntensityDatas { get; } = new();
+        public void Dispose()
         {
-            Mean = mean; 
-            StdDev = stddev;
+            IntensityDatas.Clear();
+            GC.SuppressFinalize(this);
         }
     }
+    public sealed record Offset ( int offsetX, int offsetY);
 }

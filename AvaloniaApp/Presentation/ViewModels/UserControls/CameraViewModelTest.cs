@@ -27,8 +27,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private Task? _consumeTask;
 
         // UI 렌더링용 비트맵 및 데이터
-        private WriteableBitmap? _previewFullImage;
-        private FrameData? _previewFullFrameData; // UI로 보낼 대기 중인 최신 프레임
+        private WriteableBitmap? _previewBitmap;
+        private FrameData? _previewFrameData; // UI로 보낼 대기 중인 최신 프레임
+
 
         // 캡처 제어 플래그 (0: 중지, 1: 캡처 중)
         // 백그라운드 스레드와 공유되므로 int + Interlocked 사용
@@ -37,7 +38,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         // FPS 계산용 변수
         private long _lastRenderTs;
         private double _fpsEma;
-
         // 뷰(Code-behind)에서 화면 갱신을 위해 구독하는 이벤트
         public event Action? PreviewInvalidated;
 
@@ -48,6 +48,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty] private bool isPreviewing;
         [ObservableProperty] private double previewFps;
         [ObservableProperty] private int capturedFrameCount;
+
+        [ObservableProperty] private int previewIndex = 7;
+        [ObservableProperty] private string previewIndexText = "7";
 
         // 생성자: AppServices 하나만 받아서 처리 (Facade 패턴 적용)
         public CameraViewModelTest(AppService service) : base(service)
@@ -122,8 +125,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     opt.Timeout = TimeSpan.FromSeconds(10); // 넉넉하게
                 });
         }
-
-        // [명령] 프리뷰 정지
         [RelayCommand]
         private async Task StopPreviewAsync()
         {
@@ -133,19 +134,16 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 {
                     ctx.ReportIndeterminate("프리뷰 정지 및 연결 해제 중...");
 
-                    // 1. 소비 루프 중단
                     CancelConsumeLoop();
                     if (_consumeTask != null) await _consumeTask.ConfigureAwait(false);
 
-                    // 2. 카메라 연결 해제
                     await _cameraService.StopPreviewAndDisconnectAsync(ct).ConfigureAwait(false);
 
-                    // 3. UI 상태 업데이트
                     await UiInvokeAsync(() =>
                     {
                         IsPreviewing = false;
                         PreviewFps = 0;
-                        // 중요: PreviewBitmap을 null로 초기화하지 않음 -> 마지막 화면 유지
+                        
                     }).ConfigureAwait(false);
                 },
                 configure: opt =>
@@ -154,83 +152,39 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     opt.Timeout = TimeSpan.FromSeconds(5);
                 });
         }
-
-        // [명령] 캡처 시작
-        [RelayCommand]
-        private void StartCapture()
-        {
-            if (!IsPreviewing) return;
-
-            // 캡처 세션 초기화 (필요 시)
-            // _services.Spectral.StartNewSession();
-
-            CapturedFrameCount = 0;
-            // 플래그를 1로 설정하여 백그라운드 루프가 저장하도록 함
-            Interlocked.Exchange(ref _isCapturing, 1);
-        }
-
-        // [명령] 캡처 중지
-        [RelayCommand]
-        private void StopCapture()
-        {
-            Interlocked.Exchange(ref _isCapturing, 0);
-            // 필요 시 세션 저장 완료 알림
-        }
-
-        // 내부 로직: 소비 루프 재시작
         private void RestartConsumeLoop()
         {
             CancelConsumeLoop();
             _consumeCts = new CancellationTokenSource();
             _consumeTask = ConsumeFramesAsync(_consumeCts.Token);
         }
-
-        // 내부 로직: 소비 루프 취소
         private void CancelConsumeLoop()
         {
             try { _consumeCts?.Cancel(); } catch { }
             _consumeCts?.Dispose();
             _consumeCts = null;
         }
-
-        // [핵심] 백그라운드 프레임 소비 루프
         private async Task ConsumeFramesAsync(CancellationToken ct)
         {
             var reader = _cameraService.Frames;
 
             try
             {
-                // 채널에서 데이터가 들어올 때까지 대기
                 while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
                 {
-                    // 들어온 데이터를 하나씩 꺼냄
                     while (reader.TryRead(out var frame))
                     {
-                        // 1. 캡처 로직 (백그라운드에서 처리)
-                        if (Volatile.Read(ref _isCapturing) == 1)
+                        try
                         {
-                            // 원본 프레임 안전하게 복제 (ArrayPool 사용)
-                            var captured = FrameData.CloneFullFrame(frame);
+                            var old = Interlocked.Exchange(ref _previewFrameData, frame);
+                            old?.Dispose();
 
-                            // TODO: 여기서 영상 처리(Crop 등) 후 저장
-                            // _services.ImageProcess.Save(captured); 또는
-                            // _services.Workspace.Add(captured);
-
-                            // 임시: 저장 로직이 없으므로 누수 방지를 위해 해제
-                            captured.Dispose();
-
-                            // UI에 캡처 카운트 갱신 (단순 작업이라 Post 사용)
-                            _service.Ui.Post(() => CapturedFrameCount++);
+                            _throttler.Run(UpdateUI);
                         }
-
-                        // 2. UI 렌더링용 데이터 갱신 (Coalescing: 최신만 유지)
-                        // 이전 대기 중이던 프레임은 버리고(Dispose) 새 것으로 교체
-                        var old = Interlocked.Exchange(ref _previewFullFrameData, frame);
-                        old?.Dispose();
-
-                        // 3. UI 갱신 요청 (Throttling: 화면 갱신 속도 조절)
-                        // UI 스레드가 바쁘면 이번 요청은 무시됨
-                        _throttler.Run(RenderPendingOnUi);
+                        finally
+                        {
+                            frame?.Dispose();
+                        }
                     }
                 }
             }
@@ -242,79 +196,68 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             finally
             {
                 // 루프 종료 시 대기 중인 프레임 정리
-                var pending = Interlocked.Exchange(ref _previewFullFrameData, null);
+                var pending = Interlocked.Exchange(ref _previewFrameData, null);
                 pending?.Dispose();
                 _throttler.Reset();
             }
         }
-
-        // [UI 스레드] 실제 화면 그리기
-        private void RenderPendingOnUi()
+        private void UpdateUI()
         {
-            // 대기 중인 최신 프레임 가져오기 (소유권 이전)
-            var packet = Interlocked.Exchange(ref _previewFullFrameData, null);
-            if (packet is null) return;
-
-            try
+            if (IsPreviewing)
             {
-                // 비트맵 준비 (크기가 다르면 새로 생성)
-                EnsureSharedPreview(packet.Width, packet.Height);
+                var frame = Interlocked.Exchange(ref _previewFrameData, null);
+                if (frame is null) return;
 
-                if (_previewFullImage is null) return;
-
-                // WriteableBitmap에 픽셀 데이터 고속 복사
-                using (var buffer = _previewFullImage.Lock())
+                try
                 {
-                    unsafe
+                    EnsureSharedPreview(frame.Width, frame.Height);
+
+                    if (_previewBitmap is null) return;
+
+                    using (var buffer = _previewBitmap.Lock())
                     {
-                        Buffer.MemoryCopy(
-                            (void*)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(packet.Bytes, 0),
-                            (void*)buffer.Address,
-                            buffer.Size.Height * buffer.RowBytes,
-                            packet.Length);
+                        unsafe
+                        {
+                            Buffer.MemoryCopy(
+                                (void*)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(frame.Bytes, 0),
+                                (void*)buffer.Address,
+                                buffer.Size.Height * buffer.RowBytes,
+                                frame.Length);
+                        }
                     }
+                    UpdateFPSUI();
+
+                    PreviewInvalidated?.Invoke();
                 }
-
-                // Avalonia 11.0 이상인 경우, 변경 사항 알림이 필요할 수 있음 (대부분 자동 처리됨)
-                // _previewFullImage.AddDirtyRect(new Rect(0, 0, packet.Width, packet.Height));
-
-                UpdatePreviewFpsOnUi();
-
-                // 뷰에게 갱신 알림 (필요 시)
-                PreviewInvalidated?.Invoke();
+                finally
+                {
+                    frame.Dispose();
+                }
             }
-            finally
-            {
-                // 렌더링 끝났으니 반납 (ArrayPool로 돌아감)
-                packet.Dispose();
-            }
+
         }
-
-        // 비트맵 초기화 및 리사이징 처리
         private void EnsureSharedPreview(int width, int height)
         {
-            if (_previewFullImage is not null)
+            if (_previewBitmap is not null)
             {
-                var ps = _previewFullImage.PixelSize;
+                var ps = _previewBitmap.PixelSize;
                 if (ps.Width == width && ps.Height == height)
                     return; // 크기 같으면 재사용
 
-                _previewFullImage.Dispose();
-                _previewFullImage = null;
+                _previewBitmap.Dispose();
+                _previewBitmap = null;
             }
 
-            _previewFullImage = new WriteableBitmap(
+            _previewBitmap = new WriteableBitmap(
                 new PixelSize(width, height),
                 new Vector(96, 96),
                 PixelFormats.Gray8, // 흑백 카메라 기준
                 AlphaFormat.Opaque);
 
             // 바인딩된 속성 업데이트 (화면 깜빡임 방지를 위해 교체 시에만)
-            PreviewBitmap = _previewFullImage;
+            PreviewBitmap = _previewBitmap;
         }
-
-        // FPS 계산 (EMA 필터 적용)
-        private void UpdatePreviewFpsOnUi()
+        private void UpdateFPSUI()
         {
             long now = Stopwatch.GetTimestamp();
             long last = _lastRenderTs;
@@ -333,8 +276,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             PreviewFps = _fpsEma;
         }
-
-        // 뷰모델 종료 시 정리
         public override async ValueTask DisposeAsync()
         {
             // 루프 중단
@@ -349,7 +290,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             catch { }
 
             // 비트맵 해제
-            _previewFullImage?.Dispose();
+            _previewBitmap?.Dispose();
 
             await base.DisposeAsync();
         }

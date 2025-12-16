@@ -1,15 +1,29 @@
-﻿using System;
+﻿using OpenCvSharp;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace AvaloniaApp.Core.Models
 {
-    public class WorkSpace
+    public class WorkSpace : IDisposable
     {
-        public FrameData? EntireFrameData {  get; set; }
+        public FrameData? EntireFrameData { get; set; }
         public List<FrameData> CropFrameDatas { get; set; } = new();
-
+        public FrameData? StitchFrameData { get; set; }
+        public List<RegionData> RegionsDatas { get; set; } = new();
+        public void Dispose()
+        {
+            EntireFrameData?.Dispose();
+            foreach (var cropFrameData in CropFrameDatas)
+            {
+                cropFrameData.Dispose();
+            }
+            StitchFrameData?.Dispose();
+            foreach (var regionData in RegionsDatas)
+            {
+                regionData.Dispose();
+            }
+            GC.SuppressFinalize(this);
+        }
     }
 }

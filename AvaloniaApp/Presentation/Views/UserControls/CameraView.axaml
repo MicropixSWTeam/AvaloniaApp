@@ -93,47 +93,15 @@
                     VerticalContentAlignment="Center"
                     Command="{Binding StopPreviewCommand}" />
             <TextBlock Text="{Binding PreviewFps, StringFormat=FPS: {0:0.0}}" TextAlignment="Center"/>
-<!--            <Button Content="Save"
-                    Width="90"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    Command="{Binding SaveImageSetAsync}" />
-
---><!--            <TextBlock Text="Idx : "
+<!--            <TextBlock Text="Idx : "
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
             <ComboBox Width="80"
                       Margin="4,0"
                       ItemsSource="{Binding CropIndexOptions}"
-                      SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />--><!--
+                      SelectedItem="{Binding SelectedCropIndex, Mode=TwoWay}" />--><!---->
 
-            <CheckBox Content="Normalize"
-                      Margin="16,0,4,0"
-                      IsChecked="{Binding NormalizePreviewEnabled, Mode=TwoWay}"
-                      VerticalAlignment="Center"/>
-            <TextBlock Text="Target Intensity:"
-                      Margin="16,0,4,0"
-                      VerticalAlignment="Center" />
-
-            <TextBox Width="60"
-                     Text="{Binding TargetIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-            <CheckBox Content="Draw Rect"
-                      Margin="16,0,4,0"
-                      IsChecked="{Binding IsDrawRectMode, Mode=TwoWay}"
-                      VerticalAlignment="Center" />
-
-            <CheckBox Content="Translation"
-                      Margin="4,0,4,0"
-                      IsChecked="{Binding IsTranslationMode, Mode=TwoWay}"
-                      VerticalAlignment="Center" />-->
-
-<!--            <Button Content="Translation"
-                    Width="120"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    Command="{Binding GetTranslationOffsetsAsync}" />-->
 
 <!--            <TextBlock Text="Distance : "
                        Margin="16,0,4,0"
@@ -142,6 +110,13 @@
             <ComboBox Width="80"
                       ItemsSource="{Binding AvailableDistances}"
                       SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"/>-->
+        </StackPanel>
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,8,0,8"
+                    Spacing="8">
+			
         </StackPanel>
     </Grid>
 </UserControl>
