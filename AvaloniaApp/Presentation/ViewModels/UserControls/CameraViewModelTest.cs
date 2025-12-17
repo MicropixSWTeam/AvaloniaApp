@@ -8,6 +8,7 @@ using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LiveChartsCore.Kernel;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -43,7 +44,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; } 
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
-            = new ObservableCollection<ComboBoxData>();
+            = new ObservableCollection<ComboBoxData>(Options.GetWorkingDistanceComboBoxData());
         // UI 바인딩 속성들
         [ObservableProperty] private ObservableCollection<CameraInfo> cameras = new();
         [ObservableProperty] private CameraInfo? selectedCamera;
@@ -58,6 +59,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _imageProcessService = service.ImageProcess;
             _workspaceService = service.WorkSpace;
             _throttler = _service.Ui.CreateThrottler();
+            SelectedWavelengthIndex = WavelengthIndexs.FirstOrDefault();
+            SelectedWorkingDistance = WorkingDistances.FirstOrDefault();
         }
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
         {
@@ -69,6 +72,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 
                 DisplayWorkspaceImage(value);
             }
+        }
+        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
+        {
+            if (newValue == null) return;
         }
         public int SelectedIndex => SelectedWavelengthIndex?.NumericValue ?? 0;
         [RelayCommand]

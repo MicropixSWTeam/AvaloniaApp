@@ -82,37 +82,37 @@
                     Spacing="8">
 
             <Button Content="Start"
-                    Width="90"
+                    Width="100"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"
                     Command="{Binding StartPreviewCommand}" />
 
             <Button Content="Stop"
-                    Width="90"
+                    Width="100"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"
                     Command="{Binding StopPreviewCommand}" />
             
             <!--<TextBlock Text="{Binding PreviewFps, StringFormat=FPS: {0:0.0}}" TextAlignment="Center"/>-->
             
-            <TextBlock Text="Idx : "
+            <TextBlock Text="Wavelength : "
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
-            <ComboBox Width="80"
+            <ComboBox Width="120"
                       Margin="4,0"
                       ItemsSource="{Binding WavelengthIndexs}"
                       SelectedItem="{Binding SelectedWavelengthIndex, Mode=TwoWay}" 
                       DisplayMemberBinding="{Binding DisplayText}"/>
 
 
-            <!--<TextBlock Text="Distance : "
+            <TextBlock Text="Distance : "
                        Margin="16,0,4,0"
                        VerticalAlignment="Center" />
 
-            <ComboBox Width="80"
-                      ItemsSource="{Binding AvailableDistances}"
-                      SelectedItem="{Binding SelectedDistance, Mode=TwoWay}"/>-->
+            <ComboBox Width="120"
+                      ItemsSource="{Binding WorkingDistances}"
+                      SelectedItem="{Binding SelectedWorkingDistance, Mode=TwoWay}"/>
         </StackPanel>
     </Grid>
 </UserControl>

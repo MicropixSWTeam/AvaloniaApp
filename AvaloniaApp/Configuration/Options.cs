@@ -85,12 +85,14 @@ namespace AvaloniaApp.Configuration
 
         private static readonly ComboBoxData[] _workingDistance = new ComboBoxData[]
         {
+            new ComboBoxData{ DisplayText = "Over", NumericValue = 0},
             new ComboBoxData{ DisplayText = "10cm", NumericValue = 10},
             new ComboBoxData{ DisplayText = "20cm", NumericValue = 20},
             new ComboBoxData{ DisplayText = "30cm", NumericValue = 30},
             new ComboBoxData{ DisplayText = "40cm", NumericValue = 40},
-            new ComboBoxData{ DisplayText = "Over", NumericValue = 0},
         };
+
+        public static IReadOnlyList<ComboBoxData> GetWorkingDistanceComboBoxData() => _workingDistance;
         #endregion
     }
 }
