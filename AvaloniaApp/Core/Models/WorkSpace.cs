@@ -1,28 +1,43 @@
-﻿using OpenCvSharp;
+﻿using LiveChartsCore.SkiaSharpView.Avalonia;
+using OpenCvSharp;
 using System;
 using System.Collections.Generic;
 
 
 namespace AvaloniaApp.Core.Models
 {
-    public class WorkSpace : IDisposable
+    public class Workspace : IDisposable
     {
         public FrameData? EntireFrameData { get; set; }
         public List<FrameData> CropFrameDatas { get; set; } = new();
         public FrameData? StitchFrameData { get; set; }
-        public List<RegionData> RegionsDatas { get; set; } = new();
-        public void Dispose()
+        public void SetEntireFrameData(FrameData? frame)
         {
             EntireFrameData?.Dispose();
-            foreach (var cropFrameData in CropFrameDatas)
-            {
-                cropFrameData.Dispose();
-            }
+            EntireFrameData = frame;
+        }
+        public void SetCropFrameDatas(IEnumerable<FrameData> frames)
+        {
+            ClearCropFrames();
+            CropFrameDatas.AddRange(frames);
+        }
+        public void SetStitchFrameData(FrameData? frame)
+        {
             StitchFrameData?.Dispose();
-            foreach (var regionData in RegionsDatas)
-            {
-                regionData.Dispose();
-            }
+            StitchFrameData = frame;
+        }
+        public void ClearCropFrames()
+        {
+            foreach (var frame in CropFrameDatas)
+                frame.Dispose();
+            
+            CropFrameDatas.Clear();
+        }
+        public void Dispose()
+        {
+            SetEntireFrameData(null);
+            ClearCropFrames();
+            SetStitchFrameData(null);
             GC.SuppressFinalize(this);
         }
     }

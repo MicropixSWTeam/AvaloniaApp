@@ -21,7 +21,7 @@ namespace AvaloniaApp.Infrastructure
         public Drawservice Draw{ get; }
         public StorageService Storage{ get; }
         public PopupService Popup{ get; }
-        public WorkSpace WorkSpace { get;}
+        public WorkspaceService WorkSpace { get;}
         public Options Options { get; }
         public AppService(
             UiService ui,
@@ -32,7 +32,7 @@ namespace AvaloniaApp.Infrastructure
             StorageService storage,
             PopupService popup,
 
-            WorkSpace workspace,
+            WorkspaceService workspace,
             Options options) 
         { 
             Ui = ui ?? throw new ArgumentNullException(nameof(ui));

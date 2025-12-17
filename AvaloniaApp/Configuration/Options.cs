@@ -1,10 +1,15 @@
 ﻿using Avalonia;
+using AvaloniaApp.Core.Models;
+using Material.Styles.Themes;
+using OpenCvSharp;
 using OpenCvSharp.Detail;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Rect = OpenCvSharp.Rect;
 
 namespace AvaloniaApp.Configuration
 {
@@ -53,13 +58,39 @@ namespace AvaloniaApp.Configuration
             new Rect(3446, 2250, 548, 548),
             new Rect(4502, 2250, 548, 548),
         };
-        public Rect[] GetAllCoordinates() => _coordinates;
+        public Rect[] GetAllCoordinates() => _coordinates.ToArray();
         public Rect GetCoordinateByIndex(int index)
         {
             if ((uint)index >= (uint)_coordinates.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
             return _coordinates[index];
         }
+        private static readonly IReadOnlyDictionary<int, int> _wavelengthIndexMap = new Dictionary<int, int>
+        {
+            { 410, 0 }, { 430, 1 }, { 450, 2 }, { 470, 3 }, { 490, 4 },
+            { 510, 5 }, { 530, 6 }, { 550, 7 }, { 570, 8 }, { 590, 9 },
+            { 610, 10 }, { 630, 11 }, { 650, 12 }, { 670, 13 }, { 690, 14 }
+        };
+        public static IReadOnlyDictionary<int, int> GetWavelengthIndexMap() => _wavelengthIndexMap;
+        
+        private static readonly ComboBoxData[] _wavelengthIndexComboBoxData 
+            = _wavelengthIndexMap.
+            OrderBy(kvp => kvp.Key).
+            Select(kvp => new ComboBoxData
+            {
+                DisplayText = $"{kvp.Key}nm",
+                NumericValue = kvp.Value
+            }).ToArray();
+        public static IReadOnlyList<ComboBoxData> GetWavelengthIndexComboBoxData() => _wavelengthIndexComboBoxData;
+
+        private static readonly ComboBoxData[] _workingDistance = new ComboBoxData[]
+        {
+            new ComboBoxData{ DisplayText = "10cm", NumericValue = 10},
+            new ComboBoxData{ DisplayText = "20cm", NumericValue = 20},
+            new ComboBoxData{ DisplayText = "30cm", NumericValue = 30},
+            new ComboBoxData{ DisplayText = "40cm", NumericValue = 40},
+            new ComboBoxData{ DisplayText = "Over", NumericValue = 0},
+        };
         #endregion
     }
 }

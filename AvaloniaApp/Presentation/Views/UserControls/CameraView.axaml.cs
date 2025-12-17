@@ -193,13 +193,5 @@ namespace AvaloniaApp.Presentation.Views.UserControls
 
         //    return new Rect(new Point(x, y), new Size(w, h));
         //}
-
-        private void TextBlock_ActualThemeVariantChanged(object? sender, EventArgs e)
-        {
-        }
-
-        private void ComboBox_ActualThemeVariantChanged(object? sender, EventArgs e)
-        {
-        }
     }
 }

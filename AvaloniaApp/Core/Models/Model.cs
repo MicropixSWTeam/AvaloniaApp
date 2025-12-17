@@ -87,4 +87,11 @@ namespace AvaloniaApp.Core.Models
         }
     }
     public sealed record Offset ( int offsetX, int offsetY);
+
+    public sealed class ComboBoxData()
+    {
+        public string DisplayText { get; set; } = string.Empty;
+        public int NumericValue { get; set; }
+        public override string ToString() => DisplayText;
+    }
 }
