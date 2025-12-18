@@ -38,15 +38,15 @@ namespace AvaloniaApp
             services.AddSingleton<UiService>();
             services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<ImageProcessService>();
-            services.AddSingleton<ImageProcessServiceTest>();
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
-            services.AddSingleton<Drawservice>();
+            services.AddSingleton<ImageHelperService>();
+            services.AddSingleton<RegionAnalysisService>();
 
             services.AddSingleton<RegionAnalysisWorkspace>();
             services.AddSingleton<ImageAnalysisWorkspace>();
 
-            services.AddSingleton<CameraViewModelTest>();
+            services.AddSingleton<CameraViewModel>();
             services.AddSingleton<CameraConnectViewModel>();
             services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();

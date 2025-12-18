@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
              xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             xmlns:cc="using:AvaloniaApp.Presentation.Views.Controls"
              xmlns:conv="using:AvaloniaApp.Presentation.Converters"
              mc:Ignorable="d"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.ChartView"
@@ -52,10 +52,7 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- 우측: 스펙트럼 차트 -->
-    <lvc:CartesianChart Grid.Column="1"
-                        Series="{Binding Series}"
-                        XAxes="{Binding XAxes}"
-                        YAxes="{Binding YAxes}" />
+   <cc:ChartControl Grid.Column="1"
+                               x:Name="DemoChart" />
   </Grid>
 </UserControl>

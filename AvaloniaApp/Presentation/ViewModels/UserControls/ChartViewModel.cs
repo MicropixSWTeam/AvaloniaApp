@@ -38,7 +38,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private RegionCheckItem? selectedRegionItem;
 
         private readonly RegionAnalysisWorkspace _analysis;
-        private readonly ImageProcessService _imageProcessService;
         /// <summary>
         /// 차트에 동시에 표시할 최대 ROI 개수 (최근 N개).
         /// </summary>
@@ -53,10 +52,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         /// </summary>
         public IEnumerable<SelectionRegion> Regions => _analysis.Regions;
 
-        public ChartViewModel(RegionAnalysisWorkspace analysis,ImageProcessService imageProcessService)
+        public ChartViewModel(RegionAnalysisWorkspace analysis,AppService service) : base(service)
         {
             _analysis = analysis;
-            _imageProcessService = imageProcessService;
 
             _analysis.Changed += (_, __) =>
             {
@@ -174,104 +172,104 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
         private void RebuildSeries()
         {
-            if (_analysis.Regions.Count == 0 || _analysis.RegionTileStats.Count == 0)
-            {
-                Series = Array.Empty<ISeries>();
-                return;
-            }
+            //if (_analysis.Regions.Count == 0 || _analysis.RegionTileStats.Count == 0)
+            //{
+            //    Series = Array.Empty<ISeries>();
+            //    return;
+            //}
 
-            // 체크된 ROI들만 대상으로
-            var checkedRegions = RegionItems
-                .Where(i => i.IsChecked)
-                .Select(i => i.Region)
-                .ToList();
+            //// 체크된 ROI들만 대상으로
+            //var checkedRegions = RegionItems
+            //    .Where(i => i.IsChecked)
+            //    .Select(i => i.Region)
+            //    .ToList();
 
-            if (checkedRegions.Count == 0)
-            {
-                Series = Array.Empty<ISeries>();
-                return;
-            }
+            //if (checkedRegions.Count == 0)
+            //{
+            //    Series = Array.Empty<ISeries>();
+            //    return;
+            //}
 
-            // 너무 많으면 뒤에서 MaxRegionsInChart 개만 남김 (최근 ROI 위주)
-            if (checkedRegions.Count > MaxRegionsInChart)
-            {
-                checkedRegions = checkedRegions
-                    .Skip(checkedRegions.Count - MaxRegionsInChart)
-                    .ToList();
-            }
+            //// 너무 많으면 뒤에서 MaxRegionsInChart 개만 남김 (최근 ROI 위주)
+            //if (checkedRegions.Count > MaxRegionsInChart)
+            //{
+            //    checkedRegions = checkedRegions
+            //        .Skip(checkedRegions.Count - MaxRegionsInChart)
+            //        .ToList();
+            //}
 
-            var list = new List<ISeries>();
+            //var list = new List<ISeries>();
 
-            // ★ 타일 순서를 "아래 행 → 위 행"으로 가져오기
-            var order = _imageProcessService
-                .GetTileIndicesBottomToTop()
-                .ToArray();   // 예: 10 11 12 13 14, 5 6 7 8 9, 0 1 2 3 4
+            //// ★ 타일 순서를 "아래 행 → 위 행"으로 가져오기
+            //var order = _imageProcessService
+            //    .GetTileIndicesBottomToTop()
+            //    .ToArray();   // 예: 10 11 12 13 14, 5 6 7 8 9, 0 1 2 3 4
 
-            foreach (var region in checkedRegions)
-            {
-                if (!_analysis.RegionTileStats.TryGetValue(region.Index, out var stats))
-                    continue;
+            //foreach (var region in checkedRegions)
+            //{
+            //    if (!_analysis.RegionTileStats.TryGetValue(region.Index, out var stats))
+            //        continue;
 
-                // stats: grid 기준 순서(0..TileCount-1)
-                // order 순서대로 재정렬
-                var orderedValues = new List<ErrorValue>(order.Length);
-                var orderedMeans = new List<double>(order.Length);
-                var orderedStds = new List<double>(order.Length);
+            //    // stats: grid 기준 순서(0..TileCount-1)
+            //    // order 순서대로 재정렬
+            //    var orderedValues = new List<ErrorValue>(order.Length);
+            //    var orderedMeans = new List<double>(order.Length);
+            //    var orderedStds = new List<double>(order.Length);
 
-                foreach (var idx in order)
-                {
-                    if (idx < 0 || idx >= stats.Count)
-                        continue;
+            //    foreach (var idx in order)
+            //    {
+            //        if (idx < 0 || idx >= stats.Count)
+            //            continue;
 
-                    var ts = stats[idx];
-                    var m = ts.Mean;
-                    var std = ts.StdDev;
+            //        var ts = stats[idx];
+            //        var m = ts.Mean;
+            //        var std = ts.StdDev;
 
-                    orderedMeans.Add(m);
-                    orderedStds.Add(std);
+            //        orderedMeans.Add(m);
+            //        orderedStds.Add(std);
 
-                    var halfStd = std / 2.0;
-                    orderedValues.Add(new ErrorValue(m, halfStd));
-                }
+            //        var halfStd = std / 2.0;
+            //        orderedValues.Add(new ErrorValue(m, halfStd));
+            //    }
 
-                var means = orderedMeans.ToArray();
-                var stds = orderedStds.ToArray();
+            //    var means = orderedMeans.ToArray();
+            //    var stds = orderedStds.ToArray();
 
-                var color = RegionColorPalette.GetSkColor(region.ColorIndex);
+            //    var color = RegionColorPalette.GetSkColor(region.ColorIndex);
 
-                var line = new LineSeries<ErrorValue>
-                {
-                    Name = $"ROI {region.Index}",
-                    Values = orderedValues.ToArray(),
+            //    var line = new LineSeries<ErrorValue>
+            //    {
+            //        Name = $"ROI {region.Index}",
+            //        Values = orderedValues.ToArray(),
 
-                    Stroke = new SolidColorPaint(color) { StrokeThickness = 2.5f }, // 살짝 더 두껍게
-                    Fill = null, // 배경 채우기 없이 라인만 선명하게
-                    LineSmoothness = 0, // 스펙트럼은 직선 느낌이 좋아서 0 유지
+            //        Stroke = new SolidColorPaint(color) { StrokeThickness = 2.5f }, // 살짝 더 두껍게
+            //        Fill = null, // 배경 채우기 없이 라인만 선명하게
+            //        LineSmoothness = 0, // 스펙트럼은 직선 느낌이 좋아서 0 유지
 
-                    GeometrySize = 6, // 8 → 6 으로 줄여서 덜 답답하게
-                    GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 2 },
-                    GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)),
+            //        GeometrySize = 6, // 8 → 6 으로 줄여서 덜 답답하게
+            //        GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 2 },
+            //        GeometryFill = new SolidColorPaint(new SKColor(15, 23, 42)),
 
-                    ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
+            //        ErrorPaint = new SolidColorPaint(color) { StrokeThickness = 1 },
 
-                    YToolTipLabelFormatter = point =>
-                    {
-                        var idx = point.Index;
-                        if (idx < 0 || idx >= means.Length)
-                            return string.Empty;
+            //        YToolTipLabelFormatter = point =>
+            //        {
+            //            var idx = point.Index;
+            //            if (idx < 0 || idx >= means.Length)
+            //                return string.Empty;
 
-                        var mean = means[idx];
-                        var std = stds[idx];
+            //            var mean = means[idx];
+            //            var std = stds[idx];
 
-                        return $"Mean = {mean:F2}, Std = {std:F2}";
-                    }
-                };
+            //            return $"Mean = {mean:F2}, Std = {std:F2}";
+            //        }
+            //    };
 
 
-                list.Add(line);
-            }
+            //    list.Add(line);
+            //}
 
-            Series = list.ToArray();
+            //Series = list.ToArray();
         }
 
 

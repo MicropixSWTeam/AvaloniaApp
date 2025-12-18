@@ -11,11 +11,13 @@ namespace AvaloniaApp.Core.Models
     {
         private int _disposed;
         private readonly Action<byte[]>? _return;
+
         public int Width { get; }
         public int Height { get; }
         public int Stride { get; }
         public int Length { get; }
         public byte[] Bytes { get; }
+
         private FrameData(byte[] bytes, int width, int height, int stride, int length, Action<byte[]>? @return)
         {
             Bytes = bytes ?? throw new ArgumentNullException(nameof(bytes));
@@ -29,22 +31,39 @@ namespace AvaloniaApp.Core.Models
             if (stride <= 0) throw new ArgumentOutOfRangeException(nameof(stride));
             if (length <= 0 || length > bytes.Length) throw new ArgumentOutOfRangeException(nameof(length));
         }
-        // 풀 반환용 delegate(매 프레임 람다 생성 방지)
+
+        // [GC 최적화] 풀 반환용 delegate
         private static void ReturnToPool(byte[] b) => ArrayPool<byte>.Shared.Return(b);
-        // 스트리밍용: 이미 Rent한 버퍼를 감싸기(Dispose 시 Return)
-        public static FrameData Wrap(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, ReturnToPool);
-        // 스냅샷/소유: Dispose 시 반환 없음
-        public static FrameData Own(byte[] buffer, int width, int height, int stride, int length) => new FrameData(buffer, width, height, stride, length, @return: null);
-        // 다른 FrameData로부터 스냅샷(복사본) 생성
+
+        // [스트리밍용] 외부에서 Rent한 버퍼를 감쌀 때 (Dispose 시 Return)
+        public static FrameData Wrap(byte[] buffer, int width, int height, int stride, int length)
+            => new FrameData(buffer, width, height, stride, length, ReturnToPool);
+
+        // [소유권용] 특정 버퍼를 영구 소유하거나 별도 관리할 때 (Dispose 시 반환 안 함)
+        public static FrameData Own(byte[] buffer, int width, int height, int stride, int length)
+            => new FrameData(buffer, width, height, stride, length, @return: null);
+
+        // [GC 최적화] ArrayPool을 사용하여 FullFrame 복사
         public static FrameData CloneFullFrame(FrameData src)
         {
-            var dst = new byte[src.Length];
-            global::System.Buffer.BlockCopy(src.Bytes, 0, dst, 0, src.Length);
-            return FrameData.Own(dst, src.Width, src.Height, src.Stride, src.Length);
+            // new byte[] 대신 Rent 사용
+            var dst = ArrayPool<byte>.Shared.Rent(src.Length);
+            try
+            {
+                global::System.Buffer.BlockCopy(src.Bytes, 0, dst, 0, src.Length);
+                return new FrameData(dst, src.Width, src.Height, src.Stride, src.Length, ReturnToPool);
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(dst);
+                throw;
+            }
         }
+
+        // [GC 최적화] ArrayPool을 사용하여 Crop 복사
         public static FrameData CloneCropFrame(FrameData src, OpenCvSharp.Rect roi)
         {
-            roi = Util.ClampRoi(roi, src.Width, src.Height);
+            // roi 검증 로직 (Util 클래스 의존성 제거됨)
             if (roi.Width <= 0 || roi.Height <= 0)
                 throw new ArgumentException("Invalid ROI", nameof(roi));
 
@@ -53,17 +72,29 @@ namespace AvaloniaApp.Core.Models
             int dstStride = w;
             int dstLen = checked(w * h);
 
-            var dst = new byte[dstLen];
+            // 중요: 정확한 사이즈가 아니라 넉넉한 사이즈를 빌려옴
+            var dst = ArrayPool<byte>.Shared.Rent(dstLen);
 
-            for (int y = 0; y < h; y++)
+            try
             {
-                int srcOff = (roi.Y + y) * src.Stride + roi.X;
-                int dstOff = y * dstStride;
-                global::System.Buffer.BlockCopy(src.Bytes, srcOff, dst, dstOff, w);
-            }
+                for (int y = 0; y < h; y++)
+                {
+                    int srcOff = (roi.Y + y) * src.Stride + roi.X;
+                    int dstOff = y * dstStride;
+                    // BlockCopy는 byte 단위
+                    global::System.Buffer.BlockCopy(src.Bytes, srcOff, dst, dstOff, w);
+                }
 
-            return Own(dst, w, h, dstStride, dstLen);
+                // FrameData 생성 시 dstLen을 명시하여, 실제 유효한 데이터 길이만 사용
+                return new FrameData(dst, w, h, dstStride, dstLen, ReturnToPool);
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(dst);
+                throw;
+            }
         }
+
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 1)
@@ -72,11 +103,30 @@ namespace AvaloniaApp.Core.Models
             _return?.Invoke(Bytes);
         }
     }
-    // 차트에 표시할 데이터
-    public sealed record IntensityData(double mean,double stddev);
+
+    public sealed record IntensityData(double mean, double stddev);
+    public sealed class RegionRatio
+    {
+        public double ratioX { get; set; }
+        public double ratioY { get; set; }
+        public double ratioWidth { get; set; }
+        public double ratioHegiht { get; set; }
+    }
+    public class SelectRegionData
+    {
+        public int Index { get; set; }
+
+        public Rect ControlRect { get; set; }
+
+        public Rect Rect { get; set; }
+
+        public double Mean { get; set; }
+        public double StdDev { get; set; }
+        public int ColorIndex { get; set; }
+    }
     public sealed class RegionData : IDisposable
     {
-        public int Id { get; set; } 
+        public int Index { get; set; }
         public int ColorIndex { get; set; }
         public Rect Rect { get; set; }
         public List<IntensityData> IntensityDatas { get; } = new();
@@ -86,8 +136,8 @@ namespace AvaloniaApp.Core.Models
             GC.SuppressFinalize(this);
         }
     }
-    public sealed record Offset ( int offsetX, int offsetY);
-
+    public sealed record Offset(int offsetX, int offsetY);
+    
     public sealed class ComboBoxData()
     {
         public string DisplayText { get; set; } = string.Empty;

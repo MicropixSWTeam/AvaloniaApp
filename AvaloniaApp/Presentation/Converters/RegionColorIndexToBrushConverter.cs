@@ -9,7 +9,7 @@ using System.Globalization;
 namespace AvaloniaApp.Presentation.Converters
 {
     /// <summary>
-    /// SelectionRegion.Index 또는 int → SolidColorBrush 변환.
+    /// SelectRegionData.Index 또는 int → SolidColorBrush 변환.
     /// CameraView/ChartView 양쪽에서 ROI 색상을 통일하는 데 사용.
     /// </summary>
     public sealed class RegionColorIndexToBrushConverter : IValueConverter

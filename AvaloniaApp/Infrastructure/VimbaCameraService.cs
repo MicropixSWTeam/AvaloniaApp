@@ -154,8 +154,7 @@ namespace AvaloniaApp.Infrastructure
                         }
 
                         // (B) 카메라 찾기
-                        var camera = _system.GetCameraByID(cameraId)
-                             ?? throw new InvalidOperationException($"Camera '{cameraId}' not found.");
+                        var camera = _system.GetCameraByID(cameraId) ?? throw new InvalidOperationException($"Camera '{cameraId}' not found.");
 
                         // (C) 카메라 열기 (기존 코드: 인자 없음)
                         _openCamera = camera.Open();

@@ -17,32 +17,35 @@ namespace AvaloniaApp.Infrastructure
         public UiService Ui { get;}
         public OperationRunner OperationRunner{ get;}
         public VimbaCameraService Camera{ get;}
-        public ImageProcessServiceTest ImageProcess{ get;}
-        public Drawservice Draw{ get; }
+        public ImageProcessService ImageProcess{ get;}
+        public ImageHelperService ImageHelper{ get; }
         public StorageService Storage{ get; }
         public PopupService Popup{ get; }
         public WorkspaceService WorkSpace { get;}
+        public RegionAnalysisService RegionAnalysis{ get;}
         public Options Options { get; }
         public AppService(
             UiService ui,
             OperationRunner operationrunner,
             VimbaCameraService camera,
-            ImageProcessServiceTest imageprocess,
-            Drawservice draw,
+            ImageProcessService imageprocess,
+            ImageHelperService imagehelper,
             StorageService storage,
             PopupService popup,
-
             WorkspaceService workspace,
+            RegionAnalysisService regionanalysis,
+
             Options options) 
         { 
             Ui = ui ?? throw new ArgumentNullException(nameof(ui));
             OperationRunner = operationrunner ?? throw new ArgumentNullException( nameof(operationrunner));
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             ImageProcess = imageprocess ?? throw new ArgumentNullException(nameof(imageprocess));
-            Draw = draw?? throw new ArgumentNullException(nameof(draw));    
+            ImageHelper = imagehelper?? throw new ArgumentNullException(nameof(imagehelper));    
             Storage = storage ?? throw new ArgumentNullException(nameof(storage));
             Popup = popup ?? throw new ArgumentNullException(nameof(popup));
             WorkSpace = workspace ?? throw new ArgumentNullException(nameof(workspace));
+            RegionAnalysis = regionanalysis ?? throw new ArgumentNullException(nameof(regionanalysis)); 
             Options = options ?? throw new ArgumentNullException(nameof(options));  
         }
     }

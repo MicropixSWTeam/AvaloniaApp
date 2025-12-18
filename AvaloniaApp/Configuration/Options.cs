@@ -93,6 +93,8 @@ namespace AvaloniaApp.Configuration
         };
 
         public static IReadOnlyList<ComboBoxData> GetWorkingDistanceComboBoxData() => _workingDistance;
+
+
         #endregion
     }
 }

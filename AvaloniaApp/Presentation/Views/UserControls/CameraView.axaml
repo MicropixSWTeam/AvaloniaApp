@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:AvaloniaApp.Presentation.Views.Controls"
              xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
              xmlns:models="using:AvaloniaApp.Core.Models"
              xmlns:conv="using:AvaloniaApp.Presentation.Converters"
@@ -10,7 +11,7 @@
              d:DesignWidth="1000"
              d:DesignHeight="600"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
-             x:DataType="vm:CameraViewModelTest">
+             x:DataType="vm:CameraViewModel">
 
     <UserControl.Resources>
         <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
@@ -20,57 +21,37 @@
         <Border Grid.Row="0" Margin="4" Background="Gray">
             <Grid>
                 <!-- 1) 카메라 이미지 -->
-                <Image x:Name="PreviewImage" MinWidth="548" MaxWidth="548" MinHeight="548" MaxHeight="548"
+                <Image x:Name="PreviewImage" 
+                       MinWidth="{Binding CropWidth}" MaxWidth="{Binding CropHeight}" 
+                       MinHeight="{Binding CropWidth}" MaxHeight="{Binding CropHeight}"
                        Source="{Binding PreviewBitmap}"
-                       Stretch="Uniform" 
-                       />
+                       Stretch="Uniform" />
 
-                <!-- 2) 이미 확정된 ROI -->
-<!--                <ItemsControl ItemsSource="{Binding Regions}"
-                              IsHitTestVisible="False">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Canvas />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-
-                    <ItemsControl.Styles>
-                        <Style Selector="ItemsControl > ContentPresenter"
-                               x:DataType="models:SelectionRegion">
-                            <Setter Property="Canvas.Left" Value="{Binding X}" />
-                            <Setter Property="Canvas.Top"  Value="{Binding Y}" />
-                        </Style>
-                    </ItemsControl.Styles>
-
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:SelectionRegion">
-                            <Grid>
-                                <Rectangle Width="{Binding Width}"
-                                           Height="{Binding Height}"
-                                           Stroke="{Binding ColorIndex, Converter={StaticResource RegionIndexToBrush}}"
-                                           StrokeThickness="1"
-                                           Fill="Transparent" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>-->
-
-                <!-- 3) 드래그용 Canvas -->
-<!--                <Canvas x:Name="SelectionCanvas"
+                <Canvas x:Name="DrawCanvas"
                         Background="Transparent"
-                        IsHitTestVisible="{Binding CanDrawRegions}"
-                        PointerPressed="SelectionCanvas_OnPointerPressed"
-                        PointerMoved="SelectionCanvas_OnPointerMoved"
-                        PointerReleased="SelectionCanvas_OnPointerReleased">
+                        Width="{Binding CropWidth}"
+                        Height="{Binding CropHeight}"
+                        IsHitTestVisible="True"
+                        PointerPressed="DrawCanvas_PointerPressed"
+                        PointerMoved="DrawCanvas_PointerMoved"
+                        PointerReleased="DrawCanvas_PointerReleased">
 
-                    <Rectangle x:Name="SelectionRect"
-                               Stroke="{Binding NextRegionBrush}"
+                    <controls:DrawRectControl
+                        Regions="{Binding Regions}"
+                        IsHitTestVisible="False"/>
+
+                    <Rectangle x:Name="DrawingRect"
+                               Stroke="Red"
                                StrokeThickness="1"
                                Fill="Transparent"
                                IsHitTestVisible="False"
                                Width="0"
-                               Height="0" />
-                </Canvas>-->
+                               Height="0" 
+                               IsVisible="False"/>
+
+                </Canvas>
+
+
             </Grid>
         </Border>
 

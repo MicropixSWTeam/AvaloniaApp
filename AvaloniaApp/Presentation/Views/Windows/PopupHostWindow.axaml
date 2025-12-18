@@ -10,7 +10,7 @@
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
         x:DataType="window:PopupHostWindowViewModel">
     <Window.DataTemplates>
-        <DataTemplate DataType="{x:Type vm:CameraViewModelTest}">
+        <DataTemplate DataType="{x:Type vm:CameraViewModel}">
             <v:CameraView />
         </DataTemplate>
 

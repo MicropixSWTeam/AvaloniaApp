@@ -18,17 +18,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private PopupService _popupService;
 
+        public CameraConnectViewModel(AppService service) : base(service)
+        {
+        }
+
         public string Title { get; set; } = "Camera Connect";
         public int Width { get; set; } = 500;
         public int Height { get; set; } = 250;
-
-        public CameraConnectViewModel(
-           UiService uiDispatcher,
-           OperationRunner runner,
-           PopupService popupService)
-        {
-            _popupService = popupService;
-        }
-
     }
 }

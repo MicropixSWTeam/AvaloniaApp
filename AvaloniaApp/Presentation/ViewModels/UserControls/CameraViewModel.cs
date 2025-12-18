@@ -1,769 +1,346 @@
-﻿// AvaloniaApp.Presentation/ViewModels/UserControls/CameraViewModel.cs
+﻿using AutoMapper.Configuration.Annotations;
 using Avalonia;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
-using AvaloniaApp.Core.Interfaces;
+using Avalonia.Platform;
+using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Core.Operations;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LiveChartsCore.Kernel;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Rect = Avalonia.Rect;
-using Size = Avalonia.Size;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public partial class CameraViewModel : ViewModelBase, IPopup
+    public partial class CameraViewModel : ViewModelBase
     {
-        // 카메라에서 들어오는 전체 프레임 (스트리밍)
-        [ObservableProperty]
-        private Bitmap? image;
-
-        // 프리뷰용 원본 crop 타일 이미지 (translation 반영)
-        [ObservableProperty]
-        private Bitmap? croppedPreviewImage;
-
-        // 프리뷰용 normalize된 타일 이미지 (translation + normalize)
-        [ObservableProperty]
-        private Bitmap? normalizedPreviewImage;
-
-        // -1이면 전체, 0 이상이면 해당 타일 인덱스
-        [ObservableProperty]
-        private int selectedCropIndex = 7;
-
-        [ObservableProperty]
-        private string selectedCropIndexText = "7";
-
-        // 프리뷰 normalize on/off
-        [ObservableProperty]
-        private bool normalizePreviewEnabled = false;
-
-        // normalize 타겟 밝기 (0~255)
-        [ObservableProperty]
-        private byte targetIntensity = 128;
-
-        // 거리 선택 (0 = translation 없음)
-        [ObservableProperty]
-        private int selectedDistance = 0;
-
-        // Stop 상태
-        [ObservableProperty]
-        private bool isStop = false;
-
-        // DrawRect 모드 (Stop 이후 ROI 그려서 스펙트럼 분석)
-        [ObservableProperty]
-        private bool isDrawRectMode;
-
-        // Translation 모드 (Stop 이후 DrawRect 를 템플릿으로 사용해서 offset 설정)
-        [ObservableProperty]
-        private bool isTranslationMode;
-
-        public ObservableCollection<int> CropIndexOptions { get; } = new();
-
-        /// <summary>
-        /// 실제 드로잉 가능 여부 = Stop 상태 + (DrawRect 또는 Translation 모드) + ROI 개수 제한 미도달
-        /// </summary>
-        public bool CanDrawRegions => IsStop && !_analysis.IsLimitReached && (IsDrawRectMode || IsTranslationMode);
-
-        // 최근 드래그 중인 선택 영역(컨트롤 좌표)
-        private Rect _selectionRectInControl;
-        public Rect SelectionRectInControl
-        {
-            get => _selectionRectInControl;
-            set => SetProperty(ref _selectionRectInControl, value);
-        }
-
-        // 컨트롤 실제 렌더 크기 (SelectionCanvas 크기)
-        private Size _imageControlSize;
-        public Size ImageControlSize
-        {
-            get => _imageControlSize;
-            set => SetProperty(ref _imageControlSize, value);
-        }
-
-        [ObservableProperty]
-        private double selectedRegionMean;
-
-        [ObservableProperty]
-        private double selectedRegionStdDev;
-
-        public string Title { get; set; } = "Camera View";
-        public int Width { get; set; } = 900;
-        public int Height { get; set; } = 600;
-
-        // UI에서 바인딩할 거리 목록
-        public IReadOnlyList<int> AvailableDistances { get; } =
-            new[] { 0, 10, 20, 30, 40 };
-
+        private readonly VimbaCameraService _cameraService;
         private readonly ImageProcessService _imageProcessService;
-        private readonly Drawservice _drawRectService;
-        private readonly StorageService _storageService;
-        private readonly RegionAnalysisWorkspace _analysis;
+        private readonly WorkspaceService _workspaceService;
+        private readonly RegionAnalysisService _regionAnalysisService;
+        private readonly UiThrottler _throttler;
+        private readonly Options _options;
 
-        /// <summary>
-        /// XAML에서 ROI 오버레이를 위해 바인딩할 컬렉션.
-        /// (_analysis.Regions 그대로 노출)
-        /// </summary>
-        public ObservableCollection<SelectionRegion> Regions => _analysis.Regions;
+        private CancellationTokenSource? _consumeCts;
+        private Task? _consumeTask;
+        private volatile bool _stopRequested;
 
-        public IBrush NextRegionBrush
-            => new SolidColorBrush(RegionColorPalette.GetAvaloniaColor(_analysis.NextColorIndex));
+        private WriteableBitmap? _previewBitmap;
+        private FrameData? _previewFrameData;
 
-        // grid 설정 (현재 카메라 해상도 기준 5x3, 1064x1012)
-        private readonly CropGridConfig _gridConfig =
-            new CropGridConfig(
-                RowSize: 504,
-                ColSize: 508,
-                RowGap: 1004,
-                ColGap: 1056,
-                RowCount: 3,
-                ColCount: 5);
+        private long _lastRenderTs;
+        private double _fpsEma;
 
-        private bool _gridConfigured;
-        private PixelSize _gridFrameSize;
+        public event Action? PreviewInvalidated;
 
-        // ==== 정규화된 타일 캐시 (성능 개선용) ====
-        // 같은 프레임 + 같은 거리 + 같은 TargetIntensity 에 대해서만 재사용
-        private IReadOnlyList<WriteableBitmap>? _normalizedTilesCache;
-        private Bitmap? _normalizedTilesSource;
-        private int _normalizedTilesDistance;
-        private byte _normalizedTilesTarget;
+        public ReadOnlyObservableCollection<SelectRegionData> Regions => _regionAnalysisService.Regions;
 
-        public CameraViewModel(
-            UiService uiDispatcher,
-            OperationRunner runner,
-            ImageProcessService imageProcessService,
-            Drawservice drawRectService,
-            StorageService storageService,
-            RegionAnalysisWorkspace analysis)
+        public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
+            = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
+        
+        public ObservableCollection<ComboBoxData> WorkingDistances { get; }
+            = new ObservableCollection<ComboBoxData>(Options.GetWorkingDistanceComboBoxData());
+
+        [ObservableProperty] private ObservableCollection<CameraInfo> cameras = new();
+        [ObservableProperty] private CameraInfo? selectedCamera;
+        [ObservableProperty] private Bitmap? previewBitmap;
+        [ObservableProperty] private bool isPreviewing;
+        [ObservableProperty] private double previewFps;
+        [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
+        [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
+        public int CropWidth => _options.CropWidth;
+        public int CropHeight => _options.CropHeight;
+
+        public CameraViewModel(AppService service) : base(service)
         {
-            _imageProcessService = imageProcessService;
-            _drawRectService = drawRectService;
-            _storageService = storageService;
-            _analysis = analysis;
-
-            _analysis.MaxRegions = 7;
-            SelectedCropIndex = 7;
-
-            // ROI 개수 변동 시 그릴 수 있는지 여부 업데이트
-            _analysis.Changed += (_, __) =>
-            {
-                OnPropertyChanged(nameof(NextRegionBrush));
-                OnPropertyChanged(nameof(CanDrawRegions));
-            };
+            _cameraService = service.Camera ?? throw new ArgumentNullException("CameraService missing");
+            _imageProcessService = service.ImageProcess;
+            _workspaceService = service.WorkSpace;
+            _regionAnalysisService = service.RegionAnalysis;
+            _options = service.Options;
+            _throttler = _service.Ui.CreateThrottler();
+            SelectedWavelengthIndex = WavelengthIndexs.FirstOrDefault();
+            SelectedWorkingDistance = WorkingDistances.FirstOrDefault();
         }
 
-        /// <summary>
-        /// 실제 화면에 바인딩할 이미지
-        /// - SelectedCropIndex >= 0: 타일 프리뷰
-        ///   - NormalizePreviewEnabled && NormalizedPreviewImage != null → normalize된 타일
-        ///   - 아니면 CroppedPreviewImage
-        /// - SelectedCropIndex < 0: 전체 Image
-        /// </summary>
-        public Bitmap? DisplayImage
+        partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
         {
-            get
+            if (!IsPreviewing)
             {
-                if (SelectedCropIndex >= 0)
+                int value = 7;
+                if (newValue != null) value = newValue.NumericValue;
+                DisplayWorkspaceImage(value);
+            }
+        }
+        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
+        {
+            if (newValue == null) return;
+        }
+
+        [RelayCommand]
+        public void AddRoi(Rect controlRect)
+        {
+            _regionAnalysisService.AddRoi(controlRect);
+        }
+
+        public int SelectedIndex => SelectedWavelengthIndex?.NumericValue ?? 0;
+
+        [RelayCommand]
+        private async Task RefreshCamerasAsync()
+        {
+            await RunOperationAsync(
+                key: "RefreshCameras",
+                backgroundWork: async (ct, ctx) =>
                 {
-                    if (NormalizePreviewEnabled && NormalizedPreviewImage is not null)
-                        return NormalizedPreviewImage;
-                    if (CroppedPreviewImage is not null)
-                        return CroppedPreviewImage;
-                }
+                    ctx.ReportIndeterminate("카메라 목록을 찾는 중입니다...");
+                    var list = await _cameraService.GetCameraListAsync(ct).ConfigureAwait(false);
 
-                return Image;
-            }
-        }
-
-        // ===== ObservableProperty partials =====
-
-        partial void OnImageChanging(Bitmap? value)
-        {
-            // 새 프레임이 들어오므로 타일 캐시 무효화
-            InvalidateNormalizedTilesCache();
-            image?.Dispose();
-        }
-
-        partial void OnImageChanged(Bitmap? value)
-        {
-            if (Image is not null)
-                EnsureGridConfigured(Image);
-
-            UpdatePreviewImages();
-            OnPropertyChanged(nameof(DisplayImage));
-        }
-
-        partial void OnCroppedPreviewImageChanging(Bitmap? value)
-        {
-            croppedPreviewImage?.Dispose();
-        }
-
-        partial void OnNormalizedPreviewImageChanging(Bitmap? value)
-        {
-            normalizedPreviewImage?.Dispose();
-        }
-
-        partial void OnSelectedCropIndexChanged(int value)
-        {
-            SelectedCropIndexText = value.ToString();
-            UpdatePreviewImages();
-            OnPropertyChanged(nameof(DisplayImage));
-        }
-
-        partial void OnSelectedCropIndexTextChanged(string value)
-        {
-            if (!int.TryParse(value, out var idx))
-                return;
-
-            if (idx < -1)
-                idx = -1;
-
-            if (idx != SelectedCropIndex)
-                SelectedCropIndex = idx;
-        }
-
-        partial void OnNormalizePreviewEnabledChanged(bool value)
-        {
-            UpdatePreviewImages();
-            OnPropertyChanged(nameof(DisplayImage));
-        }
-
-        partial void OnTargetIntensityChanged(byte value)
-        {
-            // intensity 값 변경 → 타일 캐시 무효화
-            InvalidateNormalizedTilesCache();
-
-            UpdatePreviewImages();
-            OnPropertyChanged(nameof(DisplayImage));
-        }
-
-        partial void OnSelectedDistanceChanged(int value)
-        {
-            // 거리 변경 → 타일 캐시 무효화
-            InvalidateNormalizedTilesCache();
-
-            UpdatePreviewImages();
-            OnPropertyChanged(nameof(DisplayImage));
-        }
-
-        partial void OnIsStopChanged(bool value)
-        {
-            OnPropertyChanged(nameof(CanDrawRegions));
-        }
-
-        partial void OnIsDrawRectModeChanged(bool value)
-        {
-            if (value)
-            {
-                // DrawRect 모드를 켜면 Translation 모드는 끈다 (서로 배타적)
-                if (IsTranslationMode)
-                    IsTranslationMode = false;
-            }
-
-            OnPropertyChanged(nameof(CanDrawRegions));
-        }
-
-        partial void OnIsTranslationModeChanged(bool value)
-        {
-            if (value)
-            {
-                // Translation 모드를 켜면 DrawRect 모드는 끈다 (서로 배타적)
-                if (IsDrawRectMode)
-                    IsDrawRectMode = false;
-            }
-
-            OnPropertyChanged(nameof(CanDrawRegions));
+                    await UiInvokeAsync(() =>
+                    {
+                        Cameras.Clear();
+                        foreach (var c in list) Cameras.Add(c);
+                        SelectedCamera ??= Cameras.FirstOrDefault();
+                    }).ConfigureAwait(false);
+                },
+                configure: opt =>
+                {
+                    opt.JobName = "GetCameraList";
+                    opt.Timeout = TimeSpan.FromSeconds(5);
+                });
         }
 
         [RelayCommand]
-        public Task StartPreviewAsync() { return Task.CompletedTask; }
-
-        [RelayCommand]
-        public Task StopPreviewAsync() { return Task.CompletedTask; }
-
-        [RelayCommand]
-        public async Task SaveImageSetAsync()
+        private async Task StartPreviewAsync()
         {
-            // 선택: 저장은 Stop 상태에서만 허용
-            if (!IsStop)
-                return;
+            if (Cameras.Count == 0) await RefreshCamerasAsync();
+            if (SelectedCamera is null || IsPreviewing) return;
 
-            if (Image is null)
-                return;
+            await RunOperationAsync(
+                key: "PreviewStart",
+                backgroundWork: async (ct, ctx) =>
+                {
+                    ctx.ReportIndeterminate("카메라 연결 및 프리뷰 시작 중...");
+                    await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id).ConfigureAwait(false);
+                    RestartConsumeLoop();
+                    await UiInvokeAsync(() =>
+                    {
+                        IsPreviewing = true;
+                        PreviewFps = 0;
+                        _fpsEma = 0;
+                        _lastRenderTs = 0;
+                    }).ConfigureAwait(false);
+                },
+                configure: opt =>
+                {
+                    opt.JobName = "StartPreview";
+                    opt.Timeout = TimeSpan.FromSeconds(10);
+                });
+        }
 
-            var src = Image; // Stop 상태의 현재 프레임 스냅샷
+        [RelayCommand]
+        private async Task StopPreviewAsync()
+        {
+            if (!IsPreviewing) return;
+
+            await RunOperationAsync(
+                key: "PreviewStop",
+                backgroundWork: async (ct, ctx) =>
+                {
+                    ctx.ReportIndeterminate("프리뷰 정지 및 연결 해제 중...");
+                    _stopRequested = true;
+
+                    if (_consumeTask != null)
+                    {
+                        var finished = await Task.WhenAny(_consumeTask, Task.Delay(500));
+                        if (finished != _consumeTask)
+                        {
+                            CancelConsumeLoop();
+                            await _consumeTask;
+                        }
+                    }
+                    await _cameraService.StopPreviewAndDisconnectAsync(ct).ConfigureAwait(false);
+
+                    await UiInvokeAsync(() =>
+                    {
+                        IsPreviewing = false;
+                        PreviewFps = 0;
+                        DisplayWorkspaceImage(SelectedIndex);
+                    });
+                },
+                configure: opt =>
+                {
+                    opt.JobName = "StopPreview";
+                    opt.Timeout = TimeSpan.FromSeconds(5);
+                });
+        }
+        private void RestartConsumeLoop()
+        {
+            CancelConsumeLoop();
+            _stopRequested = false;
+            _consumeCts = new CancellationTokenSource();
+            _consumeTask = ConsumeFramesAsync(_consumeCts.Token);
+        }
+        private void CancelConsumeLoop()
+        {
+            _consumeCts?.Cancel();
+        }
+        private async Task ConsumeFramesAsync(CancellationToken ct)
+        {
+            var reader = _cameraService.Frames;
 
             try
             {
-                // 1) CPU-bound 작업(타일 생성 + 스티칭)은 백그라운드 스레드에서 수행
-                var (originalBitmaps, processedBitmaps, stitched) = await Task.Run(() =>
+                while (await reader.WaitToReadAsync(ct))
                 {
-                    // Grid 보장
-                    EnsureGridConfigured(src);
-
-                    // 현재 Image + SelectedDistance + TargetIntensity 기준으로
-                    // 정규화+translation된 타일들을 캐시에서 얻거나 새로 계산
-                    var processedTiles = GetOrBuildNormalizedTiles(src);   // IReadOnlyList<WriteableBitmap>
-
-                    // WriteableBitmap -> Bitmap 업캐스트용 리스트 (캐시 참조, 여기서 Dispose 하지 않음)
-                    var processedList = new List<Bitmap>(processedTiles.Count);
-                    foreach (var t in processedTiles)
+                    while (reader.TryRead(out var frame))
                     {
-                        processedList.Add(t);
+                        if (_stopRequested || ct.IsCancellationRequested)
+                        {
+                            UpdateWorkspaceBackground(frame);
+                            frame.Dispose();
+                            return;
+                        }
+                        var oldUiFrame = Interlocked.Exchange(ref _previewFrameData, _imageProcessService.GetCropFrameData(frame, SelectedIndex));
+                        oldUiFrame?.Dispose();
+                        frame.Dispose();
+                        _throttler.Run(UpdateUI);
                     }
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex){ }
+            finally
+            {
+                var pending = Interlocked.Exchange(ref _previewFrameData, null);
+                pending?.Dispose();
+                _throttler.Reset();
+            }
+        }
+        /// <summary>
+        /// 백그라운드 스레드에서 Workspace 데이터를 처리하고 교체합니다.
+        /// </summary>
+        private void UpdateWorkspaceBackground(FrameData fullframe)
+        {
+            try
+            {
+                // [Background Thread] 무거운 이미지 처리
+                var newCrops = _imageProcessService.GetCropFrameDatas(fullframe);
 
-                    // 원본 crop 타일 (translation/normalize 없이 grid 기준으로만 crop)
-                    var originalList = new List<Bitmap>(_imageProcessService.TileCount);
-                    for (int i = 0; i < _imageProcessService.TileCount; i++)
-                    {
-                        var tile = _imageProcessService.CropTile(src, i); // 새 WriteableBitmap 생성
-                        originalList.Add(tile);
-                    }
-
-                    // 처리된 타일들로 전체 stitched 이미지 생성
-                    var stitchedLocal = _imageProcessService.StitchTiles(processedList);
-
-                    return (originalList, processedList, stitchedLocal);
-                });
-
+                FrameData? stitchFrame = null;
                 try
                 {
-                    // 2) 파일 저장/폴더 선택 등은 UI 컨텍스트에서 비동기로 실행
-                    await _storageService.SaveFullImageSetWithFolderDialogAsync(
-                        fullImage: src,
-                        originalTiles: originalBitmaps,
-                        processedTiles: processedBitmaps,
-                        stitched: stitched,
-                        sessionName: null,
-                        ct: CancellationToken.None);
+                    stitchFrame = _imageProcessService.GetStitchFrameData(newCrops);
                 }
-                finally
+                catch (Exception ex)
                 {
-                    stitched.Dispose();
-
-                    foreach (var tile in originalBitmaps)
-                    {
-                        tile?.Dispose();
-                    }
-
-                    // processedBitmaps 는 Normalize 캐시의 인스턴스를 가리키므로
-                    // 여기서 Dispose 하지 않는다.
+                    Debug.WriteLine($"Stitch Failed: {ex}");
                 }
+
+                // Workspace 객체 생성
+                var newWorkspace = new Workspace();
+
+                // [중요] Service의 Clone 기능을 사용 (내부적으로 ArrayPool 최적화됨)
+                newWorkspace.SetEntireFrameData(_imageProcessService.CloneFrameData(fullframe));
+                newWorkspace.SetCropFrameDatas(newCrops);
+                newWorkspace.SetStitchFrameData(stitchFrame);
+
+                // [Thread-Safe] 교체
+                _workspaceService.Replace(newWorkspace);
             }
-            catch
+            catch (Exception ex)
             {
-                // 필요시 로깅 또는 에러 알림 처리
+                Debug.WriteLine($"Workspace Save Error: {ex}");
             }
         }
-
-        [RelayCommand]
-        public async Task GetTranslationOffsetsAsync()
+        private void UpdateUI()
         {
-            // 1) Stop 상태 + 유효한 프레임인지 확인
-            if (!IsStop)
-                return;
-
-            if (Image is null)
-                return;
-
-            var src = Image; // 현재 프레임 스냅샷
-
+            if (!IsPreviewing) return;
+            var frame = Interlocked.Exchange(ref _previewFrameData, null);
+            if (frame is null) return;
             try
             {
-                // 2) CPU 작업은 백그라운드 스레드에서 수행
-                var offsets = await Task.Run<IReadOnlyList<TileTransform>>(() =>
+                EnsureSharedPreview(frame.Width, frame.Height);
+                if (_previewBitmap != null)
                 {
-                    // Grid 보장
-                    EnsureGridConfigured(src);
-
-                    // (a) translation 없이 정규화 타일 생성
-                    var tiles = _imageProcessService.BuildNormalizedTiles(
-                        src,
-                        _ => new TileTransform(0, 0),   // translation 없음
-                        TargetIntensity);
-
-                    try
-                    {
-                        // (b) 가운데 타일(인덱스 7)을 기준으로 평행 이동 계산
-                        int referenceIndex = 7;
-                        if (referenceIndex < 0 || referenceIndex >= tiles.Count)
-                            referenceIndex = 0;
-
-                        return _imageProcessService.ComputePhaseCorrelationOffsets(
-                            tiles,
-                            referenceIndex: referenceIndex);
-                    }
-                    finally
-                    {
-                        foreach (var tile in tiles)
-                            tile.Dispose();
-                    }
-                });
-
-                // 3) SelectedDistance에 대한 runtime translation 테이블 저장
-                TranslationOffsets.SetRuntimeOffsets(SelectedDistance, offsets);
-
-                // 4) 캐시/프리뷰 갱신
-                InvalidateNormalizedTilesCache();
-                _imageProcessService.RebuildTranslationPreviewTable();
-
-                UpdatePreviewImages();
-                OnPropertyChanged(nameof(DisplayImage));
-            }
-            catch
-            {
-                // 필요시 로그
-            }
-        }
-
-        // ===== 내부 헬퍼 =====
-
-        private int AllocateColorIndex()
-        {
-            var used = _analysis.Regions
-                .Select(r => r.ColorIndex)
-                .Distinct()
-                .ToHashSet();
-
-            for (int i = 0; i < 7; i++)
-            {
-                if (!used.Contains(i))
-                    return i;
-            }
-
-            return 0;
-        }
-
-        private void EnsureGridConfigured(Bitmap frame)
-        {
-            var size = frame.PixelSize;
-
-            if (!_gridConfigured || size != _gridFrameSize)
-            {
-                _imageProcessService.ConfigureGrid(size, _gridConfig);
-                _gridConfigured = true;
-                _gridFrameSize = size;
-
-                // dropdown용 인덱스 리스트 갱신 (0..TileCount-1, UI 인덱스)
-                CropIndexOptions.Clear();
-                for (int i = 0; i < _imageProcessService.TileCount; i++)
-                {
-                    CropIndexOptions.Add(i);
+                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, frame);
+                    UpdateFPSUI();
+                    PreviewInvalidated?.Invoke();
                 }
             }
+            finally { frame?.Dispose(); }
         }
-
-        /// <summary>
-        /// 현재 Image, SelectedCropIndex, SelectedDistance, TargetIntensity, NormalizePreviewEnabled
-        /// 를 기반으로 프리뷰 타일 이미지들을 갱신.
-        /// </summary>
-        private void UpdatePreviewImages()
+        private void DisplayWorkspaceImage(int index)
         {
-            CroppedPreviewImage = null;
-            NormalizedPreviewImage = null;
+            var ws = _workspaceService.Current;
 
-            if (Image is null)
-                return;
+            if (ws is null || ws.CropFrameDatas.Count <= index) return;
 
-            if (SelectedCropIndex < 0)
-                return; // 전체 이미지 모드
+            var frame = ws.CropFrameDatas[index];
+            EnsureSharedPreview(frame.Width, frame.Height);
 
-            EnsureGridConfigured(Image);
-
-            // UI 인덱스(아래→위)를 grid 인덱스(위→아래)로 변환
-            int gridIndex = _imageProcessService.FlipVerticalIndex(SelectedCropIndex);
-
-            if (gridIndex < 0 || gridIndex >= _imageProcessService.TileCount)
-                return;
-
-            // 원본 타일 (translation preview 사용)
-            var rawTile = _imageProcessService.GetTranslationCropImage(Image, SelectedDistance, gridIndex);
-            CroppedPreviewImage = rawTile;
-
-            // normalize 프리뷰
-            if (NormalizePreviewEnabled)
+            if (_previewBitmap is not null)
             {
-                var normTile = _imageProcessService.NormalizeTile(rawTile, TargetIntensity);
-                NormalizedPreviewImage = normTile;
+                _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, frame);
+                PreviewInvalidated?.Invoke();
             }
         }
-
-        /// <summary>
-        /// 거리 + 타일 인덱스에 대응하는 translation 값.
-        /// TranslationOffsets 의 정적 Table + 런타임 테이블을 모두 고려한다.
-        /// </summary>
-        private static TileTransform GetTileTransform(int distance, int tileIndex)
+        private void EnsureSharedPreview(int width, int height)
         {
-            return TranslationOffsets.GetTransformOrDefault(distance, tileIndex);
-        }
-
-        /// <summary>
-        /// 정규화 타일 캐시 초기화(Dispose 포함).
-        /// </summary>
-        private void InvalidateNormalizedTilesCache()
-        {
-            if (_normalizedTilesCache is { Count: > 0 })
+            if (_previewBitmap is not null)
             {
-                foreach (var tile in _normalizedTilesCache)
-                    tile.Dispose();
-            }
-
-            _normalizedTilesCache = null;
-            _normalizedTilesSource = null;
-        }
-        private IReadOnlyList<WriteableBitmap> GetOrBuildNormalizedTiles(Bitmap source)
-        {
-            byte ti = TargetIntensity;
-
-            if (_normalizedTilesCache is { Count: > 0 } &&
-                ReferenceEquals(_normalizedTilesSource, source) &&
-                _normalizedTilesDistance == SelectedDistance &&
-                _normalizedTilesTarget == ti)
-            {
-                return _normalizedTilesCache;
-            }
-
-            // 기존 캐시 정리
-            InvalidateNormalizedTilesCache();
-
-            // Grid 설정 보장
-            EnsureGridConfigured(source);
-
-            // 거리별 translation을 적용한 정규화 타일 생성
-            var tiles = _imageProcessService.BuildNormalizedTiles(
-                source,
-                idx => GetTileTransform(SelectedDistance, idx),
-                ti);
-
-            _normalizedTilesCache = tiles;
-            _normalizedTilesSource = source;
-            _normalizedTilesDistance = SelectedDistance;
-            _normalizedTilesTarget = ti;
-
-            return tiles;
-        }
-        public void CommitSelectionRect()
-        {
-            // 1) 기본 체크
-            if (Image is null)
-                return;
-
-            if (!CanDrawRegions)
-                return;
-
-            if (SelectionRectInControl.Width <= 0 ||
-                SelectionRectInControl.Height <= 0)
-                return;
-
-            // 반드시 "타일 모드"에서만 ROI 정의
-            if (SelectedCropIndex < 0)
-                return;
-
-            if (_imageProcessService.TileCount <= 0)
-                return;
-
-            // 현재 모드가 아무 것도 아니면 의미 없음
-            if (!IsDrawRectMode && !IsTranslationMode)
-                return;
-
-            // UI 인덱스 → grid 인덱스로 변환
-            int baseIndex = _imageProcessService.FlipVerticalIndex(SelectedCropIndex);
-
-            // 2) 정규화 타일 캐시 가져오기 (없으면 생성)
-            IReadOnlyList<WriteableBitmap> tiles;
-            try
-            {
-                tiles = GetOrBuildNormalizedTiles(Image!);
-            }
-            catch
-            {
-                return;
-            }
-
-            if (baseIndex < 0 || baseIndex >= tiles.Count)
-                return;
-
-            var baseTile = tiles[baseIndex];
-            if (baseTile is null)
-                return;
-
-            // SelectionCanvas 크기 기준 → 기준 타일 좌표로 변환
-            var baseRectInTile = _drawRectService.ControlRectToImageRect(
-                SelectionRectInControl,
-                ImageControlSize,
-                baseTile);
-
-            if (baseRectInTile.Width <= 0 || baseRectInTile.Height <= 0)
-                return;
-
-            var baseSize = baseTile.PixelSize;
-            if (baseSize.Width <= 0 || baseSize.Height <= 0)
-                return;
-
-            // 기준 타일에서의 정규화 좌표 [0..1]
-            double u1 = baseRectInTile.X / baseSize.Width;
-            double v1 = baseRectInTile.Y / baseSize.Height;
-            double u2 = (baseRectInTile.X + baseRectInTile.Width) / baseSize.Width;
-            double v2 = (baseRectInTile.Y + baseRectInTile.Height) / baseSize.Height;
-
-            u1 = Math.Clamp(u1, 0.0, 1.0);
-            v1 = Math.Clamp(v1, 0.0, 1.0);
-            u2 = Math.Clamp(u2, 0.0, 1.0);
-            v2 = Math.Clamp(v2, 0.0, 1.0);
-
-            if (u2 <= u1 || v2 <= v1)
-                return;
-
-            // ----- DrawRect 모드: ROI 추가 + 스펙트럼 분석 -----
-            if (IsDrawRectMode)
-            {
-                var tileStatsList = new List<TileStats>(tiles.Count);
-                var allMeans = new List<double>(tiles.Count);
-                var allSds = new List<double>(tiles.Count);
-
-                for (int tileIndex = 0; tileIndex < tiles.Count; tileIndex++)
-                {
-                    var tileBmp = tiles[tileIndex];
-                    if (tileBmp is null)
-                    {
-                        var zero = new TileStats(0, 0);
-                        tileStatsList.Add(zero);
-                        allMeans.Add(0);
-                        allSds.Add(0);
-                        continue;
-                    }
-
-                    var ps = tileBmp.PixelSize;
-                    if (ps.Width <= 0 || ps.Height <= 0)
-                    {
-                        var zero = new TileStats(0, 0);
-                        tileStatsList.Add(zero);
-                        allMeans.Add(0);
-                        allSds.Add(0);
-                        continue;
-                    }
-
-                    int tx1 = (int)Math.Floor(u1 * ps.Width);
-                    int ty1 = (int)Math.Floor(v1 * ps.Height);
-                    int tx2 = (int)Math.Ceiling(u2 * ps.Width);
-                    int ty2 = (int)Math.Ceiling(v2 * ps.Height);
-
-                    var tileRectPx = new Rect(tx1, ty1, tx2 - tx1, ty2 - ty1);
-
-                    var stats = _drawRectService.GetYStatsFromGrayTile(tileBmp, tileRectPx);
-
-                    if (stats is { } s)
-                    {
-                        var ts = new TileStats(s.mean, s.stdDev);
-                        tileStatsList.Add(ts);
-                        allMeans.Add(s.mean);
-                        allSds.Add(s.stdDev);
-                    }
-                    else
-                    {
-                        var zero = new TileStats(0, 0);
-                        tileStatsList.Add(zero);
-                        allMeans.Add(0);
-                        allSds.Add(0);
-                    }
-                }
-
-                // ROI 전체 요약값 (타일 mean/std 평균)
-                double regionMean = allMeans.Count > 0 ? allMeans.Average() : 0.0;
-                double regionStd = allSds.Count > 0 ? allSds.Average() : 0.0;
-
-                SelectedRegionMean = regionMean;
-                SelectedRegionStdDev = regionStd;
-
-                // 내부용 ID(Index) 부여 (1,2,3,...)
-                int newIndex = _analysis.Regions.Count == 0
-                    ? 1
-                    : _analysis.Regions.Max(r => r.Index) + 1;
-
-                // 색 인덱스 할당
-                int colorIndex = AllocateColorIndex();
-
-                var region = new SelectionRegion(
-                    newIndex,
-                    colorIndex,
-                    SelectionRectInControl, // CameraView 캔버스 좌표
-                    baseRectInTile,         // 기준 타일 좌표
-                    regionMean,
-                    regionStd);
-
-                bool added = _analysis.TryAddRegion(region, tileStatsList);
-                if (!added)
+                var ps = _previewBitmap.PixelSize;
+                if (ps.Width == width && ps.Height == height)
                     return;
+
+                _previewBitmap.Dispose();
+                _previewBitmap = null;
             }
 
-            // ----- Translation 모드: 템플릿 매칭으로 translation offset 계산 -----
-            if (IsTranslationMode)
+            _previewBitmap = new WriteableBitmap(
+                new PixelSize(width, height),
+                new Vector(96, 96),
+                PixelFormats.Gray8,
+                AlphaFormat.Opaque);
+
+            PreviewBitmap = _previewBitmap;
+        }
+        private void UpdateFPSUI()
+        {
+            long now = Stopwatch.GetTimestamp();
+            long last = _lastRenderTs;
+            _lastRenderTs = now;
+
+            if (last == 0) return;
+
+            double dt = (double)(now - last) / Stopwatch.Frequency;
+            if (dt <= 0) return;
+
+            double inst = 1.0 / dt;
+            const double alpha = 0.20;
+            _fpsEma = (_fpsEma <= 0) ? inst : (_fpsEma + (inst - _fpsEma) * alpha);
+
+            PreviewFps = _fpsEma;
+        }
+        public override async ValueTask DisposeAsync()
+        {
+            CancelConsumeLoop();
+            if (_consumeTask != null) await _consumeTask.ConfigureAwait(false);
+
+            try
             {
-                // heavy 작업은 백그라운드 스레드에서 실행
-                var tilesSnapshot = tiles.ToArray();
-                var referenceTile = baseTile;
-                var referenceRect = baseRectInTile;
-                int referenceIndex = baseIndex;
-                int distanceKey = SelectedDistance;
-
-                _ = Task.Run(() =>
-                {
-                    var offsets = new TileTransform[tilesSnapshot.Length];
-
-                    for (int i = 0; i < tilesSnapshot.Length; i++)
-                    {
-                        var targetTile = tilesSnapshot[i];
-                        if (targetTile is null)
-                        {
-                            offsets[i] = new TileTransform(0, 0);
-                            continue;
-                        }
-
-                        if (i == referenceIndex)
-                        {
-                            // 기준 타일은 자기 자신이므로 (0,0)
-                            offsets[i] = new TileTransform(0, 0);
-                            continue;
-                        }
-
-                        var offset = _imageProcessService.ComputeTemplateMatchOffset(
-                            referenceTile: referenceTile,
-                            referenceRectInReferenceTile: referenceRect,
-                            targetTile: targetTile);
-
-                        offsets[i] = offset;
-                    }
-
-                    return offsets;
-                }).ContinueWith(t =>
-                {
-                    if (t.Status != TaskStatus.RanToCompletion)
-                        return;
-
-                    var offsets = t.Result;
-
-                    // UI 스레드에서 translation 테이블 갱신 + 프리뷰 갱신
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        TranslationOffsets.SetRuntimeOffsets(distanceKey, offsets);
-
-                        InvalidateNormalizedTilesCache();
-                        _imageProcessService.RebuildTranslationPreviewTable();
-
-                        UpdatePreviewImages();
-                        OnPropertyChanged(nameof(DisplayImage));
-                    });
-                });
+                await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None).ConfigureAwait(false);
             }
+            catch { }
+
+            _previewBitmap?.Dispose();
+
+            await base.DisposeAsync();
         }
     }
 }

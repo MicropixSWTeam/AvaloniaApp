@@ -9,14 +9,14 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
 {
     public partial class MainWindowViewModel : ViewModelBase
     {
-        private readonly CameraViewModelTest _cameraViewModel;
+        private readonly CameraViewModel _cameraViewModel;
         private readonly ChartViewModel _chartViewModel;
         private readonly CameraSettingViewModel _cameraSettingViewModel;
 
         public MainWindowViewModel(
             AppService service,
             CameraConnectViewModel cameraConnectViewModel,
-            CameraViewModelTest cameraViewModel, 
+            CameraViewModel cameraViewModel, 
             ChartViewModel chartViewModel,
             CameraSettingViewModel cameraSettingViewModel):base(service)
         {

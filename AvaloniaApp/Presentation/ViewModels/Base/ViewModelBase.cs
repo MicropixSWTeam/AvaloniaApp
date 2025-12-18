@@ -16,10 +16,6 @@ namespace AvaloniaApp.Presentation.ViewModels.Base
         protected readonly AppService _service;
 
         private readonly Dictionary<string, OperationState> _states = new();
-        protected ViewModelBase()
-        {
-
-        }
         protected ViewModelBase(AppService service)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
