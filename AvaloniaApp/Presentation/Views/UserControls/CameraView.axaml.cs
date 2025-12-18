@@ -1,106 +1,152 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
+using AvaloniaApp.Configuration;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaEdit.Utils;
 using System;
 
-namespace AvaloniaApp.Presentation.Views.UserControls
+namespace AvaloniaApp.Presentation.Views.UserControls;
+
+public partial class CameraView : UserControl
 {
-    public partial class CameraView : UserControl
+    private bool _isDragging;
+    private Point _startPoint;
+
+    private CameraViewModel? ViewModel => DataContext as CameraViewModel;
+
+    public CameraView()
     {
-        private bool _isDragging;
-        private Point _start;
+        InitializeComponent();
+        DrawCanvas.PointerCaptureLost += DrawCanvas_PointerCaptureLost;
+    }
 
-        private CameraViewModel? Vm => DataContext as CameraViewModel;
+    // LifeCycle 이벤트를 Override하여 가독성 및 자원 관리 향상
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (ViewModel != null)
+            ViewModel.PreviewInvalidated += InvalidatePreviewImage;
+    }
 
-        public CameraView()
-        {
-            InitializeComponent();
-            AttachedToVisualTree += OnAttached;
-            DetachedFromVisualTree += OnDetached;
-        }
-        private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
-        {
-            if (Vm is not null)
-                Vm.PreviewInvalidated += InvalidatePreviewImage;
-        }
-        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
-        {
-            if (Vm is not null)
-                Vm.PreviewInvalidated -= InvalidatePreviewImage;
-        }
-        private void InvalidatePreviewImage()
-        {
-            PreviewImage?.InvalidateVisual();
-        }
-        private void DrawCanvas_PointerPressed(object? sender, PointerPressedEventArgs e)
-        {
-            var p = e.GetCurrentPoint(DrawCanvas);
-            // 좌클릭만 허용
-            if (!p.Properties.IsLeftButtonPressed) return;
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (ViewModel != null)
+            ViewModel.PreviewInvalidated -= InvalidatePreviewImage;
 
-            _isDragging = true;
-            _start = e.GetPosition(DrawCanvas);
+        // 이벤트 해제 (메모리 누수 방지)
+        DrawCanvas.PointerCaptureLost -= DrawCanvas_PointerCaptureLost;
+    }
 
-            DrawingRect.IsVisible = true;
-            Canvas.SetLeft(DrawingRect, _start.X);
-            Canvas.SetTop(DrawingRect, _start.Y);
-            DrawingRect.Width = 0;
-            DrawingRect.Height = 0;
+    private void InvalidatePreviewImage() => PreviewImage?.InvalidateVisual();
 
-            DrawCanvas.CapturePointer(e.Pointer);
-            e.Handled = true;
+    #region Interaction Handling
+
+    private void DrawCanvas_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (ViewModel == null) return;
+
+        // 1. 개수 제한 체크: 이미 6개면 드래그 시작도 안 함
+        if (ViewModel.NextAvailableRegionColorIndex == -1)
+        {
+            // 시각적 피드백이 필요하다면 여기서 알림 처리 가능
+            return;
         }
 
-        private void DrawCanvas_PointerMoved(object? sender, PointerEventArgs e)
+        var point = e.GetCurrentPoint(DrawCanvas);
+        if (!point.Properties.IsLeftButtonPressed) return;
+
+        var position = point.Position;
+        var canvasRect = new Rect(DrawCanvas.Bounds.Size);
+        if (!canvasRect.Contains(position)) return;
+
+        // 2. 색상 결정: 다음에 그려질 실제 색상을 DrawingRect에 적용
+        int nextIndex = ViewModel.NextAvailableRegionColorIndex;
+        DrawingRect.Stroke = Options.GetBrushByIndex(nextIndex);
+
+        StartDragging(position);
+        DrawCanvas.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void DrawCanvas_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isDragging) return;
+        var currentPoint = e.GetPosition(DrawCanvas);
+        UpdateDrawingRect(_startPoint, currentPoint);
+        e.Handled = true;
+    }
+
+    private void DrawCanvas_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isDragging) return;
+
+        _isDragging = false;
+        DrawCanvas.ReleasePointerCapture(e.Pointer);
+
+        var endPoint = e.GetPosition(DrawCanvas);
+        var canvasBounds = new Rect(DrawCanvas.Bounds.Size);
+        var constrainedEnd = Clamp(endPoint, canvasBounds);
+
+        var finalRect = GetNormalizedRect(_startPoint, constrainedEnd);
+
+        var width = Math.Max(1.0, finalRect.Width);
+        var height = Math.Max(1.0, finalRect.Height);
+        var adjustedRect = new Rect(finalRect.Position, new Size(width, height));
+
+        ViewModel?.AddRegionCommand.Execute(adjustedRect);
+
+        ResetDrawingOverlay();
+        e.Handled = true;
+    }
+
+    private void DrawCanvas_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_isDragging)
         {
-            if (!_isDragging) return;
-
-            var cur = e.GetPosition(DrawCanvas);
-
-            var x = Math.Min(_start.X, cur.X);
-            var y = Math.Min(_start.Y, cur.Y);
-            var w = Math.Abs(cur.X - _start.X);
-            var h = Math.Abs(cur.Y - _start.Y);
-
-            Canvas.SetLeft(DrawingRect, x);
-            Canvas.SetTop(DrawingRect, y);
-            DrawingRect.Width = w;
-            DrawingRect.Height = h;
-
-            e.Handled = true;
-        }
-
-        private void DrawCanvas_PointerReleased(object? sender, PointerReleasedEventArgs e)
-        {
-            if (!_isDragging) return;
-
             _isDragging = false;
-            DrawCanvas.ReleasePointerCapture(e.Pointer);
-
-            if (Vm is not null)
-            {
-                // ? 548x548 고정 좌표계이므로 변환 없이 그대로 VM에 전달
-                var rect = new Rect(
-                    Canvas.GetLeft(DrawingRect),
-                    Canvas.GetTop(DrawingRect),
-                    DrawingRect.Width,
-                    DrawingRect.Height);
-
-                // 너무 작은 노이즈 클릭 방지 (1x1 이상만)
-                if (rect.Width >= 1 && rect.Height >= 1)
-                {
-                    Vm.AddRoiCommand.Execute(rect);
-                }
-            }
-
-            // 드래그용 사각형 초기화
-            DrawingRect.IsVisible = false;
-            DrawingRect.Width = 0;
-            DrawingRect.Height = 0;
-
-            e.Handled = true;
+            ResetDrawingOverlay();
         }
     }
+
+    #endregion
+
+    #region Helpers
+
+    private void StartDragging(Point start)
+    {
+        _isDragging = true;
+        _startPoint = start;
+        DrawingRect.IsVisible = true;
+        UpdateDrawingRect(start, start);
+    }
+
+    private void UpdateDrawingRect(Point p1, Point p2)
+    {
+        var bounds = new Rect(DrawCanvas.Bounds.Size);
+        var constrainedP2 = Clamp(p2, bounds);
+        var rect = GetNormalizedRect(p1, constrainedP2);
+
+        Canvas.SetLeft(DrawingRect, rect.X);
+        Canvas.SetTop(DrawingRect, rect.Y);
+        DrawingRect.Width = rect.Width;
+        DrawingRect.Height = rect.Height;
+    }
+
+    private void ResetDrawingOverlay()
+    {
+        DrawingRect.IsVisible = false;
+        DrawingRect.Width = 0;
+        DrawingRect.Height = 0;
+    }
+
+    private static Rect GetNormalizedRect(Point p1, Point p2)
+        => new Rect(Math.Min(p1.X, p2.X), Math.Min(p1.Y, p2.Y), Math.Abs(p1.X - p2.X), Math.Abs(p1.Y - p2.Y));
+
+    private static Point Clamp(Point p, Rect r)
+        => new(Math.Clamp(p.X, 0, r.Width), Math.Clamp(p.Y, 0, r.Height));
+
+    #endregion
 }

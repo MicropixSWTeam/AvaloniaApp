@@ -25,6 +25,16 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             _cameraSettingViewModel = cameraSettingViewModel;
         }
         [RelayCommand]
+        public async Task StartCameraAsync()
+        {
+            await _cameraViewModel.StartPreviewCommand.ExecuteAsync(null);
+        }
+        [RelayCommand]
+        public async Task StopCameraAsync()
+        {
+            await _cameraViewModel.StopPreviewCommand.ExecuteAsync(null);
+        }
+        [RelayCommand]
         public async Task OpenCameraViewAsync()
         {
             await _service.Popup.ShowModelessAsync(_cameraViewModel);

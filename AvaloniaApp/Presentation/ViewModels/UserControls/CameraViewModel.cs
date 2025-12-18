@@ -25,7 +25,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private readonly WorkspaceService _workspaceService;
         private readonly RegionAnalysisService _regionAnalysisService;
         private readonly UiThrottler _throttler;
-        private readonly Options _options;
 
         private CancellationTokenSource? _consumeCts;
         private Task? _consumeTask;
@@ -34,13 +33,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private WriteableBitmap? _previewBitmap;
         private FrameData? _previewFrameData;
 
-        private long _lastRenderTs;
-        private double _fpsEma;
-
         public event Action? PreviewInvalidated;
 
         public ReadOnlyObservableCollection<SelectRegionData> Regions => _regionAnalysisService.Regions;
-
+        public int NextAvailableRegionColorIndex => _regionAnalysisService.GetNextAvailableColorIndex();    
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         
@@ -54,8 +50,8 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty] private double previewFps;
         [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
         [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
-        public int CropWidth => _options.CropWidth;
-        public int CropHeight => _options.CropHeight;
+        public int CropWidth => Options.CropWidth;
+        public int CropHeight => Options.CropHeight;
 
         public CameraViewModel(AppService service) : base(service)
         {
@@ -63,12 +59,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _imageProcessService = service.ImageProcess;
             _workspaceService = service.WorkSpace;
             _regionAnalysisService = service.RegionAnalysis;
-            _options = service.Options;
             _throttler = _service.Ui.CreateThrottler();
             SelectedWavelengthIndex = WavelengthIndexs.FirstOrDefault();
             SelectedWorkingDistance = WorkingDistances.FirstOrDefault();
         }
-
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
         {
             if (!IsPreviewing)
@@ -84,11 +78,17 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
 
         [RelayCommand]
-        public void AddRoi(Rect controlRect)
+        public void AddRegion(Rect controlRect)
         {
-            _regionAnalysisService.AddRoi(controlRect);
-        }
+            bool isCaneDraw = _regionAnalysisService.AddRegion(controlRect);
 
+            if (!isCaneDraw) return;
+        }
+        [RelayCommand]
+        public void RemoveRegion(SelectRegionData region)
+        {
+            _regionAnalysisService.RemoveRegion(region);
+        }
         public int SelectedIndex => SelectedWavelengthIndex?.NumericValue ?? 0;
 
         [RelayCommand]
@@ -132,8 +132,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     {
                         IsPreviewing = true;
                         PreviewFps = 0;
-                        _fpsEma = 0;
-                        _lastRenderTs = 0;
                     }).ConfigureAwait(false);
                 },
                 configure: opt =>
@@ -269,7 +267,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 if (_previewBitmap != null)
                 {
                     _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, frame);
-                    UpdateFPSUI();
                     PreviewInvalidated?.Invoke();
                 }
             }
@@ -309,23 +306,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 AlphaFormat.Opaque);
 
             PreviewBitmap = _previewBitmap;
-        }
-        private void UpdateFPSUI()
-        {
-            long now = Stopwatch.GetTimestamp();
-            long last = _lastRenderTs;
-            _lastRenderTs = now;
-
-            if (last == 0) return;
-
-            double dt = (double)(now - last) / Stopwatch.Frequency;
-            if (dt <= 0) return;
-
-            double inst = 1.0 / dt;
-            const double alpha = 0.20;
-            _fpsEma = (_fpsEma <= 0) ? inst : (_fpsEma + (inst - _fpsEma) * alpha);
-
-            PreviewFps = _fpsEma;
         }
         public override async ValueTask DisposeAsync()
         {

@@ -25,7 +25,6 @@ namespace AvaloniaApp
         public static void AddAppServices(this IServiceCollection services)
         {
             // 서비스/도메인
-            services.AddSingleton<Options>();
             services.AddSingleton<WorkspaceService>();
 
             services.AddSingleton(new BackgroundJobQueue(capacity: 128));

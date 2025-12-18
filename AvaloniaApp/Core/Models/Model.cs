@@ -104,37 +104,15 @@ namespace AvaloniaApp.Core.Models
         }
     }
 
-    public sealed record IntensityData(double mean, double stddev);
-    public sealed class RegionRatio
-    {
-        public double ratioX { get; set; }
-        public double ratioY { get; set; }
-        public double ratioWidth { get; set; }
-        public double ratioHegiht { get; set; }
-    }
+    public sealed record IntensityData(byte mean, byte stddev);
     public class SelectRegionData
     {
         public int Index { get; set; }
-
         public Rect ControlRect { get; set; }
-
         public Rect Rect { get; set; }
-
-        public double Mean { get; set; }
-        public double StdDev { get; set; }
+        public byte Mean { get; set; }
+        public byte StdDev { get; set; }
         public int ColorIndex { get; set; }
-    }
-    public sealed class RegionData : IDisposable
-    {
-        public int Index { get; set; }
-        public int ColorIndex { get; set; }
-        public Rect Rect { get; set; }
-        public List<IntensityData> IntensityDatas { get; } = new();
-        public void Dispose()
-        {
-            IntensityDatas.Clear();
-            GC.SuppressFinalize(this);
-        }
     }
     public sealed record Offset(int offsetX, int offsetY);
     

@@ -13,10 +13,6 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraView"
              x:DataType="vm:CameraViewModel">
 
-    <UserControl.Resources>
-        <conv:RegionColorIndexToBrushConverter x:Key="RegionIndexToBrush" />
-    </UserControl.Resources>
-
     <Grid RowDefinitions="*,Auto" Margin="4">
         <Border Grid.Row="0" Margin="4" Background="Gray">
             <Grid>
@@ -61,20 +57,6 @@
                     HorizontalAlignment="Center"
                     Margin="0,8,0,8"
                     Spacing="8">
-
-            <Button Content="Start"
-                    Width="100"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    Command="{Binding StartPreviewCommand}" />
-
-            <Button Content="Stop"
-                    Width="100"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    Command="{Binding StopPreviewCommand}" />
-            
-            <!--<TextBlock Text="{Binding PreviewFps, StringFormat=FPS: {0:0.0}}" TextAlignment="Center"/>-->
             
             <TextBlock Text="Wavelength : "
                        Margin="16,0,4,0"

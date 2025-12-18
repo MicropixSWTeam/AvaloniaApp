@@ -1,9 +1,11 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Models;
 using System.Collections;
 using System.Collections.Specialized;
+using System.Globalization;
 
 namespace AvaloniaApp.Presentation.Views.Controls
 {
@@ -20,14 +22,6 @@ namespace AvaloniaApp.Presentation.Views.Controls
 
         private INotifyCollectionChanged? _incc;
 
-        // 15색 팔레트
-        private static readonly IBrush[] _palette = new IBrush[]
-        {
-            Brushes.Lime, Brushes.Cyan, Brushes.Yellow, Brushes.Orange, Brushes.Magenta,
-            Brushes.Red, Brushes.DodgerBlue, Brushes.SpringGreen, Brushes.Gold, Brushes.DeepPink,
-            Brushes.Coral, Brushes.Aqua, Brushes.Chartreuse, Brushes.Violet, Brushes.White
-        };
-
         static DrawRectControl()
         {
             RegionsProperty.Changed.AddClassHandler<DrawRectControl>((x, e) => x.OnRegionsChanged(e));
@@ -35,18 +29,13 @@ namespace AvaloniaApp.Presentation.Views.Controls
 
         private void OnRegionsChanged(AvaloniaPropertyChangedEventArgs e)
         {
-            if (_incc is not null)
-                _incc.CollectionChanged -= OnCollectionChanged;
-
+            if (_incc is not null) _incc.CollectionChanged -= OnCollectionChanged;
             _incc = e.NewValue as INotifyCollectionChanged;
-            if (_incc is not null)
-                _incc.CollectionChanged += OnCollectionChanged;
-
+            if (_incc is not null) _incc.CollectionChanged += OnCollectionChanged;
             InvalidateVisual();
         }
 
-        private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-            => InvalidateVisual();
+        private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => InvalidateVisual();
 
         public override void Render(DrawingContext context)
         {
@@ -60,11 +49,22 @@ namespace AvaloniaApp.Presentation.Views.Controls
                 var rect = r.ControlRect;
                 if (rect.Width <= 0 || rect.Height <= 0) continue;
 
-                var brush = _palette[r.ColorIndex % _palette.Length];
-                var pen = new Pen(brush, 1);
+                // 공통 팔레트 사용
+                var brush = Options.GetBrushByIndex(r.ColorIndex);
+                var pen = new Pen(brush, 1.5);
 
-                // ✅ 테두리만 그리기
                 context.DrawRectangle(null, pen, rect);
+
+                // [UX] 사각형 번호 표시 (차트 연동 시 식별용)
+                var ft = new FormattedText(
+                    (r.ColorIndex + 1).ToString(),
+                    CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface("Arial"),
+                    14,
+                    brush);
+
+                context.DrawText(ft, new Point(rect.X, rect.Y - 18));
             }
         }
     }

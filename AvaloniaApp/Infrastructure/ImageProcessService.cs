@@ -14,13 +14,7 @@ namespace AvaloniaApp.Infrastructure
 {
     public class ImageProcessService
     {
-        private readonly Options _options;
-
-        public ImageProcessService(Options options)
-        {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-        }
-
+        public Rect[] Coordinates => Options.GetAllCoordinates();
         /// <summary>
         /// [필수] 전체 프레임 복제 (Workspace 보관용)
         /// Model.cs의 CloneFullFrame과 동일한 역할을 하지만 Service 계층에서 명시적으로 관리
@@ -36,7 +30,7 @@ namespace AvaloniaApp.Infrastructure
         /// </summary>
         public FrameData GetCropFrameData(FrameData fullframe, int previewIndex)
         {
-            var rect = _options.GetCoordinateByIndex(previewIndex);
+            var rect = Coordinates[previewIndex];
 
             // 1. Crop 및 버퍼 Rent
             var cropFrameData = CropFrameData(fullframe, rect);
@@ -59,7 +53,7 @@ namespace AvaloniaApp.Infrastructure
         /// </summary>
         public List<FrameData> GetCropFrameDatas(FrameData fullframe)
         {
-            var coordinates = _options.GetAllCoordinates();
+            var coordinates = Options.GetAllCoordinates();
             var results = new List<FrameData>(coordinates.Length);
 
             try
@@ -94,8 +88,8 @@ namespace AvaloniaApp.Infrastructure
         {
             if (frames == null || frames.Count == 0) return null;
 
-            int entireW = _options.EntireWidth;
-            int entireH = _options.EntireHeight;
+            int entireW = Options.EntireWidth;
+            int entireH = Options.EntireHeight;
             int dstLen = entireW * entireH;
 
             // [메모리 할당] 전체 크기만큼 Rent
@@ -104,8 +98,7 @@ namespace AvaloniaApp.Infrastructure
 
             try
             {
-                var coords = _options.GetAllCoordinates();
-                int count = Math.Min(frames.Count, coords.Length);
+                int count = Math.Min(frames.Count, Coordinates.Length);
 
                 unsafe
                 {
@@ -114,7 +107,7 @@ namespace AvaloniaApp.Infrastructure
                         for (int i = 0; i < count; i++)
                         {
                             var crop = frames[i];
-                            var rect = coords[i];
+                            var rect = Coordinates[i];
 
                             int x = Math.Max(0, (int)rect.X);
                             int y = Math.Max(0, (int)rect.Y);

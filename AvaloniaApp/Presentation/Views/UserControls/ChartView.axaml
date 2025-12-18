@@ -10,48 +10,7 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.ChartView"
              x:DataType="vm:ChartViewModel">
 
-  <UserControl.Resources>
-    <conv:RegionColorIndexToBrushConverter x:Key="RegionColorBrushConverter" />
-  </UserControl.Resources>
-
   <Grid ColumnDefinitions="auto,*" Margin="8">
-    <!-- 좌측: ROI 체크 리스트 -->
-    <StackPanel Grid.Column="0" Margin="0,0,8,0">
-      <TextBlock Text="Regions"
-                 FontWeight="Bold"
-                 Margin="0,0,0,4" />
-
-            <ListBox Grid.Column="0"
-                 ItemsSource="{Binding RegionItems}"
-                 SelectedItem="{Binding SelectedRegionItem, Mode=TwoWay}">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:RegionCheckItem">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <CheckBox IsChecked="{Binding IsChecked}" />
-                        <Border Width="16" Height="8"
-                                Background="{Binding Region.ColorIndex, Converter={StaticResource RegionColorBrushConverter}}" />
-                        <TextBlock Text="{Binding Mean, StringFormat='Mean={0:F1}'}"
-                                   VerticalAlignment="Center"
-                                   FontSize="11" />
-                        <TextBlock Text="{Binding StdDev, StringFormat='Mean={0:F1}'}"
-                                   VerticalAlignment="Center"
-                                   FontSize="11" />
-                    </StackPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-
-      <StackPanel Orientation="Horizontal"
-                  HorizontalAlignment="Left"
-                  Margin="0,8,0,0"
-                  Spacing="4">
-        <Button Content="Remove Checked"
-                Command="{Binding RemoveCheckedRegionsCommand}" />
-        <Button Content="Clear All"
-                Command="{Binding ClearRegionsCommand}" />
-      </StackPanel>
-    </StackPanel>
-
    <cc:ChartControl Grid.Column="1"
                                x:Name="DemoChart" />
   </Grid>
