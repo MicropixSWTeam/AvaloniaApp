@@ -23,7 +23,7 @@ public sealed class ChartSeries
     public double MarkerRadius { get; init; } = 3;
 
     public bool ShowErrorBars { get; init; } = false;
-    public double ErrorCapHalfWidth { get; init; } = 5;
+    public double ErrorCapHalfWidth { get; init; } = 2;
 }
 
 // 2. 커스텀 컨트롤 정의
