@@ -1,45 +1,123 @@
-﻿using Avalonia.Platform;
-using HarfBuzzSharp;
-using OpenCvSharp;
+﻿using OpenCvSharp;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using VmbNET;
+using System.Runtime.CompilerServices;
+using AvaloniaApp.Core.Models; // Offset
 
 namespace AvaloniaApp.Core.Utils
 {
-    public static class Util
+    public static partial class Util
     {
-        // Avalonia.Rect (double) → OpenCvSharp.Rect (int)
-        public static OpenCvSharp.Rect ToCvRect(Avalonia.Rect rect, int maxWidth, int maxHeight)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ClampInt(int v, int min, int max)
+            => v < min ? min : (v > max ? max : v);
+        /// <summary>
+        /// image 중심을 기준으로, ROI 중심점이 (centerPitchX, centerPitchY) 간격으로
+        /// columns x rows 배치되며, 각 중심점을 기준으로 cropWidth/cropHeight 크기의 Rect 생성.
+        /// Rect는 이미지 밖으로 나가지 않게 Top-Left를 클램프(크기는 유지).
+        /// </summary>
+        public static IReadOnlyList<Rect> CreateCoordinates(
+            int imageWidth, int imageHeight,
+            int cropWidth, int cropHeight,
+            int centerPitchX, int centerPitchY,
+            int columns, int rows)
         {
-            int x = (int)Math.Floor(rect.X);
-            int y = (int)Math.Floor(rect.Y);
-            int w = (int)Math.Ceiling(rect.Width);
-            int h = (int)Math.Ceiling(rect.Height);
+            if (imageWidth <= 0 || imageHeight <= 0) return Array.Empty<Rect>();
+            if (cropWidth <= 0 || cropHeight <= 0) return Array.Empty<Rect>();
+            if (columns <= 0 || rows <= 0) return Array.Empty<Rect>();
+            if (cropWidth > imageWidth || cropHeight > imageHeight) return Array.Empty<Rect>();
+            if (centerPitchX <= 0 || centerPitchY <= 0) return Array.Empty<Rect>();
 
-            // 영상 범위 밖으로 나가지 않도록 클램프
-            if (x < 0) { w += x; x = 0; }
-            if (y < 0) { h += y; y = 0; }
-            if (x + w > maxWidth) w = maxWidth - x;
-            if (y + h > maxHeight) h = maxHeight - y;
-            if (w < 0) w = 0;
-            if (h < 0) h = 0;
+            int imgCx = imageWidth / 2;
+            int imgCy = imageHeight / 2;
 
-            return new OpenCvSharp.Rect(x, y, w, h);
+            // 첫 중심점(좌상단 쪽) = 이미지 중심 - (전체 피치 폭/높이의 절반)
+            int firstCenterX = imgCx - ((columns - 1) * centerPitchX) / 2;
+            int firstCenterY = imgCy - ((rows - 1) * centerPitchY) / 2;
+
+            int halfW = cropWidth / 2;
+            int halfH = cropHeight / 2;
+
+            int maxX = imageWidth - cropWidth;
+            int maxY = imageHeight - cropHeight;
+
+            var result = new Rect[columns * rows];
+            int idx = 0;
+
+            for (int r = 0; r < rows; r++)
+            {
+                int cy = firstCenterY + r * centerPitchY;
+                int y = cy - halfH;
+                if (y < 0) y = 0;
+                else if (y > maxY) y = maxY;
+
+                for (int c = 0; c < columns; c++)
+                {
+                    int cx = firstCenterX + c * centerPitchX;
+                    int x = cx - halfW;
+                    if (x < 0) x = 0;
+                    else if (x > maxX) x = maxX;
+
+                    result[idx++] = new Rect(x, y, cropWidth, cropHeight);
+                }
+            }
+
+            return result;
+        }
+        /// <summary>
+        /// base rects(Over) + offsets(WD별) => 이동된 rects 반환
+        /// - rect.X/Y에 offset.X/Y를 더함
+        /// - 이미지 밖으로 나가면 Top-Left를 클램프(크기는 유지)
+        /// </summary>
+        public static IReadOnlyList<OpenCvSharp.Rect> CalculateOffsetCropRects(
+            IReadOnlyList<Rect> rects,
+            IReadOnlyList<Offset> offsets,
+            int imageWidth,
+            int imageHeight)
+        {
+            if (rects is null) throw new ArgumentNullException(nameof(rects));
+            if (offsets is null) throw new ArgumentNullException(nameof(offsets));
+
+            int n = rects.Count;
+            var result = new OpenCvSharp.Rect[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                var r = rects[i];
+
+                int ox = (i < offsets.Count) ? offsets[i].X : 0;
+                int oy = (i < offsets.Count) ? offsets[i].Y : 0;
+
+                int w = r.Width;
+                int h = r.Height;
+
+                // 이동
+                int x = r.X + ox;
+                int y = r.Y + oy;
+
+                // 클램프: 크기는 유지하고 Top-Left만 이미지 안으로
+                int maxX = imageWidth - w;
+                int maxY = imageHeight - h;
+
+                // crop이 이미지보다 크면 의미 없으니 0크기(또는 예외로 바꿔도 됨)
+                if (maxX < 0 || maxY < 0)
+                {
+                    result[i] = new OpenCvSharp.Rect(0, 0, 0, 0);
+                    continue;
+                }
+
+                x = ClampInt(x, 0, maxX);
+                y = ClampInt(y, 0, maxY);
+
+                result[i] = new OpenCvSharp.Rect(x, y, w, h);
+            }
+
+            return result;
         }
 
-        // OpenCvSharp.Rect → Avalonia.Rect (필요한 경우)
-        public static Avalonia.Rect ToAvaloniaRect(OpenCvSharp.Rect r) => new Avalonia.Rect(r.X, r.Y, r.Width, r.Height);
-        public static OpenCvSharp.Rect ClampRoi(OpenCvSharp.Rect r, int w, int h)
-        {
-            int x1 = Math.Clamp(r.X, 0, w);
-            int y1 = Math.Clamp(r.Y, 0, h);
-            int x2 = Math.Clamp(r.X + r.Width, 0, w);
-            int y2 = Math.Clamp(r.Y + r.Height, 0, h);
-            return new OpenCvSharp.Rect(x1, y1, Math.Max(0, x2 - x1), Math.Max(0, y2 - y1));
-        }
+        // 사용자가 요청한 시그니처(이미지 크기 없이)는 "클램프 불가"라서 제공 비추.
+        // 꼭 원하면 아래처럼 오버로드로 두고, 호출부에서 imageWidth/imageHeight 넘기는 쪽을 사용하세요.
+        public static IReadOnlyList<OpenCvSharp.Rect> CalculateOffsetCropRects(IReadOnlyList<Rect> rects,IReadOnlyList<Offset> offsets)
+            => throw new NotSupportedException("imageWidth/imageHeight가 없으면 이미지 경계 클램프를 할 수 없습니다. 오버로드(이미지 크기 포함)를 사용하세요.");
     }
 }

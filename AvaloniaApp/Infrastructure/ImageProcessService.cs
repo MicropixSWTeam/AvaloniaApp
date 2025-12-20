@@ -14,7 +14,6 @@ namespace AvaloniaApp.Infrastructure
 {
     public class ImageProcessService
     {
-        public Rect[] Coordinates => Options.GetAllCoordinates();
         /// <summary>
         /// [필수] 전체 프레임 복제 (Workspace 보관용)
         /// Model.cs의 CloneFullFrame과 동일한 역할을 하지만 Service 계층에서 명시적으로 관리
@@ -28,9 +27,9 @@ namespace AvaloniaApp.Infrastructure
         /// <summary>
         /// 단일 인덱스에 대한 Crop된 이미지 획득 (스트리밍 미리보기용)
         /// </summary>
-        public FrameData GetCropFrameData(FrameData fullframe, int previewIndex)
+        public FrameData GetCropFrameData(FrameData fullframe, int previewIndex,int wd = 0)
         {
-            var rect = Coordinates[previewIndex];
+            var rect = Options.GetCoordinates(wd)[previewIndex];
 
             // 1. Crop 및 버퍼 Rent
             var cropFrameData = CropFrameData(fullframe, rect);
@@ -51,14 +50,14 @@ namespace AvaloniaApp.Infrastructure
         /// <summary>
         /// 전체 좌표에 대한 Crop 이미지 리스트 획득 (Workspace 갱신용)
         /// </summary>
-        public List<FrameData> GetCropFrameDatas(FrameData fullframe)
+        public List<FrameData> GetCropFrameDatas(FrameData fullframe,int wd = 0)
         {
-            var coordinates = Options.GetAllCoordinates();
-            var results = new List<FrameData>(coordinates.Length);
+            var coordinates = Options.GetCoordinates(wd);
+            var results = new List<FrameData>(coordinates.Count);
 
             try
             {
-                for (int i = 0; i < coordinates.Length; i++)
+                for (int i = 0; i < coordinates.Count; i++)
                 {
                     var rect = coordinates[i];
                     var crop = CropFrameData(fullframe, rect);
@@ -84,7 +83,7 @@ namespace AvaloniaApp.Infrastructure
             }
         }
 
-        public FrameData? GetStitchFrameData(List<FrameData> frames)
+        public FrameData? GetStitchFrameData(List<FrameData> frames,int wd = 0)
         {
             if (frames == null || frames.Count == 0) return null;
 
@@ -92,13 +91,13 @@ namespace AvaloniaApp.Infrastructure
             int entireH = Options.EntireHeight;
             int dstLen = entireW * entireH;
 
-            // [메모리 할당] 전체 크기만큼 Rent
+            var coordinates = Options.GetCoordinates(wd);
             var stitchBuffer = ArrayPool<byte>.Shared.Rent(dstLen);
             Array.Clear(stitchBuffer, 0, dstLen); // 배경 초기화
 
             try
             {
-                int count = Math.Min(frames.Count, Coordinates.Length);
+                int count = Math.Min(frames.Count, coordinates.Count);
 
                 unsafe
                 {
@@ -107,7 +106,7 @@ namespace AvaloniaApp.Infrastructure
                         for (int i = 0; i < count; i++)
                         {
                             var crop = frames[i];
-                            var rect = Coordinates[i];
+                            var rect = coordinates[i];
 
                             int x = Math.Max(0, (int)rect.X);
                             int y = Math.Max(0, (int)rect.Y);

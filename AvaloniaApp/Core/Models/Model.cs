@@ -7,6 +7,20 @@ using System.Threading;
 
 namespace AvaloniaApp.Core.Models
 {
+    public class CameraData
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string SerialNumber { get; set; } = string.Empty;    
+        public string Model { get; set; } = string.Empty;
+        public CameraData(string id,string name, string serialnumber,string model) 
+        { 
+            Id = id;
+            Name = name;
+            SerialNumber = serialnumber;
+            Model = model;
+        }
+    }   
     public sealed class FrameData : IDisposable
     {
         private int _disposed;
@@ -105,16 +119,14 @@ namespace AvaloniaApp.Core.Models
     }
 
     public sealed record IntensityData(byte mean, byte stddev);
-    public class SelectRegionData
+    public class RegionData
     {
         public int Index { get; set; }
-        public Rect ControlRect { get; set; }
         public Rect Rect { get; set; }
         public byte Mean { get; set; }
         public byte StdDev { get; set; }
-        public int ColorIndex { get; set; }
     }
-    public sealed record Offset(int offsetX, int offsetY);
+    public sealed record Offset(int X, int Y);
     
     public sealed class ComboBoxData()
     {

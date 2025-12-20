@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 namespace AvaloniaApp.Infrastructure
 {
     /// <summary>
-    /// [Stateless Utility] 
     /// 이미지 좌표 변환 및 FrameData 통계 계산을 담당하는 순수 도우미
     /// </summary>
     public class ImageHelperService
@@ -18,14 +17,11 @@ namespace AvaloniaApp.Infrastructure
         public Rect ControlRectToImageRect(Rect selectionInControl, Size controlSize, Bitmap bitmap)
         {
             var pixelSize = bitmap.PixelSize;
-            if (controlSize.Width <= 0 || controlSize.Height <= 0 ||
-                pixelSize.Width <= 0 || pixelSize.Height <= 0)
+
+            if (controlSize.Width <= 0 || controlSize.Height <= 0 || pixelSize.Width <= 0 || pixelSize.Height <= 0)
                 return new Rect();
 
-            // Uniform Stretch 비율 계산
-            double scale = Math.Min(
-                controlSize.Width / pixelSize.Width,
-                controlSize.Height / pixelSize.Height);
+            double scale = Math.Min(controlSize.Width / pixelSize.Width, controlSize.Height / pixelSize.Height);
 
             double imgWidth = pixelSize.Width * scale;
             double imgHeight = pixelSize.Height * scale;

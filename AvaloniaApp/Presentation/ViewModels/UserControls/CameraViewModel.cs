@@ -28,14 +28,16 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private CancellationTokenSource? _consumeCts;
         private Task? _consumeTask;
+
         private volatile bool _stopRequested;
+        private volatile bool _drawRequested;
 
         private WriteableBitmap? _previewBitmap;
         private FrameData? _previewFrameData;
 
         public event Action? PreviewInvalidated;
 
-        public ReadOnlyObservableCollection<SelectRegionData> Regions => _regionAnalysisService.Regions;
+        public ReadOnlyObservableCollection<RegionData> Regions => _regionAnalysisService.Regions;
         public int NextAvailableRegionColorIndex => _regionAnalysisService.GetNextAvailableColorIndex();    
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
@@ -43,15 +45,15 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWorkingDistanceComboBoxData());
 
-        [ObservableProperty] private ObservableCollection<CameraInfo> cameras = new();
-        [ObservableProperty] private CameraInfo? selectedCamera;
+        [ObservableProperty] private ObservableCollection<CameraData> cameras = new();
+        [ObservableProperty] private CameraData? selectedCamera;
         [ObservableProperty] private Bitmap? previewBitmap;
         [ObservableProperty] private bool isPreviewing;
         [ObservableProperty] private double previewFps;
         [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
         [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
-        public int CropWidth => Options.CropWidth;
-        public int CropHeight => Options.CropHeight;
+        public int CropWidth => Options.CropWidthSize;
+        public int CropHeight => Options.CropHeightSize;
 
         public CameraViewModel(AppService service) : base(service)
         {
@@ -65,11 +67,11 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
         {
+            var idx = newValue?.NumericValue ?? 7;
+
             if (!IsPreviewing)
             {
-                int value = 7;
-                if (newValue != null) value = newValue.NumericValue;
-                DisplayWorkspaceImage(value);
+                DisplayWorkspaceImage(idx);
             }
         }
         partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
@@ -78,14 +80,14 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         }
 
         [RelayCommand]
-        public void AddRegion(Rect controlRect)
+        public async Task AddRegion(Rect controlRect)
         {
             bool isCaneDraw = _regionAnalysisService.AddRegion(controlRect);
 
             if (!isCaneDraw) return;
         }
         [RelayCommand]
-        public void RemoveRegion(SelectRegionData region)
+        public void RemoveRegion(RegionData region)
         {
             _regionAnalysisService.RemoveRegion(region);
         }
@@ -182,7 +184,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             CancelConsumeLoop();
             _stopRequested = false;
             _consumeCts = new CancellationTokenSource();
-            _consumeTask = ConsumeFramesAsync(_consumeCts.Token);
+            _consumeTask = Task.Run(()=>ConsumeFramesAsync(_consumeCts.Token));
         }
         private void CancelConsumeLoop()
         {
@@ -194,7 +196,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             try
             {
-                while (await reader.WaitToReadAsync(ct))
+                while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
                 {
                     while (reader.TryRead(out var frame))
                     {
@@ -206,6 +208,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         }
                         var oldUiFrame = Interlocked.Exchange(ref _previewFrameData, _imageProcessService.GetCropFrameData(frame, SelectedIndex));
                         oldUiFrame?.Dispose();
+                        //await 로 굳이 할필요없다 이거?
                         frame.Dispose();
                         _throttler.Run(UpdateUI);
                     }

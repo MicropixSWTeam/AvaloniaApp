@@ -20,8 +20,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
     public partial class ChartViewModel : ViewModelBase
     {
-       public ChartViewModel(AppService service):base(service)
+        private readonly RegionAnalysisService _regionAnalysisService;
+        public ChartViewModel(AppService service):base(service)
         {
+
         }
     }
 }

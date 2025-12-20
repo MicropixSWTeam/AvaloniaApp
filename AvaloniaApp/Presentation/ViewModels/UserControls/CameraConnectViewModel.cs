@@ -11,10 +11,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     public partial class CameraConnectViewModel:ViewModelBase,IPopup
     {
         [ObservableProperty]
-        private IReadOnlyList<CameraInfo>? cameras;
+        private IReadOnlyList<CameraData>? cameras;
 
         [ObservableProperty]
-        private CameraInfo? selectedCamera;
+        private CameraData? selectedCamera;
 
         private PopupService _popupService;
 

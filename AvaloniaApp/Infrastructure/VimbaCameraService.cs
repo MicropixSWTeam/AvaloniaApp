@@ -39,7 +39,7 @@ namespace AvaloniaApp.Infrastructure
             });
 
         public ChannelReader<FrameData> Frames => _frames.Reader;
-        public CameraInfo? ConnectedCameraInfo { get; private set; }
+        public CameraData? ConnectedCameraInfo { get; private set; }
         public bool IsStreaming => _acquisition is not null;
         public VimbaCameraService() : this(IVmbSystem.Startup(), ownsSystem: true) { }
 
@@ -94,16 +94,16 @@ namespace AvaloniaApp.Infrastructure
 
             DetachFrameHandler();
         }
-        public Task<IReadOnlyList<CameraInfo>> GetCameraListAsync(CancellationToken ct)
+        public Task<IReadOnlyList<CameraData>> GetCameraListAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             ThrowIfDisposed();
 
             var result = _system.GetCameras()
-                .Select(c => new CameraInfo(c.Id, c.Name, c.Serial, c.ModelName))
+                .Select(c => new CameraData(c.Id, c.Name, c.Serial, c.ModelName))
                 .ToArray();
 
-            return Task.FromResult<IReadOnlyList<CameraInfo>>(result);
+            return Task.FromResult<IReadOnlyList<CameraData>>(result);
         }
 
         /// <summary>
@@ -158,7 +158,7 @@ namespace AvaloniaApp.Infrastructure
 
                         // (C) 카메라 열기 (기존 코드: 인자 없음)
                         _openCamera = camera.Open();
-                        ConnectedCameraInfo = new CameraInfo(camera.Id, camera.Name, camera.Serial, camera.ModelName);
+                        ConnectedCameraInfo = new CameraData(camera.Id, camera.Name, camera.Serial, camera.ModelName);
 
                         // (D) 핸들러 부착 및 스트리밍 시작
                         var gen = Interlocked.Increment(ref _generation);

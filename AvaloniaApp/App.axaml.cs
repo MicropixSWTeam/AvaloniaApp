@@ -24,7 +24,7 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            // ¼­ºñ½º/µµ¸ÞÀÎ
+            // ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             services.AddSingleton<WorkspaceService>();
 
             services.AddSingleton(new BackgroundJobQueue(capacity: 128));
@@ -40,10 +40,8 @@ namespace AvaloniaApp
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
             services.AddSingleton<ImageHelperService>();
-            services.AddSingleton<RegionAnalysisService>();
 
-            services.AddSingleton<RegionAnalysisWorkspace>();
-            services.AddSingleton<ImageAnalysisWorkspace>();
+            services.AddSingleton<RegionAnalysisService>();
 
             services.AddSingleton<CameraViewModel>();
             services.AddSingleton<CameraConnectViewModel>();
@@ -80,19 +78,14 @@ namespace AvaloniaApp
 
         public override void OnFrameworkInitializationCompleted()
         {
-            // Generic Host »ý¼º
             var builder = Host.CreateApplicationBuilder();
-            // ·Î±ë, ¼³Á¤ µî
             builder.Logging.AddDebug();
 
             builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-            // ¼³Á¤ ¹ÙÀÎµù
-            //builder.Services.Configure<Options>(builder.Configuration.GetSection("Options"));
-            // DI µî·Ï
-            builder.Services.AddAppServices(); // Á÷Á¢ ¸¸µç È®Àå ¸Þ¼­µå
+
+            builder.Services.AddAppServices(); 
 
             _host = builder.Build();
-
 
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var vm = _host.Services.GetRequiredService<MainWindowViewModel>();

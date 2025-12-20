@@ -37,7 +37,6 @@
                         IsHitTestVisible="False"/>
 
                     <Rectangle x:Name="DrawingRect"
-                               Stroke="Red"
                                StrokeThickness="1"
                                Fill="Transparent"
                                IsHitTestVisible="False"

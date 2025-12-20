@@ -11,14 +11,12 @@ namespace AvaloniaApp.Infrastructure
 {
     public class RegionAnalysisService
     {
-        private readonly ObservableCollection<SelectRegionData> _regions = new();
-        public ReadOnlyObservableCollection<SelectRegionData> Regions { get; }
-
-        public event EventHandler? Updated;
+        private readonly ObservableCollection<RegionData> _regions = new();
+        public ReadOnlyObservableCollection<RegionData> Regions { get; }
 
         public RegionAnalysisService()
         {
-            Regions = new ReadOnlyObservableCollection<SelectRegionData>(_regions);
+            Regions = new ReadOnlyObservableCollection<RegionData>(_regions);
         }
 
         /// <summary>
@@ -28,7 +26,7 @@ namespace AvaloniaApp.Infrastructure
         {
             if (_regions.Count >= Options.MaxRegionCount) return -1;
 
-            var usedIndices = _regions.Select(r => r.ColorIndex).ToHashSet();
+            var usedIndices = _regions.Select(r => r.Index).ToHashSet();
             for (int i = 0; i < Options.MaxRegionCount; i++)
             {
                 if (!usedIndices.Contains(i)) return i;
@@ -41,32 +39,28 @@ namespace AvaloniaApp.Infrastructure
             int targetIndex = GetNextAvailableColorIndex();
             if (targetIndex == -1) return false;
 
-            var region = new SelectRegionData
+            var region = new RegionData
             {
                 Index = targetIndex,
-                ColorIndex = targetIndex,
-                ControlRect = controlRect,
+                Rect = controlRect,
                 Mean = 0,
                 StdDev = 0
             };
 
             _regions.Add(region);
-            Updated?.Invoke(this, EventArgs.Empty);
             return true;
         }
 
-        public void RemoveRegion(SelectRegionData region)
+        public void RemoveRegion(RegionData region)
         {
             if (_regions.Remove(region))
             {
-                Updated?.Invoke(this, EventArgs.Empty);
             }
         }
 
         public void ClearAll()
         {
             _regions.Clear();
-            Updated?.Invoke(this, EventArgs.Empty);
         }
     }
 }
