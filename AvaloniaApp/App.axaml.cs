@@ -24,7 +24,6 @@ namespace AvaloniaApp
     {
         public static void AddAppServices(this IServiceCollection services)
         {
-            // ����/������
             services.AddSingleton<WorkspaceService>();
 
             services.AddSingleton(new BackgroundJobQueue(capacity: 128));
@@ -40,8 +39,6 @@ namespace AvaloniaApp
             services.AddSingleton<PopupService>();
             services.AddSingleton<StorageService>();
             services.AddSingleton<ImageHelperService>();
-
-            services.AddSingleton<RegionAnalysisService>();
 
             services.AddSingleton<CameraViewModel>();
             services.AddSingleton<CameraConnectViewModel>();

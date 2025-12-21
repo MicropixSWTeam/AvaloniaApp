@@ -16,17 +16,20 @@
     <Grid RowDefinitions="*,Auto" Margin="4">
         <Border Grid.Row="0" Margin="4" Background="Gray">
             <Grid>
-                <!-- 1) Ä«¸Þ¶ó ÀÌ¹ÌÁö -->
                 <Image x:Name="PreviewImage" 
                        MinWidth="{Binding CropWidth}" MaxWidth="{Binding CropHeight}" 
                        MinHeight="{Binding CropWidth}" MaxHeight="{Binding CropHeight}"
                        Source="{Binding PreviewBitmap}"
-                       Stretch="Uniform" />
+                       Stretch="None"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
 
                 <Canvas x:Name="DrawCanvas"
                         Background="Transparent"
                         Width="{Binding CropWidth}"
                         Height="{Binding CropHeight}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
                         IsHitTestVisible="True"
                         PointerPressed="DrawCanvas_PointerPressed"
                         PointerMoved="DrawCanvas_PointerMoved"
@@ -50,7 +53,7 @@
             </Grid>
         </Border>
 
-        <!-- ¾Æ·¡ ¹öÆ°/ÄÁÆ®·Ñ ºÎºÐ -->
+        <!-- ï¿½Æ·ï¿½ ï¿½ï¿½Æ°/ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½Îºï¿½ -->
         <StackPanel Grid.Row="1"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center"
@@ -74,7 +77,8 @@
 
             <ComboBox Width="120"
                       ItemsSource="{Binding WorkingDistances}"
-                      SelectedItem="{Binding SelectedWorkingDistance, Mode=TwoWay}"/>
+                      SelectedItem="{Binding SelectedWorkingDistance, Mode=TwoWay}"
+                      DisplayMemberBinding ="{Binding DisplayText}"/>
         </StackPanel>
     </Grid>
 </UserControl>

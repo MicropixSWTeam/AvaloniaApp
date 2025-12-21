@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:dialogHost="using:DialogHostAvalonia"
              xmlns:presentation="using:AvaloniaApp.Presentation"
              x:Class="AvaloniaApp.App"
@@ -10,24 +11,265 @@
     </Application.DataTemplates>
 
     <Application.Resources>
-        <Color x:Key="AppBackgroundColor">#020617</Color> 
-        <Color x:Key="AppSurfaceColor">#0F172A</Color>      <Color x:Key="AppSurfaceHoverColor">#1E293B</Color> <Color x:Key="AppPrimaryStart">#38BDF8</Color>      <Color x:Key="AppPrimaryEnd">#2563EB</Color>        <Color x:Key="AppBorderColor">#1E293B</Color>       <Color x:Key="AppGlowColor">#4038BDF8</Color>       <Color x:Key="AppTextPrimary">#F1F5F9</Color>       <Color x:Key="AppTextSecondary">#94A3B8</Color>     <Color x:Key="AppTextDisabled">#475569</Color>
+        <GridLength x:Key="AppGapVal">8</GridLength>
+        <Thickness x:Key="AppGap">8</Thickness>
 
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}"/>
-        <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}"/>
+        <Color x:Key="AppBgColor">#20242D</Color>         
+        <Color x:Key="AppCardColor">#303744</Color>       
+        <Color x:Key="AppCardHoverColor">#404A5D</Color>  
+        <Color x:Key="AppBorderColor">#566173</Color>     
+        <Color x:Key="AppPrimaryColor">#88C0D0</Color>
+        <Color x:Key="AppAccentColor">#A3BE8C</Color>
+
+        <!-- RGB 포인트용(톤다운 레드) -->
+        <Color x:Key="AppRgbRedColor">#C96A73</Color>
+
+        <SolidColorBrush x:Key="AppBgBrush" Color="{StaticResource AppBgColor}"/>
+        <SolidColorBrush x:Key="AppCardBrush" Color="{StaticResource AppCardColor}"/>
+        <SolidColorBrush x:Key="AppPrimaryBrush" Color="{StaticResource AppPrimaryColor}"/>
         <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}"/>
-        <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="{StaticResource AppTextPrimary}"/>
-        <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="{StaticResource AppTextSecondary}"/>
-        <SolidColorBrush x:Key="AppTextDisabledBrush" Color="{StaticResource AppTextDisabled}"/>
+        <SolidColorBrush x:Key="AppTextBrush" Color="#ECEFF4"/>
+        <SolidColorBrush x:Key="AppSubTextBrush" Color="#D8DEE9"/>
+        <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}"/>
+        <SolidColorBrush x:Key="AppRgbRedBrush" Color="{StaticResource AppRgbRedColor}"/>
 
-        <LinearGradientBrush x:Key="AppPrimaryGradientBrush" StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Offset="0" Color="{StaticResource AppPrimaryStart}"/>
-            <GradientStop Offset="1" Color="{StaticResource AppPrimaryEnd}"/>
-        </LinearGradientBrush>
-        
-        <LinearGradientBrush x:Key="AppPrimaryHoverGradientBrush" StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Offset="0" Color="#7DD3FC"/> <GradientStop Offset="1" Color="#3B82F6"/> </LinearGradientBrush>
+        <!-- Start -->
+        <DrawingImage x:Key="IconStartImage">
+            <GeometryDrawing Brush="{StaticResource AppTextBrush}" Geometry="M8,5 L19,12 L8,19 Z"/>
+        </DrawingImage>
 
+        <!-- Stop -->
+        <DrawingImage x:Key="IconStopImage">
+            <GeometryDrawing Brush="{StaticResource AppTextBrush}" Geometry="M6,6 H18 V18 H6 Z"/>
+        </DrawingImage>
+
+        <!-- Setting -->
+        <DrawingImage x:Key="IconSettingImage">
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M3,7 H21 M3,13 H21 M3,19 H21">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppSubTextBrush}" Thickness="1.6" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource AppPrimaryBrush}">
+                    <GeometryGroup>
+                        <EllipseGeometry Center="7,7" RadiusX="3" RadiusY="3"/>
+                        <EllipseGeometry Center="17,13" RadiusX="3" RadiusY="3"/>
+                        <EllipseGeometry Center="12,19" RadiusX="3" RadiusY="3"/>
+                    </GeometryGroup>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- Process (Photo + Enhance) -->
+        <DrawingImage x:Key="IconProcessImage">
+            <DrawingGroup>
+                <!-- frame -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <RectangleGeometry Rect="4,5,16,14" RadiusX="2" RadiusY="2"/>
+                </GeometryDrawing>
+
+                <!-- mountains -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <PathGeometry Figures="M6,16 L10,12 L12.6,14.6 L16,10.8 L18,16"/>
+                </GeometryDrawing>
+
+                <!-- sun -->
+                <GeometryDrawing Brush="{StaticResource AppAccentBrush}">
+                    <EllipseGeometry Center="8.2,9.0" RadiusX="1.1" RadiusY="1.1"/>
+                </GeometryDrawing>
+
+                <!-- sparkle -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppPrimaryBrush}" Thickness="1.6" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="18.5,6.2" EndPoint="18.5,9.0"/>
+                            <LineGeometry StartPoint="17.1,7.6" EndPoint="19.9,7.6"/>
+                            <LineGeometry StartPoint="17.4,6.5" EndPoint="19.6,8.7"/>
+                            <LineGeometry StartPoint="19.6,6.5" EndPoint="17.4,8.7"/>
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- Spectrum -->
+        <DrawingImage x:Key="IconSpectrumImage">
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M4,18 L8,11 L12,15 L16,7 L20,10">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineJoin="Round" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M4,4 V20 H20">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppSubTextBrush}" Thickness="1.6" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource AppAccentBrush}">
+                    <GeometryGroup>
+                        <EllipseGeometry Center="4,18" RadiusX="2" RadiusY="2"/>
+                        <EllipseGeometry Center="8,11" RadiusX="2" RadiusY="2"/>
+                        <EllipseGeometry Center="12,15" RadiusX="2" RadiusY="2"/>
+                        <EllipseGeometry Center="16,7" RadiusX="2" RadiusY="2"/>
+                        <EllipseGeometry Center="20,10" RadiusX="2" RadiusY="2"/>
+                    </GeometryGroup>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- Histogram -->
+        <DrawingImage x:Key="IconHistogramImage">
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M4,4 V20 H20">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppSubTextBrush}" Thickness="1.6" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6"/>
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Brush>
+                        <SolidColorBrush Color="#ECEFF4" Opacity="0.20"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="6,12,3,8"/>
+                            <RectangleGeometry Rect="11,8,3,12"/>
+                            <RectangleGeometry Rect="16,14,3,6"/>
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M6,12 H9 M11,8 H14 M16,14 H19">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppAccentBrush}" Thickness="1.6" LineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- RGB (3색 원 + 얕은 채움) -->
+        <DrawingImage x:Key="IconRGBImage">
+            <DrawingGroup>
+                <!-- Red -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <SolidColorBrush Color="{StaticResource AppRgbRedColor}" Opacity="0.22"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppRgbRedBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <EllipseGeometry Center="8.7,13.9" RadiusX="4.2" RadiusY="4.2"/>
+                </GeometryDrawing>
+
+                <!-- Green -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <SolidColorBrush Color="{StaticResource AppAccentColor}" Opacity="0.22"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppAccentBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <EllipseGeometry Center="12,8.4" RadiusX="4.2" RadiusY="4.2"/>
+                </GeometryDrawing>
+
+                <!-- Blue -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <SolidColorBrush Color="{StaticResource AppPrimaryColor}" Opacity="0.22"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppPrimaryBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <EllipseGeometry Center="15.3,13.9" RadiusX="4.2" RadiusY="4.2"/>
+                </GeometryDrawing>
+
+                <!-- center dot -->
+                <GeometryDrawing Brush="{StaticResource AppTextBrush}">
+                    <EllipseGeometry Center="12,12.2" RadiusX="1.0" RadiusY="1.0"/>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- RAW (칩 + 센서 틴트) -->
+        <DrawingImage x:Key="IconRawImage">
+            <DrawingGroup>
+                <!-- outline + pins -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <RectangleGeometry Rect="6,6,12,12" RadiusX="2" RadiusY="2"/>
+
+                            <!-- top pins -->
+                            <LineGeometry StartPoint="9,4.6" EndPoint="9,6"/>
+                            <LineGeometry StartPoint="12,4.6" EndPoint="12,6"/>
+                            <LineGeometry StartPoint="15,4.6" EndPoint="15,6"/>
+
+                            <!-- bottom pins -->
+                            <LineGeometry StartPoint="9,18" EndPoint="9,19.4"/>
+                            <LineGeometry StartPoint="12,18" EndPoint="12,19.4"/>
+                            <LineGeometry StartPoint="15,18" EndPoint="15,19.4"/>
+
+                            <!-- left pins -->
+                            <LineGeometry StartPoint="4.6,9" EndPoint="6,9"/>
+                            <LineGeometry StartPoint="4.6,12" EndPoint="6,12"/>
+                            <LineGeometry StartPoint="4.6,15" EndPoint="6,15"/>
+
+                            <!-- right pins -->
+                            <LineGeometry StartPoint="18,9" EndPoint="19.4,9"/>
+                            <LineGeometry StartPoint="18,12" EndPoint="19.4,12"/>
+                            <LineGeometry StartPoint="18,15" EndPoint="19.4,15"/>
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+
+                <!-- inner sensor window (tint) -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <SolidColorBrush Color="{StaticResource AppPrimaryColor}" Opacity="0.18"/>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppPrimaryBrush}" Thickness="1.4" LineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                    <RectangleGeometry Rect="9,9,6,6" RadiusX="1" RadiusY="1"/>
+                </GeometryDrawing>
+
+                <!-- small accent dots -->
+                <GeometryDrawing Brush="{StaticResource AppAccentBrush}">
+                    <GeometryGroup>
+                        <EllipseGeometry Center="11,11" RadiusX="0.85" RadiusY="0.85"/>
+                        <EllipseGeometry Center="13,13" RadiusX="0.85" RadiusY="0.85"/>
+                    </GeometryGroup>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage>
+
+        <!-- Save -->
+        <DrawingImage x:Key="IconSaveImage">
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M5,3 H19 L21,5 V21 H5 V3 Z M17,3 V8 H7 V3 M6,21 V13 H18 V21">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource AppPrimaryBrush}" Geometry="M8,15 H16 V19 H8 Z"/>
+            </DrawingGroup>
+        </DrawingImage>
     </Application.Resources>
 
     <Application.Styles>
@@ -35,92 +277,85 @@
         <dialogHost:DialogHostStyles />
 
         <Style Selector="Window">
-            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
-            <Setter Property="FontFamily" Value="Pretendard, Segoe UI, Apple SD Gothic Neo, Malgun Gothic, sans-serif"/>
+            <Setter Property="Background" Value="{DynamicResource AppBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI, Pretendard, Apple SD Gothic Neo, sans-serif"/>
             <Setter Property="FontSize" Value="14"/>
         </Style>
 
-        <Style Selector="Button.Primary">
-            <Setter Property="Background" Value="{DynamicResource AppPrimaryGradientBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="CornerRadius" Value="10"/> <Setter Property="Padding" Value="24,12"/>   <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
-                </Transitions>
-            </Setter>
-        </Style>
-
-        <Style Selector="Button.Primary:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AppPrimaryHoverGradientBrush}"/>
-            <Setter Property="RenderTransform" Value="translateY(-1px)"/> </Style>
-        <Style Selector="Button.Primary:pointerover /template/ ContentPresenter">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-
-        <Style Selector="Button.Primary:pressed">
-            <Setter Property="RenderTransform" Value="scale(0.98) translateY(0px)"/>
-        </Style>
-
-
-        <Style Selector="Border.Card">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+        <Style Selector="Border.PanelStyle">
+            <Setter Property="Background" Value="{DynamicResource AppCardBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="24"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
-            <Setter Property="BoxShadow" Value="0 4 6 -1 #33000000"/> 
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+            <Setter Property="BoxShadow" Value="0 4 6 0 #20000000"/>
             <Setter Property="Transitions">
                 <Transitions>
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
-                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
                 </Transitions>
             </Setter>
         </Style>
-        
-        <Style Selector="Border.Card:pointerover">
-            <Setter Property="BorderBrush" Value="#334155"/> <Setter Property="Background" Value="{DynamicResource AppSurfaceHoverColor}"/>
-        </Style>
 
-
-        <Style Selector="TextBox">
+        <Style Selector="Button.ToolButton">
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Height" Value="80"/>
             <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppSubTextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="Background" Value="#020617"/> <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
-            <Setter Property="SelectionBrush" Value="{DynamicResource AppPrimaryStart}"/>
-            <Setter Property="SelectionForegroundBrush" Value="Black"/>
-            <Setter Property="CaretBrush" Value="{DynamicResource AppPrimaryStart}"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-        
-        <Style Selector="TextBox:empty /template/ TextBlock#PART_Watermark">
-            <Setter Property="Foreground" Value="{DynamicResource AppTextDisabledBrush}"/>
+            <Setter Property="FocusAdorner" Value="{x:Null}"/>
         </Style>
 
-        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
-            <Setter Property="BorderBrush" Value="{DynamicResource AppPrimaryStart}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BoxShadow" Value="0 0 0 2 #2238BDF8"/> </Style>
-        
-        <Style Selector="TextBlock.H1">
-            <Setter Property="FontSize" Value="24"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+        <!-- hover: 살짝 더 밝게 + 얇은 primary 테두리 -->
+        <Style Selector="Button.ToolButton:pointerover /template/ ContentPresenter">
+          <Setter Property="Background" Value="{DynamicResource AppCardHoverColor}"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource AppPrimaryBrush}"/>
+          <Setter Property="BorderThickness" Value="1"/>
+          <Setter Property="BoxShadow" Value="0 0 0 1 #40FFFFFF inset"/>
         </Style>
-        <Style Selector="TextBlock.Caption">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}"/>
+        <Style Selector="Button.ToolButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppCardHoverColor}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
+        <!-- pressed: 테두리 조금 더 또렷 -->
+        <Style Selector="Button.ToolButton:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppCardHoverColor}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                        <Rectangle Name="GhostBar" Fill="{DynamicResource AppPrimaryBrush}" Opacity="0"
+                                   Width="4" VerticalAlignment="Stretch" HorizontalAlignment="Center" RadiusX="2" RadiusY="2"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="GridSplitter[ResizeDirection=Rows] /template/ Border > Rectangle#GhostBar">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="Height" Value="4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Fill" Value="Gray"/>
+        </Style>
+        <Style Selector="GridSplitter:pointerover /template/ Rectangle#GhostBar">
+            <Setter Property="Opacity" Value="0.6"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+            <Setter Property="Fill" Value="Gray"/>
+        </Style>
     </Application.Styles>
 </Application>

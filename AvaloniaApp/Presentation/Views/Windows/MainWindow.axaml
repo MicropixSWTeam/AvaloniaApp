@@ -4,39 +4,148 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:dialogHost="using:DialogHostAvalonia"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="AvaloniaApp.Presentation.Views.Windows.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="CameraApp"
+        Title="Camera Dashboard"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
-        <dialogHost:DialogHost Identifier="RootDialogHost"
-                           CloseOnClickAway="True">
 
-        <!-- 다이얼로그용 영역 -->
+    <dialogHost:DialogHost Identifier="RootDialogHost"
+                           CloseOnClickAway="True"
+                           DialogMargin="{StaticResource AppGap}"
+                           OverlayBackground="#99000000">
+
         <dialogHost:DialogHost.DialogContent>
-            <!-- DataTemplate로 ViewModel → View를 매핑할 것이므로 그냥 ContentControl -->
             <ContentControl />
         </dialogHost:DialogHost.DialogContent>
 
-        <!-- 실제 메인 화면 -->
-        <DockPanel HorizontalAlignment="Left" VerticalAlignment="Top">
-			<StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="0">
-                <Button Content="Start" Command="{Binding StartCameraAsync}" BorderThickness="0" CornerRadius="0"/>
-                <Button Content="Stop" Command="{Binding StopCameraAsync}" BorderThickness="0" CornerRadius="0"/>
-                <Button Content="CameraSetting" Command="{Binding OpenCameraSettingViewAsync}" BorderThickness="0" CornerRadius="0"/>
-                <Button Content="Camera" Command="{Binding OpenCameraViewAsync}" BorderThickness="0" CornerRadius="0"/>
-                <Button Content="SpectrumChart" Command="{Binding OpenChartViewAsync}" BorderThickness="0" CornerRadius="0"/>
-            </StackPanel>
-        </DockPanel>
+        <Grid Margin="{StaticResource AppGap}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="{StaticResource AppGapVal}"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
+            <Border Grid.Row="0" Classes="PanelStyle" Padding="10">
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+
+                        <Button Classes="ToolButton" Command="{Binding StartCameraAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconStartImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Start" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding StopCameraAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconStopImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Stop" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenCameraSettingViewAsync}" Margin="10,0,0,0">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconSettingImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Setting" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenCameraSettingViewAsync}" Margin="10,0,0,0">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconProcessImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Process" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconSpectrumImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Spectrum" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconHistogramImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Histogram" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconRGBImage}" Width="24" Height="24"/>
+                                <TextBlock Text="RGB" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconRawImage}" Width="24" Height="24"/>
+                                <TextBlock Text="RAW" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconSaveImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Save" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="{StaticResource AppGapVal}"/>
+                    <ColumnDefinition Width="8*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Classes="PanelStyle">
+                    <ContentControl Content="{Binding SidebarContent}"/>
+                </Border>
+
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
+
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="{StaticResource AppGapVal}"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="{StaticResource AppGapVal}"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Row="0" Grid.Column="0" Classes="PanelStyle">
+                        <ContentControl Content="{Binding TopLeftContent}"/>
+                    </Border>
+                    <Border Grid.Row="0" Grid.Column="2" Classes="PanelStyle">
+                        <ContentControl Content="{Binding TopRightContent}"/>
+                    </Border>
+                    <Border Grid.Row="2" Grid.Column="0" Classes="PanelStyle">
+                        <ContentControl Content="{Binding BottomLeftContent}"/>
+                    </Border>
+                    <Border Grid.Row="2" Grid.Column="2" Classes="PanelStyle">
+                        <ContentControl Content="{Binding BottomRightContent}"/>
+                    </Border>
+
+                    <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="3" ResizeDirection="Columns" Background="Transparent"/>
+                    <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" ResizeDirection="Rows" Background="Transparent"/>
+
+                </Grid>
+            </Grid>
+        </Grid>
     </dialogHost:DialogHost>
-
 </Window>

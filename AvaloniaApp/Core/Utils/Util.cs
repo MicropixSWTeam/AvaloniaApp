@@ -119,5 +119,6 @@ namespace AvaloniaApp.Core.Utils
         // 꼭 원하면 아래처럼 오버로드로 두고, 호출부에서 imageWidth/imageHeight 넘기는 쪽을 사용하세요.
         public static IReadOnlyList<OpenCvSharp.Rect> CalculateOffsetCropRects(IReadOnlyList<Rect> rects,IReadOnlyList<Offset> offsets)
             => throw new NotSupportedException("imageWidth/imageHeight가 없으면 이미지 경계 클램프를 할 수 없습니다. 오버로드(이미지 크기 포함)를 사용하세요.");
+        
     }
 }

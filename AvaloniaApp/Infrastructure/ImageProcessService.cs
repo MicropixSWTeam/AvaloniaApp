@@ -12,7 +12,7 @@ using Rect = OpenCvSharp.Rect;
 
 namespace AvaloniaApp.Infrastructure
 {
-    public class ImageProcessService
+    public partial class ImageProcessService
     {
         /// <summary>
         /// [필수] 전체 프레임 복제 (Workspace 보관용)
@@ -82,7 +82,6 @@ namespace AvaloniaApp.Infrastructure
                 throw;
             }
         }
-
         public FrameData? GetStitchFrameData(List<FrameData> frames,int wd = 0)
         {
             if (frames == null || frames.Count == 0) return null;
@@ -137,7 +136,6 @@ namespace AvaloniaApp.Infrastructure
                 throw;
             }
         }
-
         /// <summary>
         /// WriteableBitmap으로 데이터 복사 (UI 렌더링용)
         /// </summary>
@@ -177,14 +175,12 @@ namespace AvaloniaApp.Infrastructure
                 }
             }
         }
-
         private unsafe void BaseProcess(FrameData frame)
         {
             // OpenCV 처리가 필요하면 여기서 수행 (In-place)
             using var mat = Mat.FromPixelData(frame.Height, frame.Width, MatType.CV_8UC1, frame.Bytes, frame.Stride);
             // 예: Cv2.Normalize(mat, mat, ...);
         }
-
         private unsafe FrameData CropFrameData(FrameData src, Rect roi)
         {
             // Model.cs의 CloneCropFrame이 이미 최적화되어 있으므로 활용

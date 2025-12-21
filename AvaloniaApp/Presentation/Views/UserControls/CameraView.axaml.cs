@@ -148,5 +148,9 @@ public partial class CameraView : UserControl
     private static Point Clamp(Point p, Rect r)
         => new(Math.Clamp(p.X, 0, r.Width), Math.Clamp(p.Y, 0, r.Height));
 
+    private void PreviewImage_ActualThemeVariantChanged(object? sender, EventArgs e)
+    {
+    }
+
     #endregion
 }

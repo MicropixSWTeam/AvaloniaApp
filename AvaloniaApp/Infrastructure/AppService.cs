@@ -22,7 +22,6 @@ namespace AvaloniaApp.Infrastructure
         public StorageService Storage{ get; }
         public PopupService Popup{ get; }
         public WorkspaceService WorkSpace { get;}
-        public RegionAnalysisService RegionAnalysis{ get;}
         public AppService(
             UiService ui,
             OperationRunner operationrunner,
@@ -31,8 +30,7 @@ namespace AvaloniaApp.Infrastructure
             ImageHelperService imagehelper,
             StorageService storage,
             PopupService popup,
-            WorkspaceService workspace,
-            RegionAnalysisService regionanalysis) 
+            WorkspaceService workspace) 
         { 
             Ui = ui ?? throw new ArgumentNullException(nameof(ui));
             OperationRunner = operationrunner ?? throw new ArgumentNullException( nameof(operationrunner));
@@ -42,7 +40,6 @@ namespace AvaloniaApp.Infrastructure
             Storage = storage ?? throw new ArgumentNullException(nameof(storage));
             Popup = popup ?? throw new ArgumentNullException(nameof(popup));
             WorkSpace = workspace ?? throw new ArgumentNullException(nameof(workspace));
-            RegionAnalysis = regionanalysis ?? throw new ArgumentNullException(nameof(regionanalysis)); 
         }
     }
 }

@@ -27,22 +27,18 @@ namespace AvaloniaApp.Configuration
         public static double MaxGamma { get; } = 2.8;
         public static int EntireWidth { get; } = 5328;
         public static int EntireHeight { get; } = 3040;
-
-        // [수정됨] 사용자 제공 값 반영
         public static int GridWidthSize { get; } = 708;
         public static int GridHeightSize { get; } = 704;
-        public static int GridWidthGap { get; } = 1064;  // Pitch (Stride)
-        public static int GridHeightGap { get; } = 1012; // Pitch (Stride)
-
+        public static int GridWidthGap { get; } = 1064;  
+        public static int GridHeightGap { get; } = 1012; 
         public static int CropRowCount { get; } = 3;
         public static int CropColumnCount { get; } = 5;
         public static int CropTotalCount { get; } = 15;
-
         public static int CropWidthSize { get; } = 548;
-        public static int CropHeightSize { get; } = 544; // 값 변경 반영 (548 -> 544)
-
+        public static int CropHeightSize { get; } = 544; 
         public static int MaxRegionCount { get; } = 6;
-
+        public static int DefaultWavelengthIndex{get;} = 7;
+        public static int DefaultWorkingDistance{get;} = 0;
         // 2. 고정 팔레트: 차트 시리즈 색상과 반드시 일치시켜야 함
         private static readonly IReadOnlyList<IBrush> _drawBrushes = new List<IBrush>
         {
@@ -67,7 +63,13 @@ namespace AvaloniaApp.Configuration
             { 690, 10 },{ 670, 11 },{ 650, 12 }, { 630, 13 }, { 610, 14 }
         };
         public static IReadOnlyDictionary<int, int> GetWavelengthIndexMap() => _wavelengthIndexMap;
-
+        public static IReadOnlyList<int> GetWavelengthList()
+        {
+            return _wavelengthIndexMap
+                .OrderBy(kv => kv.Key)
+                .Select(kv => kv.Key)
+                .ToArray(); // 또는 .ToList()
+        }
         private static readonly ComboBoxData[] _wavelengthIndexComboBoxData
             = _wavelengthIndexMap.
             OrderBy(kvp => kvp.Key).

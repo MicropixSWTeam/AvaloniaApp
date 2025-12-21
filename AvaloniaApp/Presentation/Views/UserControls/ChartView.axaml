@@ -12,6 +12,7 @@
 
   <Grid ColumnDefinitions="auto,*" Margin="8">
    <cc:ChartControl Grid.Column="1"
-                               x:Name="DemoChart" />
+                               x:Name="Chart"
+                               Series="{Binding SeriesCollection}"/>
   </Grid>
 </UserControl>

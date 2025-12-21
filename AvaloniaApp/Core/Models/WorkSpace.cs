@@ -10,15 +10,13 @@ namespace AvaloniaApp.Core.Models
     public class Workspace : IDisposable
     {
         private readonly ObservableCollection<RegionData> _regionDatas = new();
+        private IReadOnlyDictionary<int, IntensityData[]> _intensityDataMap = new Dictionary<int, IntensityData[]>();
+        public ReadOnlyObservableCollection<RegionData> RegionDatas => new(_regionDatas);
+        public IReadOnlyDictionary<int, IntensityData[]> IntensityDataMap => _intensityDataMap;
         public FrameData? EntireFrameData { get; private set; }
-        public List<FrameData> CropFrameDatas { get; private set; } = new();
-        public FrameData? StitchFrameData { get; private set; }
-        public ReadOnlyObservableCollection<RegionData> RegionDatas { get; }
+        public FrameData? ColorFrameData { get;private set; }
         public int WorkingDistance { get; private set; } = 0;
-        public Workspace()
-        {
-            RegionDatas = new ReadOnlyObservableCollection<RegionData>(_regionDatas);
-        }
+
         public int GetNextAvailableIndex()
         {
             if (_regionDatas.Count >= Options.MaxRegionCount) return -1;
@@ -30,55 +28,45 @@ namespace AvaloniaApp.Core.Models
             }
             return -1;
         }   
-        public bool AddRegionData(Rect rect)
+        public void AddRegionData(Rect rect)
         {
             int targetIndex = GetNextAvailableIndex();
-            if (targetIndex == -1) return false;
+            if (targetIndex == -1) return;
 
             var region = new RegionData
             {
                 Index = targetIndex,
-                Rect = rect,
-                Mean = 0,
-                StdDev = 0
+                Rect = rect
             };
 
             _regionDatas.Add(region);
-            return true;
+        }
+        public void UpdateIntensityDataMap(IReadOnlyDictionary<int, IntensityData[]> map)
+        {
+            _intensityDataMap = map;
         }
         public void RemoveRegionData(RegionData region)
         {
             _regionDatas.Remove(region);
         }
         public void ClearRegionDatas() => _regionDatas.Clear();
-        
         public void SetEntireFrameData(FrameData? frame)
         {
             EntireFrameData?.Dispose();
             EntireFrameData = frame;
         }
-        public void SetCropFrameDatas(IEnumerable<FrameData> frames)
+        public void SetColorFrameData(FrameData? frame)
         {
-            ClearCropFrames();
-            CropFrameDatas.AddRange(frames);
+            ColorFrameData?.Dispose();
+            ColorFrameData = frame;
         }
-        public void SetStitchFrameData(FrameData? frame)
+        public void SetWorkingDistance(int wd)
         {
-            StitchFrameData?.Dispose();
-            StitchFrameData = frame;
-        }
-        public void ClearCropFrames()
-        {
-            foreach (var frame in CropFrameDatas)
-                frame.Dispose();
-            
-            CropFrameDatas.Clear();
+            WorkingDistance = wd;
         }
         public void Dispose()
         {
             SetEntireFrameData(null);
-            ClearCropFrames();
-            SetStitchFrameData(null);
             GC.SuppressFinalize(this);
         }
     }

@@ -2,6 +2,7 @@
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Threading.Tasks;
 
@@ -12,10 +13,14 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly CameraViewModel _cameraViewModel;
         private readonly ChartViewModel _chartViewModel;
         private readonly CameraSettingViewModel _cameraSettingViewModel;
-
+        
+        [ObservableProperty] private ViewModelBase _sidebarContent;
+        [ObservableProperty] private ViewModelBase _topLeftContent;
+        [ObservableProperty] private ViewModelBase _topRightContent;
+        [ObservableProperty] private ViewModelBase _bottomLeftContent;
+        [ObservableProperty] private ViewModelBase _bottomRightContent;
         public MainWindowViewModel(
             AppService service,
-            CameraConnectViewModel cameraConnectViewModel,
             CameraViewModel cameraViewModel, 
             ChartViewModel chartViewModel,
             CameraSettingViewModel cameraSettingViewModel):base(service)
@@ -23,6 +28,12 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             _cameraViewModel = cameraViewModel;
             _chartViewModel = chartViewModel;
             _cameraSettingViewModel = cameraSettingViewModel;
+            
+            _sidebarContent = _cameraSettingViewModel;
+            _topLeftContent = _cameraViewModel;
+            _topRightContent = _chartViewModel;
+            _bottomLeftContent = _cameraViewModel;
+            _bottomRightContent = _chartViewModel;
         }
         [RelayCommand]
         public async Task StartCameraAsync()

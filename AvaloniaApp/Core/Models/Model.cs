@@ -117,17 +117,13 @@ namespace AvaloniaApp.Core.Models
             _return?.Invoke(Bytes);
         }
     }
-
-    public sealed record IntensityData(byte mean, byte stddev);
+    public sealed record IntensityData(int wavelength ,byte mean, byte stddev);
     public class RegionData
     {
         public int Index { get; set; }
         public Rect Rect { get; set; }
-        public byte Mean { get; set; }
-        public byte StdDev { get; set; }
-    }
+    }  
     public sealed record Offset(int X, int Y);
-    
     public sealed class ComboBoxData()
     {
         public string DisplayText { get; set; } = string.Empty;
