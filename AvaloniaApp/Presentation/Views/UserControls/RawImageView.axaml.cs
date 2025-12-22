@@ -6,7 +6,7 @@ using AvaloniaApp.Configuration;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaEdit.Utils;
 using System;
-using System.Linq; // Enumerable.Reverse 사용을 위해 추가
+using System.Linq;
 
 namespace AvaloniaApp.Presentation.Views.UserControls;
 
@@ -14,6 +14,9 @@ public partial class RawImageView : UserControl
 {
     private bool _isDragging;
     private Point _startPoint;
+
+    // 점 자체를 클릭할 때의 여유 범위 (10px)
+    private const double HitTolerance = 10.0;
 
     private RawImageViewModel? ViewModel => DataContext as RawImageViewModel;
     public RawImageView()
@@ -33,7 +36,6 @@ public partial class RawImageView : UserControl
         if (ViewModel != null)
             ViewModel.CameraVM.PreviewInvalidated -= InvalidatePreviewImage;
 
-        // 이벤트 해제 (메모리 누수 방지)
         DrawCanvas.PointerCaptureLost -= DrawCanvas_PointerCaptureLost;
     }
     private void InvalidatePreviewImage() => PreviewImage?.InvalidateVisual();
@@ -44,7 +46,7 @@ public partial class RawImageView : UserControl
         if (ViewModel == null) return;
         var point = e.GetCurrentPoint(DrawCanvas);
 
-        // [추가됨] 우클릭 시 해당 위치의 영역 삭제 로직
+        // [우클릭 삭제 로직: 점 자체 OR 숫자 라벨 클릭 감지]
         if (point.Properties.IsRightButtonPressed)
         {
             var pos = point.Position;
@@ -52,35 +54,39 @@ public partial class RawImageView : UserControl
 
             if (regions != null)
             {
-                // 나중에 추가된 영역이 화면상 위쪽에 그려지므로, 역순으로 검색하여 
-                // 클릭한 위치에 있는 가장 위의 영역을 찾습니다.
-                var target = regions.Reverse().FirstOrDefault(r => r.Rect.Contains(pos));
+                // 화면상 위에 있는(나중에 그려진) 요소부터 검사
+                var target = regions.Reverse().FirstOrDefault(r =>
+                {
+                    // 1. 점(Rect) 자체 클릭 (주변 10px 여유 허용)
+                    bool hitSpot = r.Rect.Inflate(HitTolerance).Contains(pos);
+
+                    // 2. 숫자 라벨(Text) 클릭 감지
+                    //    DrawRectControl 기준 (X, Y - 18) 위치 고려
+                    //    (위치: 점 위쪽 Y-25 ~ Y, 너비: 숫자 고려 30px)
+                    var labelRect = new Rect(r.Rect.X, r.Rect.Y - 25, 30, 25);
+                    bool hitLabel = labelRect.Contains(pos);
+
+                    return hitSpot || hitLabel;
+                });
 
                 if (target != null)
                 {
                     ViewModel.CameraVM.RemoveRegionCommand.Execute(target);
-                    e.Handled = true; // 이벤트 처리 완료
+                    e.Handled = true;
                 }
             }
             return;
         }
 
-        // --- 이하 기존 왼쪽 클릭(그리기) 로직 ---
+        // --- 좌클릭(그리기) 로직 ---
 
-        // 1. 개수 제한 체크: 이미 6개면 드래그 시작도 안 함
-        if (ViewModel.CameraVM.NextAvailableRegionColorIndex == -1)
-        {
-            // 시각적 피드백이 필요하다면 여기서 알림 처리 가능
-            return;
-        }
-
+        if (ViewModel.CameraVM.NextAvailableRegionColorIndex == -1) return;
         if (!point.Properties.IsLeftButtonPressed) return;
 
         var position = point.Position;
         var canvasRect = new Rect(DrawCanvas.Bounds.Size);
         if (!canvasRect.Contains(position)) return;
 
-        // 2. 색상 결정: 다음에 그려질 실제 색상을 DrawingRect에 적용
         int nextIndex = ViewModel.CameraVM.NextAvailableRegionColorIndex;
         DrawingRect.Stroke = Options.GetBrushByIndex(nextIndex);
 
@@ -88,6 +94,7 @@ public partial class RawImageView : UserControl
         DrawCanvas.CapturePointer(e.Pointer);
         e.Handled = true;
     }
+
     private void DrawCanvas_PointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_isDragging) return;

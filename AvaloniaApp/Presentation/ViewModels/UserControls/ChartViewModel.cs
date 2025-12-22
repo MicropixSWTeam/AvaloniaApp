@@ -34,57 +34,69 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             var ws = _service.WorkSpace.Current;
             if (ws == null) return;
 
-            if (ws.IntensityDataMap == null || ws.IntensityDataMap.Count == 0)
+            // null이면 빈 딕셔너리로 취급 (삭제 시 대비)
+            var map = ws.IntensityDataMap ?? new Dictionary<int, IntensityData[]>();
+
+            _service.Ui.InvokeAsync(() => SyncSeries(map));
+        }
+
+        // [최종 로직] ID 기반 Sync & TryParse 안전장치
+        private void SyncSeries(IReadOnlyDictionary<int, IntensityData[]> map)
+        {
+            // 1. [삭제] 맵에 없는 ID를 가진 시리즈 제거
+            var itemsToRemove = new List<ChartSeries>();
+            foreach (var series in SeriesCollection)
             {
-                if (SeriesCollection.Count > 0)
-                    _service.Ui.InvokeAsync(() => SeriesCollection.Clear());
-                return;
+                // ID가 "0", "1" 같은 정수 형태가 아니거나, 맵에 키가 없으면 삭제 대상
+                if (!int.TryParse(series.Id, out int id) || !map.ContainsKey(id))
+                {
+                    itemsToRemove.Add(series);
+                }
+            }
+            foreach (var item in itemsToRemove)
+            {
+                SeriesCollection.Remove(item);
             }
 
-            _service.Ui.InvokeAsync(() =>
+            // 2. [추가 및 업데이트]
+            foreach (var kvp in map)
             {
-                if (SeriesCollection.Count != ws.IntensityDataMap.Count)
-                    RebuildAllSeries(ws.IntensityDataMap);
+                int index = kvp.Key;
+                var dataList = kvp.Value;
+                string seriesId = index.ToString();
+
+                var chartPoints = dataList
+                    .Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev))
+                    .ToArray();
+
+                var existingSeries = SeriesCollection.FirstOrDefault(s => s.Id == seriesId);
+
+                if (existingSeries == null)
+                {
+                    // 신규 추가
+                    var newSeries = new ChartSeries
+                    {
+                        Id = seriesId,
+                        DisplayName = $"Region {index + 1}",
+                        Points = chartPoints,
+                        LinePen = new Pen(Options.GetBrushByIndex(index), 1),
+                        MarkerFill = Options.GetBrushByIndex(index),
+                        MarkerRadius = 2.5,
+                        ShowErrorBars = true
+                    };
+                    SeriesCollection.Add(newSeries);
+                }
                 else
-                    UpdateExistingSeries(ws.IntensityDataMap);
-            });
-        }
-
-        private void RebuildAllSeries(IReadOnlyDictionary<int, IntensityData[]> map)
-        {
-            SeriesCollection.Clear();
-            foreach (var kvp in map.OrderBy(k => k.Key))
-            {
-                SeriesCollection.Add(CreateSeries(kvp.Key, kvp.Value));
+                {
+                    // 기존 데이터 업데이트
+                    existingSeries.Points = chartPoints;
+                }
             }
-        }
-
-        private void UpdateExistingSeries(IReadOnlyDictionary<int, IntensityData[]> map)
-        {
-            int i = 0;
-            foreach (var kvp in map.OrderBy(k => k.Key))
-            {
-                if (i >= SeriesCollection.Count) break;
-                SeriesCollection[i].Points = kvp.Value.Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev)).ToList();
-                i++;
-            }
-        }
-
-        private ChartSeries CreateSeries(int regionIndex, IntensityData[] intensities)
-        {
-            return new ChartSeries
-            {
-                Id = regionIndex.ToString(),
-                DisplayName = $"Region {regionIndex + 1}",
-                Points = intensities.Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev)).ToList(),
-                LinePen = new Pen(Options.GetBrushByIndex(regionIndex), 1),
-                MarkerFill = Options.GetBrushByIndex(regionIndex),
-                ShowErrorBars = true
-            };
         }
 
         public override async ValueTask DisposeAsync()
         {
+
             _workspaceService.Updated -= OnAnalysisCompleted;
             await base.DisposeAsync();
         }

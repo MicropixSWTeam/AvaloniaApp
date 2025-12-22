@@ -134,7 +134,7 @@ namespace AvaloniaApp.Infrastructure
                     ConnectedCameraInfo = null;
                 }
 
-                const int MaxRetries = 3;
+                const int MaxRetries = 100;
                 for (int attempt = 1; attempt <= MaxRetries; attempt++)
                 {
                     try

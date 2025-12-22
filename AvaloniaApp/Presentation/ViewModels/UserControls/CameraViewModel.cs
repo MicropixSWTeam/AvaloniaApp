@@ -16,7 +16,6 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-
     public partial class CameraViewModel : ViewModelBase
     {
         private readonly VimbaCameraService _cameraService;
@@ -28,20 +27,21 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private Task? _consumeTask;
         private volatile bool _stopRequested;
 
-        // 분석 상태 플래그 (0: Idle, 1: Busy) - Interlocked용
         private int _isAnalyzing = 0;
 
         private WriteableBitmap? _previewBitmap;
-        private FrameData? _previewFrameData; // UI 공유용
+        private FrameData? _previewFrameData;
 
         private WriteableBitmap? _rgbBitmap;
         private FrameData? _rgbFrameData;
 
         public event Action? PreviewInvalidated;
         public event Action? RgbPreviewInvalidated;
+
         public ReadOnlyObservableCollection<RegionData>? Regions => _workspaceService.Current?.RegionDatas;
         public int NextAvailableRegionColorIndex => _workspaceService.Current?.GetNextAvailableIndex() ?? -1;
         public bool IsChartTooltipEnabled => !IsPreviewing;
+
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
@@ -77,6 +77,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
         partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
         partial void OnIsPreviewingChanged(bool value) { OnPropertyChanged(nameof(IsChartTooltipEnabled)); }
+
         private void UpdateDisplayIfStopped()
         {
             if (!IsPreviewing)
@@ -87,19 +88,15 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public async Task AddRegion(Rect rect)
         {
             _workspaceService.Update(ws => ws.AddRegionData(rect));
-            // 정지 상태라면 수동으로 분석 실행
             if (!IsPreviewing) await CalculateIntensityDatasAsync();
         }
 
-        // [추가됨] 영역 삭제 커맨드
         [RelayCommand]
         public async Task RemoveRegion(RegionData region)
         {
             if (region == null) return;
-
             _workspaceService.Update(ws => ws.RemoveRegionData(region));
-
-            // 삭제 후 분석 데이터 갱신 (정지 상태일 때 차트 업데이트)
+            // 정지 상태여도 삭제 반영을 위해 분석 실행
             if (!IsPreviewing) await CalculateIntensityDatasAsync();
         }
 
@@ -121,12 +118,44 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [RelayCommand]
         private async Task StartPreviewAsync()
         {
-            if (Cameras.Count == 0) await RefreshCamerasAsync();
-            if (SelectedCamera is null || IsPreviewing) return;
+            if (IsPreviewing) return;
+
+            if (Cameras.Count == 0 || SelectedCamera == null)
+            {
+                await RefreshCamerasAsync();
+                if (SelectedCamera == null) return;
+            }
 
             await RunOperationAsync("PreviewStart", async (ct, ctx) =>
             {
-                await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id);
+                const int MaxRetries = 100;
+                bool isConnected = false;
+                Exception? lastException = null;
+
+                // [안정성] 연결 재시도 로직
+                for (int i = 0; i < MaxRetries; i++)
+                {
+                    try
+                    {
+                        await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id);
+                        isConnected = true;
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        Debug.WriteLine($"Camera connection attempt {i + 1} failed: {ex.Message}");
+                        if (i < MaxRetries - 1) await Task.Delay(500 * (i + 1), ct);
+                    }
+                }
+
+                if (!isConnected)
+                {
+                    Debug.WriteLine("All connection attempts failed.");
+                    if (lastException != null) throw lastException;
+                    return;
+                }
+
                 RestartConsumeLoop();
                 await UiInvokeAsync(() => IsPreviewing = true);
             });
@@ -139,20 +168,28 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             await RunOperationAsync("PreviewStop", async (ct, ctx) =>
             {
-                _stopRequested = true;
-                if (_consumeTask != null)
+                try
                 {
-                    await Task.WhenAny(_consumeTask, Task.Delay(1000));
+                    _stopRequested = true;
                     CancelConsumeLoop();
+
+                    if (_consumeTask != null)
+                        await Task.WhenAny(_consumeTask, Task.Delay(2000));
+
+                    await _cameraService.StopPreviewAndDisconnectAsync(ct);
                 }
-
-                await _cameraService.StopPreviewAndDisconnectAsync(ct);
-
-                await UiInvokeAsync(() =>
+                catch (Exception ex)
                 {
-                    IsPreviewing = false;
-                    DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance);
-                });
+                    Debug.WriteLine($"Stop preview failed: {ex.Message}");
+                }
+                finally
+                {
+                    await UiInvokeAsync(() =>
+                    {
+                        IsPreviewing = false;
+                        DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance);
+                    });
+                }
             });
         }
 
@@ -163,7 +200,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 var currentWorkspace = _workspaceService.Current;
                 if (currentWorkspace?.EntireFrameData is null) return;
 
-                // 영역이 변경되었으므로 현재 등록된 모든 영역에 대해 다시 계산
                 var intensityMap = _imageProcessService.ComputeIntensityDataMap(
                     currentWorkspace.EntireFrameData,
                     currentWorkspace.RegionDatas.ToList(),
@@ -183,9 +219,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private void CancelConsumeLoop() => _consumeCts?.Cancel();
 
-        // ---------------------------------------------------------
-        // [핵심 로직] 스트리밍 데이터 처리
-        // ---------------------------------------------------------
         private async Task ConsumeFramesAsync(CancellationToken ct)
         {
             var reader = _cameraService.Frames;
@@ -197,15 +230,11 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     {
                         if (_stopRequested) { frame.Dispose(); continue; }
 
-                        // 1. [전처리] OpenCV 처리 (In-place) - 모든 곳에서 이 결과를 사용함
                         _imageProcessService.ProcessFrame(frame);
 
-                        // 2. [보관] Workspace에 전체 프레임 복제본 저장 (CloneFullFrame 사용)
                         var fullFrameClone = _imageProcessService.CloneFrameData(frame);
                         _workspaceService.SetEntireFrame(fullFrameClone);
 
-                        // 3. [프리뷰] UI 업데이트 (Throttler 사용)
-                        //    ProcessFrame이 이미 되었으므로 GetCrop에서는 자르기만 함
                         var previewCrop = _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex, CurrentWorkingDistance);
                         var oldPreview = Interlocked.Exchange(ref _previewFrameData, previewCrop);
                         oldPreview?.Dispose();
@@ -216,19 +245,17 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
                         _uiThrottler.Run(UpdateUI);
 
-                        // 4. [분석] 백그라운드 차트 분석 (Drop Frame 전략)
-                        //    이전 분석이 아직 안 끝났다면(_isAnalyzing == 1) 이번 프레임 분석은 스킵
                         if (Interlocked.CompareExchange(ref _isAnalyzing, 1, 0) == 0)
                         {
                             var analysisFrame = _imageProcessService.CloneFrameData(frame);
                             _ = Task.Run(() => RunAnalysisAndUnlock(analysisFrame));
                         }
 
-                        // 원본 프레임 반환
                         frame.Dispose();
                     }
                 }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex) { Debug.WriteLine(ex); }
             finally { CleanupPendingFrames(); }
         }
@@ -238,9 +265,11 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             try
             {
                 var regions = _workspaceService.Current?.RegionDatas?.ToList();
-                if (regions != null && regions.Count > 0)
+
+                // [핵심 수정] 빈 리스트(Count=0)여도 분석을 수행해야 함.
+                // 그래야 '빈 맵'이 생성되어 차트를 클리어할 수 있음.
+                if (regions != null)
                 {
-                    // 병렬 처리된 분석 메서드 호출
                     var map = _imageProcessService.ComputeIntensityDataMap(frame, regions, CurrentWorkingDistance);
                     _workspaceService.Update(ws => ws.UpdateIntensityDataMap(map));
                 }
@@ -249,7 +278,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             finally
             {
                 frame.Dispose();
-                Interlocked.Exchange(ref _isAnalyzing, 0); // 락 해제
+                Interlocked.Exchange(ref _isAnalyzing, 0);
             }
         }
 
@@ -339,10 +368,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 _rgbBitmap.Dispose();
                 _rgbBitmap = null;
             }
-            // 3채널 컬러 이미지용 Bgr24 포맷 사용
             _rgbBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Bgr24, AlphaFormat.Opaque);
             RgbBitmap = _rgbBitmap;
         }
+
         public override async ValueTask DisposeAsync()
         {
             CancelConsumeLoop();

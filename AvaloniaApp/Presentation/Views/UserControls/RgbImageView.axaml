@@ -7,8 +7,7 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.RgbImageView"
              x:DataType="vm:RgbImageViewModel">
     
-    <Border Background="#222222">
-        <!-- Viewbox�� ����Ͽ� �̹����� ��Ʈ�� ũ�⿡ ���� ������ �����ϸ� �� ���� ǥ�õ� -->
+    <Border Background="#222222" Margin="8">
         <Viewbox Stretch="Uniform">
             <Image x:Name="RgbImage"
                    Source="{Binding CameraVM.RgbBitmap}"

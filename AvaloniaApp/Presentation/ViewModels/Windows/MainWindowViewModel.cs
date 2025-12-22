@@ -29,6 +29,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly StorageService _storageService;
         private readonly VimbaCameraService _vimbaCameraService;
 
+        // [사용자가 결정하는 폴더 이름]
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(SaveExperimentCommand))]
         private string _saveFolderName = $"Experiment_{DateTime.Now:yyyyMMdd_HHmmss}";
@@ -43,6 +44,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         [ObservableProperty] private ViewModelBase _bottomLeftContent;
         [ObservableProperty] private ViewModelBase _bottomCenterContent;
         [ObservableProperty] private ViewModelBase _bottomRightContent;
+
         public MainWindowViewModel(
             AppService service,
             RawImageViewModel rawImage,
@@ -50,7 +52,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             CameraViewModel cameraViewModel,
             ChartViewModel chartViewModel,
             CameraSettingViewModel cameraSettingViewModel,
-            ProcessViewModel processViewModel):base(service)
+            ProcessViewModel processViewModel) : base(service)
         {
             _rawImageViewModel = rawImage;
             _rgbImageViewModel = rgbImage;
@@ -73,9 +75,9 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
 
             _vimbaCameraService.StreamingStateChanged += OnStreamingStateChanged;
         }
+
         private void OnStreamingStateChanged(bool isStreaming)
         {
-            // UI 스레드에서 커맨드 상태 갱신
             _service.Ui.InvokeAsync(() =>
             {
                 SaveExperimentCommand.NotifyCanExecuteChanged();
@@ -87,6 +89,7 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         {
             await _cameraViewModel.StartPreviewCommand.ExecuteAsync(null);
         }
+
         [RelayCommand]
         public async Task StopCameraAsync()
         {
@@ -94,61 +97,93 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         }
         private bool CanSaveExperiment()
         {
+            // 스트리밍 중이 아니고, 이미 저장 중이 아니며, 폴더명이 있어야 함
             return !_vimbaCameraService.IsStreaming &&
                    !IsSaving &&
                    !string.IsNullOrWhiteSpace(SaveFolderName);
         }
+
         [RelayCommand(CanExecute = nameof(CanSaveExperiment))]
         private async Task SaveExperimentAsync()
         {
             var ws = _workspaceService.Current;
             if (ws?.EntireFrameData is null) return;
 
-            IsSaving = true;
+            // 1. UI 상태 변경 (저장 중 표시)
+            await UiInvokeAsync(() => IsSaving = true);
 
             await RunOperationAsync("SaveExperiment", async (ct, ctx) =>
             {
                 ctx.ReportIndeterminate("데이터 변환 및 저장 중...");
 
-                // [중요] 현재 Workspace에 설정된 거리(WD)를 가져옵니다.
-                // CameraViewModel에서 WD 변경 시 Workspace에 업데이트해줍니다.
                 int currentWd = ws.WorkingDistance;
 
+                // Dispose 관리를 위한 리스트
                 var disposables = new List<IDisposable>();
+
+                // 저장할 비트맵들
+                Bitmap? fullBmp = null;
+                Bitmap? colorBmp = null;
+                var cropBitmaps = new Dictionary<string, Bitmap>();
 
                 try
                 {
-                    // 1. Full Image (Mono8) -> "FullImage.png"
-                    using var fullBmp = _imageProcessService.CreateBitmapFromFrame(ws.EntireFrameData);
+                    // ---------------------------------------------------------
+                    // A. 데이터 가공 (Heavy Logic)
+                    // ---------------------------------------------------------
 
-                    // 2. Color Image (RGB) -> "ColorImage.png"
-                    // [중요] currentWd를 전달하여 거리에 맞는 좌표로 RGB를 합성합니다.
-                    var rgbFrame = _imageProcessService.GetRgbFrameData(ws.EntireFrameData, currentWd);
-                    disposables.Add(rgbFrame);
-                    using var rgbBmp = _imageProcessService.CreateBitmapFromFrame(rgbFrame, PixelFormats.Bgr24);
+                    // 1) Crop Frames 생성 (WD 기반 분할)
+                    var cropFrames = _imageProcessService.GetCropFrameDatas(ws.EntireFrameData, currentWd);
+                    foreach (var f in cropFrames) disposables.Add(f);
 
-                    // 3. Crop Images (Wavelength별) -> "{nm}.png"
+                    // 2) Crop Bitmaps 생성 (파장별)
                     var wavelengths = Options.GetWavelengthList();
                     var waveToIndex = Options.GetWavelengthIndexMap();
-                    var cropBitmaps = new Dictionary<string, Bitmap>();
 
-                    foreach (var wave in wavelengths)
+                    foreach (var wl in wavelengths)
                     {
-                        int tileIndex = waveToIndex[wave];
-                        // [중요] currentWd 전달
-                        var cropFrame = _imageProcessService.GetCropFrameData(ws.EntireFrameData, tileIndex, currentWd);
-                        disposables.Add(cropFrame);
+                        if (!waveToIndex.TryGetValue(wl, out int idx)) continue;
+                        if (idx >= cropFrames.Count) continue;
 
-                        var cropBmp = _imageProcessService.CreateBitmapFromFrame(cropFrame);
-                        cropBitmaps[$"{wave}nm"] = cropBmp;
+                        var cropBmp = _imageProcessService.CreateBitmapFromFrame(cropFrames[idx]);
+                        cropBitmaps[$"{wl}nm"] = cropBmp; // 키: "450nm" 등
                     }
 
-                    // 4. CSV 데이터 생성
+                    // 3) Color Image 생성 (RGB 합성)
+                    try
+                    {
+                        var rgbFrame = _imageProcessService.GetRgbFrameDataFromCropFrames(cropFrames);
+                        disposables.Add(rgbFrame);
+                        colorBmp = _imageProcessService.CreateBitmapFromFrame(rgbFrame, PixelFormats.Bgr24);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"RGB 생성 실패: {ex.Message}");
+                        // Color Image 생성이 실패하더라도 저장은 계속 진행
+                    }
+
+                    // 4) Full Image 생성 (Stitch)
+                    //    원본 EntireFrameData를 바로 써도 되지만, 
+                    //    '잘린 영역들의 합'을 보여주기 위해 Stitch를 사용
+                    var stitchedFrame = _imageProcessService.GetStitchFrameData(ws.EntireFrameData, cropFrames, currentWd);
+                    if (stitchedFrame != null)
+                    {
+                        disposables.Add(stitchedFrame);
+                        fullBmp = _imageProcessService.CreateBitmapFromFrame(stitchedFrame);
+                    }
+                    else
+                    {
+                        // Fallback: 원본 사용
+                        fullBmp = _imageProcessService.CreateBitmapFromFrame(ws.EntireFrameData);
+                    }
+
+                    // 5) CSV Content 생성
                     var sb = new StringBuilder();
                     sb.AppendLine("RegionIndex,Wavelength,Mean,StdDev");
 
                     if (ws.IntensityDataMap != null)
                     {
+                        // Region 순서대로 정렬
                         foreach (var kvp in ws.IntensityDataMap.OrderBy(k => k.Key))
                         {
                             int regionIdx = kvp.Key;
@@ -159,30 +194,46 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
                         }
                     }
 
-                    // 5. 파일 저장 (UI 스레드 필요 - FolderPicker)
+                    // ---------------------------------------------------------
+                    // B. 저장 실행 (UI Thread Interaction 포함)
+                    // ---------------------------------------------------------
+
                     await UiInvokeAsync(async () =>
                     {
+                        // Folder Picker를 띄우고 실제 저장을 수행
                         await _storageService.SaveExperimentResultAsync(
                             SaveFolderName,
-                            fullBmp,
-                            rgbBmp,
+                            fullBmp!,
+                            colorBmp,
                             cropBitmaps,
                             sb.ToString(),
                             ct);
 
-                        // 저장 완료 후 폴더명 자동 갱신
+                        // 성공 후 폴더명 자동 갱신 (다음 저장을 위해)
                         SaveFolderName = $"Experiment_{DateTime.Now:yyyyMMdd_HHmmss}";
                     });
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Save Failed: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Save Failed: {ex}");
+                    // 필요 시 User에게 에러 알림 다이얼로그 추가
                 }
                 finally
                 {
-                    // 리소스 정리
+                    // ---------------------------------------------------------
+                    // C. 리소스 정리
+                    // ---------------------------------------------------------
+
+                    // 생성된 Bitmap들 해제
+                    fullBmp?.Dispose();
+                    colorBmp?.Dispose();
+                    foreach (var bmp in cropBitmaps.Values) bmp.Dispose();
+
+                    // 중간 생성된 FrameData들 해제 (Native Memory 반환)
                     foreach (var d in disposables) d.Dispose();
-                    IsSaving = false;
+
+                    // UI 상태 복구
+                    _service.Ui.Post(() => IsSaving = false);
                 }
             });
         }

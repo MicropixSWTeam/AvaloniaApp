@@ -15,6 +15,127 @@ namespace AvaloniaApp.Infrastructure
 {
     public partial class ImageProcessService
     {
+        /// <summary>
+        /// 이미 구해둔 CropFrames(파장 타일들)에서 RGB(BGR24) FrameData를 생성합니다.
+        /// 특정 파장(450, 530, 630)이 존재해야 합니다.
+        /// </summary>
+        public FrameData GetRgbFrameDataFromCropFrames(IReadOnlyList<FrameData> cropFrames)
+        {
+            // 설정된 파장 인덱스 맵핑 가져오기
+            var map = Options.GetWavelengthIndexMap();
+
+            // 필수 파장 체크
+            if (!map.TryGetValue(450, out int idxBlue) ||
+                !map.TryGetValue(530, out int idxGreen) ||
+                !map.TryGetValue(630, out int idxRed))
+            {
+                throw new InvalidOperationException("RGB wavelengths mapping not found.");
+            }
+
+            if (idxBlue >= cropFrames.Count || idxGreen >= cropFrames.Count || idxRed >= cropFrames.Count)
+                throw new InvalidOperationException("RGB wavelengths are not available in current crop frames.");
+
+            var frameB = cropFrames[idxBlue];
+            var frameG = cropFrames[idxGreen];
+            var frameR = cropFrames[idxRed];
+
+            int w = frameB.Width;
+            int h = frameB.Height;
+
+            // 사이즈 일치 여부 확인
+            if (frameG.Width != w || frameG.Height != h || frameR.Width != w || frameR.Height != h)
+                throw new InvalidOperationException("RGB crop frames sizes are not identical.");
+
+            // BGR24 (3 channels)
+            int len = w * h * 3;
+            var rgbBuffer = ArrayPool<byte>.Shared.Rent(len);
+
+            try
+            {
+                // OpenCV Mat 생성 (메모리 복사 없이 래핑)
+                using var matB = Mat.FromPixelData(h, w, MatType.CV_8UC1, frameB.Bytes, frameB.Stride);
+                using var matG = Mat.FromPixelData(h, w, MatType.CV_8UC1, frameG.Bytes, frameG.Stride);
+                using var matR = Mat.FromPixelData(h, w, MatType.CV_8UC1, frameR.Bytes, frameR.Stride);
+
+                using var matDst = Mat.FromPixelData(h, w, MatType.CV_8UC3, rgbBuffer);
+
+                // Merge: B, G, R -> Destination (Avalonia/Windows Bitmap은 BGR 순서)
+                Cv2.Merge(new[] { matB, matG, matR }, matDst);
+
+                // Stride = Width * 3 (Packed)
+                return FrameData.Wrap(rgbBuffer, w, h, w * 3, len);
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(rgbBuffer);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 저장용: FullFrame(EntireFrameData) 크기를 기준으로 개별 CropFrames를 원래 좌표에 스티칭합니다.
+        /// </summary>
+        public FrameData? GetStitchFrameData(FrameData fullFrame, IReadOnlyList<FrameData> cropFrames, int wd = 0)
+        {
+            if (cropFrames == null || cropFrames.Count == 0) return null;
+
+            int entireW = fullFrame.Width;
+            int entireH = fullFrame.Height;
+            int dstLen = entireW * entireH; // 8bit Gray assumed
+
+            // 좌표 정보 가져오기
+            var coordinates = Options.GetCoordinates(wd);
+
+            var stitchBuffer = ArrayPool<byte>.Shared.Rent(dstLen);
+            Array.Clear(stitchBuffer, 0, dstLen); // 배경 0으로 초기화
+
+            try
+            {
+                int count = Math.Min(cropFrames.Count, coordinates.Count);
+                unsafe
+                {
+                    fixed (byte* pDstBase = stitchBuffer)
+                    {
+                        for (int i = 0; i < count; i++)
+                        {
+                            var crop = cropFrames[i];
+                            var rect = coordinates[i];
+
+                            // 좌표 범위 계산 (경계 체크)
+                            int x = Math.Max(0, rect.X);
+                            int y = Math.Max(0, rect.Y);
+
+                            // 원본 프레임을 넘어가지 않도록 클리핑
+                            int w = Math.Min(crop.Width, entireW - x);
+                            int h = Math.Min(crop.Height, entireH - y);
+
+                            if (w <= 0 || h <= 0) continue;
+
+                            fixed (byte* pSrcBase = crop.Bytes)
+                            {
+                                for (int row = 0; row < h; row++)
+                                {
+                                    // 소스 행
+                                    byte* pSrc = pSrcBase + (long)row * crop.Stride;
+                                    // 타겟 행 (y + row)
+                                    byte* pDst = pDstBase + (long)(y + row) * entireW + x;
+
+                                    // 고속 복사
+                                    Buffer.MemoryCopy(pSrc, pDst, w, w);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return FrameData.Wrap(stitchBuffer, entireW, entireH, entireW, dstLen);
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(stitchBuffer);
+                throw;
+            }
+        }
         public FrameData CloneFrameData(FrameData src) => FrameData.CloneFullFrame(src);
 
         // [신규] 전처리 로직 (OpenCV In-place 처리)

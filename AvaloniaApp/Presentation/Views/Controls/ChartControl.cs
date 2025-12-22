@@ -13,7 +13,6 @@ using System.Linq;
 
 namespace AvaloniaApp.Presentation.Views.Controls;
 
-// 1. 데이터 모델
 public readonly record struct ChartPoint(int Wavelength, byte Mean, byte? StdDev = null);
 
 public sealed class ChartSeries
@@ -38,10 +37,8 @@ public sealed class ChartSeries
     public double ErrorCapHalfWidth { get; init; } = 3;
 }
 
-// 2. 최종 최적화된 차트 컨트롤
 public sealed class ChartControl : Control
 {
-    // --- 의존성 속성 ---
     public static readonly StyledProperty<ObservableCollection<ChartSeries>> SeriesProperty =
         AvaloniaProperty.Register<ChartControl, ObservableCollection<ChartSeries>>(nameof(Series));
     public ObservableCollection<ChartSeries> Series { get => GetValue(SeriesProperty); set => SetValue(SeriesProperty, value); }
@@ -49,7 +46,6 @@ public sealed class ChartControl : Control
     public static readonly StyledProperty<int> XMinProperty = AvaloniaProperty.Register<ChartControl, int>(nameof(XMin), 400);
     public static readonly StyledProperty<int> XMaxProperty = AvaloniaProperty.Register<ChartControl, int>(nameof(XMax), 700);
 
-    // Y축 기본값 0~255 설정
     public static readonly StyledProperty<byte> YMinProperty = AvaloniaProperty.Register<ChartControl, byte>(nameof(YMin), 0);
     public static readonly StyledProperty<byte> YMaxProperty = AvaloniaProperty.Register<ChartControl, byte>(nameof(YMax), 255);
 
@@ -80,7 +76,6 @@ public sealed class ChartControl : Control
 
     public static readonly Thickness PlotPadding = new Thickness(50, 20, 20, 40);
 
-    // --- 내부 변수 ---
     private RenderTargetBitmap? _graphLayerBitmap;
     private bool _isGraphDirty = true;
     private bool _pendingRender = false;
@@ -89,6 +84,9 @@ public sealed class ChartControl : Control
     private double _lastScaling;
 
     private static readonly PointXComparer _xComparer = new();
+
+    // [Stateless] 마우스 위치만 저장
+    private Point? _lastMousePosition = null;
 
     private sealed class SeriesCache
     {
@@ -114,8 +112,6 @@ public sealed class ChartControl : Control
     }
 
     private readonly Dictionary<string, SeriesCache> _seriesCache = new();
-    private FormattedText? _hoverFormatted;
-    private Point _hoverPixelPos;
 
     public ChartControl()
     {
@@ -124,7 +120,8 @@ public sealed class ChartControl : Control
         ClipToBounds = true;
 
         PointerMoved += OnPointerMovedInternal;
-        PointerExited += (_, __) => { _hoverFormatted = null; InvalidateVisual(); };
+        // 마우스 나가면 툴팁 제거
+        PointerExited += (_, __) => { _lastMousePosition = null; InvalidateVisual(); };
     }
 
     private void AttachCollection(ObservableCollection<ChartSeries>? col)
@@ -146,7 +143,6 @@ public sealed class ChartControl : Control
         if (AutoScale) UpdateAutoScale();
         _isGraphDirty = true;
 
-        // [성능 개선 3] 스로틀링 구현
         if (!_pendingRender)
         {
             _pendingRender = true;
@@ -215,7 +211,6 @@ public sealed class ChartControl : Control
         SetCurrentValue(XMinProperty, (int)(minX - dx * pad));
         SetCurrentValue(XMaxProperty, (int)(maxX + dx * pad));
 
-        // Y축 0~255 고정
         SetCurrentValue(YMinProperty, (byte)0);
         SetCurrentValue(YMaxProperty, (byte)255);
     }
@@ -233,21 +228,54 @@ public sealed class ChartControl : Control
         if (_graphLayerBitmap != null)
             context.DrawImage(_graphLayerBitmap, new Rect(0, 0, _graphLayerBitmap.PixelSize.Width, _graphLayerBitmap.PixelSize.Height), bounds);
 
-        DrawOverlay(context, bounds);
+        // 매 렌더링마다 툴팁 새로 계산 (Stateless)
+        DrawOverlay(context, bounds, plot);
     }
 
-    // 누락되었던 메서드 추가됨
-    private void DrawOverlay(DrawingContext context, Rect bounds)
+    private void DrawOverlay(DrawingContext context, Rect bounds, Rect plot)
     {
-        if (_hoverFormatted != null)
+        if (_lastMousePosition == null) return;
+        Point pos = _lastMousePosition.Value;
+        if (!plot.Contains(pos)) return;
+
+        double bestD2 = 625; // 25px
+        string? bestText = null;
+        Point bestPos = default;
+
+        foreach (var s in Series)
         {
-            var rect = new Rect(_hoverPixelPos.X + 12, _hoverPixelPos.Y - _hoverFormatted.Height - 12, _hoverFormatted.Width + 10, _hoverFormatted.Height + 6);
-            if (rect.Right > bounds.Right) rect = rect.WithX(_hoverPixelPos.X - rect.Width - 12);
-            if (rect.Top < bounds.Top) rect = rect.WithY(_hoverPixelPos.Y + 12);
+            if (!_seriesCache.TryGetValue(s.Id, out var cache) || cache.PooledPixelPoints == null) continue;
+
+            int idx = Array.BinarySearch(cache.PooledPixelPoints, 0, cache.PixelCount, new Point(pos.X, 0), _xComparer);
+            if (idx < 0) idx = ~idx;
+
+            int start = Math.Max(0, idx - 3);
+            int end = Math.Min(cache.PixelCount, idx + 3);
+
+            for (int i = start; i < end; i++)
+            {
+                var pix = cache.PooledPixelPoints[i];
+                double d2 = (pix.X - pos.X) * (pix.X - pos.X) + (pix.Y - pos.Y) * (pix.Y - pos.Y);
+                if (d2 < bestD2)
+                {
+                    bestD2 = d2;
+                    bestPos = pix;
+                    bestText = $"{s.DisplayName}\nMean : {s.Points[i].Mean}\nStdDev : {s.Points[i].StdDev}";
+                }
+            }
+        }
+
+        if (bestText != null)
+        {
+            var formatted = new FormattedText(bestText, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 12, Brushes.White);
+
+            var rect = new Rect(bestPos.X + 12, bestPos.Y - formatted.Height - 12, formatted.Width + 10, formatted.Height + 6);
+            if (rect.Right > bounds.Right) rect = rect.WithX(bestPos.X - rect.Width - 12);
+            if (rect.Top < bounds.Top) rect = rect.WithY(bestPos.Y + 12);
 
             context.FillRectangle(new SolidColorBrush(Color.Parse("#E6222222")), rect, 4);
-            context.DrawText(_hoverFormatted, new Point(rect.X + 5, rect.Y + 3));
-            context.DrawEllipse(null, new Pen(Brushes.White, 2), _hoverPixelPos, 5, 5);
+            context.DrawText(formatted, new Point(rect.X + 5, rect.Y + 3));
+            context.DrawEllipse(null, new Pen(Brushes.White, 2), bestPos, 5, 5);
         }
     }
 
@@ -350,11 +378,7 @@ public sealed class ChartControl : Control
                     var pp = new Point(ox + (double)p.Wavelength * sx, oy - (double)p.Mean * sy);
                     cache.PooledPixelPoints[i] = pp;
 
-                    // [성능 개선 2] 픽셀 스내핑
-                    if (i > 0 && i < count - 1 && Math.Abs(pp.X - lastX) < 0.5)
-                    {
-                        continue;
-                    }
+                    if (i > 0 && i < count - 1 && Math.Abs(pp.X - lastX) < 0.5) continue;
                     lastX = pp.X;
 
                     if (i == 0) lCtx.BeginFigure(pp, false); else lCtx.LineTo(pp);
@@ -384,52 +408,10 @@ public sealed class ChartControl : Control
         var pos = e.GetPosition(this);
         var plot = Bounds.Deflate(PlotPadding);
 
-        if (!plot.Contains(pos))
-        {
-            if (_hoverFormatted != null) { _hoverFormatted = null; InvalidateVisual(); }
-            return;
-        }
+        if (plot.Contains(pos)) _lastMousePosition = pos;
+        else _lastMousePosition = null;
 
-        double bestD2 = 625;
-        string? bestText = null;
-        Point bestPos = default;
-
-        foreach (var s in Series)
-        {
-            if (!_seriesCache.TryGetValue(s.Id, out var cache) || cache.PooledPixelPoints == null) continue;
-
-            // [성능 개선 4] 이진 탐색
-            int idx = Array.BinarySearch(cache.PooledPixelPoints, 0, cache.PixelCount, new Point(pos.X, 0), _xComparer);
-
-            if (idx < 0) idx = ~idx;
-
-            int start = Math.Max(0, idx - 3);
-            int end = Math.Min(cache.PixelCount, idx + 3);
-
-            for (int i = start; i < end; i++)
-            {
-                var pix = cache.PooledPixelPoints[i];
-                double d2 = (pix.X - pos.X) * (pix.X - pos.X) + (pix.Y - pos.Y) * (pix.Y - pos.Y);
-                if (d2 < bestD2)
-                {
-                    bestD2 = d2;
-                    bestPos = pix;
-                    bestText = $"{s.DisplayName}\nMean : {s.Points[i].Mean}\nStdDev : {s.Points[i].StdDev}";
-                }
-            }
-        }
-
-        if (bestText != null)
-        {
-            _hoverFormatted = new FormattedText(bestText, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 12, Brushes.White);
-            _hoverPixelPos = bestPos;
-            InvalidateVisual();
-        }
-        else if (_hoverFormatted != null)
-        {
-            _hoverFormatted = null;
-            InvalidateVisual();
-        }
+        InvalidateVisual();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
