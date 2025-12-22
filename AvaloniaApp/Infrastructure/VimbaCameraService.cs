@@ -134,7 +134,9 @@ namespace AvaloniaApp.Infrastructure
                     ConnectedCameraInfo = null;
                 }
 
-                const int MaxRetries = 100;
+                // [수정] ViewModel의 재시도 루프(Stop -> Start)가 더 효과적이므로,
+                // 내부 재시도는 100회에서 3회로 줄여 빠르게 실패를 보고하도록 변경
+                const int MaxRetries = 3;
                 for (int attempt = 1; attempt <= MaxRetries; attempt++)
                 {
                     try

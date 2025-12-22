@@ -128,36 +128,44 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             await RunOperationAsync("PreviewStart", async (ct, ctx) =>
             {
-                const int MaxRetries = 100;
+                // [수정] "될 때까지 Stop -> Start 반복" 전략 적용
+                // 무한 루프처럼 보이지만, 사용자가 취소(ct)하거나 성공할 때까지 재시도합니다.
                 bool isConnected = false;
-                Exception? lastException = null;
 
-                // [안정성] 연결 재시도 로직
-                for (int i = 0; i < MaxRetries; i++)
+                while (!ct.IsCancellationRequested && !isConnected)
                 {
                     try
                     {
+                        // 연결 시도
                         await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id);
-                        isConnected = true;
-                        break;
+                        isConnected = true; // 성공 시 루프 탈출
                     }
                     catch (Exception ex)
                     {
-                        lastException = ex;
-                        Debug.WriteLine($"Camera connection attempt {i + 1} failed: {ex.Message}");
-                        if (i < MaxRetries - 1) await Task.Delay(500 * (i + 1), ct);
+                        Debug.WriteLine($"Camera Start Failed: {ex.Message}. Initiating Reset Sequence...");
+
+                        // [핵심 로직] Start 실패 시 -> 명시적 Stop 호출 -> 대기 -> 재시도
+                        // 하드웨어나 드라이버가 꼬인 상태를 풀기 위해 StopPreviewAndDisconnectAsync를 호출합니다.
+                        try
+                        {
+                            await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None);
+                        }
+                        catch (Exception stopEx)
+                        {
+                            // Stop 중 에러는 무시하고 계속 진행 (이미 닫혀있을 수 있음)
+                            Debug.WriteLine($"Reset(Stop) warning: {stopEx.Message}");
+                        }
+
+                        // 하드웨어 안정화를 위해 잠시 대기 (너무 빠르면 드라이버가 응답 못할 수 있음)
+                        try { await Task.Delay(1000, ct); } catch (OperationCanceledException) { break; }
                     }
                 }
 
-                if (!isConnected)
+                if (isConnected)
                 {
-                    Debug.WriteLine("All connection attempts failed.");
-                    if (lastException != null) throw lastException;
-                    return;
+                    RestartConsumeLoop();
+                    await UiInvokeAsync(() => IsPreviewing = true);
                 }
-
-                RestartConsumeLoop();
-                await UiInvokeAsync(() => IsPreviewing = true);
             });
         }
 

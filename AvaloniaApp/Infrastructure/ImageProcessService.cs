@@ -2,6 +2,7 @@
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Configuration;
+using AvaloniaApp.Core.Enums;
 using AvaloniaApp.Core.Models;
 using OpenCvSharp;
 using System;
@@ -362,6 +363,102 @@ namespace AvaloniaApp.Infrastructure
         private unsafe FrameData CropFrameData(FrameData src, Rect roi)
         {
             return FrameData.CloneCropFrame(src, roi);
+        }
+        public FrameData CalculateTwoWavelengths(FrameData fullFrame, int waveLength1, int waveLength2, ImageOperationType op, int wd = 0)
+        {
+            var map = Options.GetWavelengthIndexMap();
+
+            if (!map.TryGetValue(waveLength1, out int idx1) || !map.TryGetValue(waveLength2, out int idx2))
+            {
+                throw new ArgumentException("Invalid Wavelength provided.");
+            }
+
+            var coords = Options.GetCoordinates(wd);
+            if (idx1 >= coords.Count || idx2 >= coords.Count)
+            {
+                throw new ArgumentException("Coordinates not found for the given wavelength.");
+            }
+
+            // 1. 두 영역을 Crop 합니다. (FrameData는 내부적으로 ArrayPool을 사용하므로 using 필수)
+            // GetCropFrameData는 내부적으로 CloneCropFrame을 호출하여 새 버퍼를 할당합니다.
+            using var frame1 = GetCropFrameData(fullFrame, idx1, wd);
+            using var frame2 = GetCropFrameData(fullFrame, idx2, wd);
+
+            int w = frame1.Width;
+            int h = frame1.Height;
+
+            // 크기가 다르면 연산 불가 (Grid 설정상 같아야 정상)
+            if (w != frame2.Width || h != frame2.Height)
+                throw new InvalidOperationException("Frame sizes do not match.");
+
+            // 결과 담을 버퍼 할당 (ArrayPool)
+            int len = w * h; // Mono8 기준
+            var resultBuffer = ArrayPool<byte>.Shared.Rent(len);
+
+            try
+            {
+                // 2. OpenCV Mat으로 래핑 (메모리 복사 없음)
+                using var mat1 = Mat.FromPixelData(h, w, MatType.CV_8UC1, frame1.Bytes, frame1.Stride);
+                using var mat2 = Mat.FromPixelData(h, w, MatType.CV_8UC1, frame2.Bytes, frame2.Stride);
+                using var matDst = Mat.FromPixelData(h, w, MatType.CV_8UC1, resultBuffer); // Stride = w
+
+                // 3. 정밀 연산을 위해 32F(Float)로 변환
+                // 단순히 byte끼리 연산하면 255를 넘거나 0 밑으로 갈 때 정보가 바로 손실됨
+                using var mat1f = new Mat();
+                using var mat2f = new Mat();
+                mat1.ConvertTo(mat1f, MatType.CV_32FC1);
+                mat2.ConvertTo(mat2f, MatType.CV_32FC1);
+
+                using var matResultf = new Mat();
+
+                // 4. 연산 수행
+                switch (op)
+                {
+                    case ImageOperationType.Add:
+                        Cv2.Add(mat1f, mat2f, matResultf);
+                        break;
+
+                    case ImageOperationType.Subtract:
+                        Cv2.Subtract(mat1f, mat2f, matResultf);
+                        break;
+
+                    case ImageOperationType.Difference:
+                        Cv2.Absdiff(mat1f, mat2f, matResultf);
+                        break;
+
+                    case ImageOperationType.Multiply:
+                        // 단순 곱셈은 값이 너무 커지므로 보통 정규화하거나 Scale을 둡니다.
+                        // 여기서는 단순 곱셈 후 Saturate 합니다. (필요시 1/255.0 스케일링 추가)
+                        Cv2.Multiply(mat1f, mat2f, matResultf);
+                        break;
+
+                    case ImageOperationType.Divide:
+                        // 나눗셈 (0으로 나누기 방지 포함)
+                        // 결과가 아주 작을 수 있으므로 (예: 100/200 = 0.5) 시각화를 위해 스케일링이 필요할 수 있습니다.
+                        // 여기서는 순수 나눗셈을 수행합니다.
+                        Cv2.Divide(mat1f, mat2f, matResultf);
+                        // 시각화를 위해 255를 곱해주는 경우가 많습니다. (Ratio Map)
+                        // matResultf *= 255.0; 
+                        break;
+
+                    case ImageOperationType.Average:
+                        Cv2.AddWeighted(mat1f, 0.5, mat2f, 0.5, 0, matResultf);
+                        break;
+                }
+
+                // 5. 결과를 다시 8bit로 변환 (Saturate: 0~255 범위로 클램핑)
+                matResultf.ConvertTo(matDst, MatType.CV_8UC1);
+
+                // 6. FrameData 포장하여 반환
+                // Mat이 Dispose 되어도 resultBuffer는 ArrayPool 소유이므로 안전함 (FrameData가 Dispose될 때 반환)
+                return FrameData.Wrap(resultBuffer, w, h, w, len);
+            }
+            catch
+            {
+                // 에러 발생 시 버퍼 반환
+                ArrayPool<byte>.Shared.Return(resultBuffer);
+                throw;
+            }
         }
     }
 }

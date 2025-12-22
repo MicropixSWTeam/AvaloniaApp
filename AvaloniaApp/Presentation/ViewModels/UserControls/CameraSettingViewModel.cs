@@ -56,15 +56,25 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             _ = Task.Run(async () =>
             {
-                // Feature 접근 안정화를 위한 짧은 대기
-                await Task.Delay(50).ConfigureAwait(false);
+                // Feature 접근 안정화를 위한 대기 시간 증가 (50ms -> 200ms)
+                // 카메라가 물리적으로 StartAcquisition 후 파라미터를 받을 준비가 될 때까지 충분한 시간을 줍니다.
+                await Task.Delay(200).ConfigureAwait(false);
+
                 if (version != Volatile.Read(ref _startSyncVersion)) return;
 
-                // 전략: 
-                // 1. 현재 UI가 기억하고 있는 설정값을 카메라에 강제 주입 (Apply)
-                // 2. 실제 카메라에 적용된 값을 다시 읽어와서 UI 갱신 (Load)
+                // 지연 시간 동안 Stop 되었을 수 있으므로 상태 재확인
+                if (!_cameraService.IsStreaming) return;
+
+                // [수정됨] 전략 개선:
+                // 기존: ApplyAsync() 호출 후 LoadAsync() 호출
+                // 문제: Apply 직후 Load를 호출하면, 카메라가 아직 값을 반영하지 못했거나 초기값을 반환하여
+                //      UI에 설정해둔 값이 초기값으로 덮어씌워지는(Rollback) 현상이 발생합니다.
+                // 해결: ApplyAsync() 내부에서 이미 Set 후 '실제 적용된 값'을 리턴받아 UI를 갱신하고 있습니다.
+                //      따라서 뒤따르는 LoadAsync()는 중복이자 버그의 원인이므로 제거합니다.
+
                 await ApplyAsync().ConfigureAwait(false);
-                await LoadAsync().ConfigureAwait(false);
+
+                // await LoadAsync().ConfigureAwait(false); // <--- 삭제함
             });
         }
 
