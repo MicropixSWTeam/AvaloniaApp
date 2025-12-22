@@ -6,6 +6,7 @@ using AvaloniaApp.Configuration;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaEdit.Utils;
 using System;
+using System.Linq; // Enumerable.Reverse 사용을 위해 추가
 
 namespace AvaloniaApp.Presentation.Views.UserControls;
 
@@ -41,6 +42,30 @@ public partial class RawImageView : UserControl
     private void DrawCanvas_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (ViewModel == null) return;
+        var point = e.GetCurrentPoint(DrawCanvas);
+
+        // [추가됨] 우클릭 시 해당 위치의 영역 삭제 로직
+        if (point.Properties.IsRightButtonPressed)
+        {
+            var pos = point.Position;
+            var regions = ViewModel.CameraVM.Regions;
+
+            if (regions != null)
+            {
+                // 나중에 추가된 영역이 화면상 위쪽에 그려지므로, 역순으로 검색하여 
+                // 클릭한 위치에 있는 가장 위의 영역을 찾습니다.
+                var target = regions.Reverse().FirstOrDefault(r => r.Rect.Contains(pos));
+
+                if (target != null)
+                {
+                    ViewModel.CameraVM.RemoveRegionCommand.Execute(target);
+                    e.Handled = true; // 이벤트 처리 완료
+                }
+            }
+            return;
+        }
+
+        // --- 이하 기존 왼쪽 클릭(그리기) 로직 ---
 
         // 1. 개수 제한 체크: 이미 6개면 드래그 시작도 안 함
         if (ViewModel.CameraVM.NextAvailableRegionColorIndex == -1)
@@ -49,7 +74,6 @@ public partial class RawImageView : UserControl
             return;
         }
 
-        var point = e.GetCurrentPoint(DrawCanvas);
         if (!point.Properties.IsLeftButtonPressed) return;
 
         var position = point.Position;

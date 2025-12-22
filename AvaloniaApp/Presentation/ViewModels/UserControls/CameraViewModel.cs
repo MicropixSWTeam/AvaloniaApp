@@ -76,7 +76,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
         partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
-        partial void OnIsPreviewingChanged(bool value){ OnPropertyChanged(nameof(IsChartTooltipEnabled));}
+        partial void OnIsPreviewingChanged(bool value) { OnPropertyChanged(nameof(IsChartTooltipEnabled)); }
         private void UpdateDisplayIfStopped()
         {
             if (!IsPreviewing)
@@ -88,6 +88,18 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             _workspaceService.Update(ws => ws.AddRegionData(rect));
             // 정지 상태라면 수동으로 분석 실행
+            if (!IsPreviewing) await CalculateIntensityDatasAsync();
+        }
+
+        // [추가됨] 영역 삭제 커맨드
+        [RelayCommand]
+        public async Task RemoveRegion(RegionData region)
+        {
+            if (region == null) return;
+
+            _workspaceService.Update(ws => ws.RemoveRegionData(region));
+
+            // 삭제 후 분석 데이터 갱신 (정지 상태일 때 차트 업데이트)
             if (!IsPreviewing) await CalculateIntensityDatasAsync();
         }
 
@@ -151,6 +163,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 var currentWorkspace = _workspaceService.Current;
                 if (currentWorkspace?.EntireFrameData is null) return;
 
+                // 영역이 변경되었으므로 현재 등록된 모든 영역에 대해 다시 계산
                 var intensityMap = _imageProcessService.ComputeIntensityDataMap(
                     currentWorkspace.EntireFrameData,
                     currentWorkspace.RegionDatas.ToList(),
