@@ -10,9 +10,10 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
     public class ProcessViewModel : ViewModelBase
     {
-        public ProcessViewModel(AppService service) : base(service)
+        public CameraViewModel CameraVM { get; }
+        public ProcessViewModel(AppService service, CameraViewModel cameraViewModel) : base(service)
         {
-            
+            CameraVM = cameraViewModel;
         }
     }
 }

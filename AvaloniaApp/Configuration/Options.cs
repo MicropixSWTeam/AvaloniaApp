@@ -39,6 +39,7 @@ namespace AvaloniaApp.Configuration
         public static int MaxRegionCount { get; } = 6;
         public static int DefaultWavelengthIndex{get;} = 7;
         public static int DefaultWorkingDistance{get;} = 0;
+        public static int DefaultImageOperation{get;} = 0;
         // 2. 고정 팔레트: 차트 시리즈 색상과 반드시 일치시켜야 함
         private static readonly IReadOnlyList<IBrush> _drawBrushes = new List<IBrush>
         {
@@ -52,7 +53,9 @@ namespace AvaloniaApp.Configuration
         public static IReadOnlyList<IBrush> GetDrawBrushes() => _drawBrushes;
         public static IBrush GetBrushByIndex(int index)
         {
-            if (index < 0 || index >= _drawBrushes.Count) return Brushes.White;
+            if (index < 0 || index >= _drawBrushes.Count)   
+                return Brushes.White;
+
             return _drawBrushes[index];
         }
 
@@ -92,8 +95,20 @@ namespace AvaloniaApp.Configuration
         };
         public static IReadOnlyList<ComboBoxData> GetWorkingDistanceComboBoxData() => _workingDistance;
 
-        // 먼저 정의되어야 함 (아래 CoordinateTable 계산에 사용)
-        private static readonly ImmutableDictionary<int, IReadOnlyList<Offset>> _workingDistanceOffsetMap = new Dictionary<int, IReadOnlyList<Offset>>
+        private static readonly ComboBoxData[] _imageOperation = new ComboBoxData[]
+        {
+            new ComboBoxData{ DisplayText = "None", NumericValue = 0},
+            new ComboBoxData{ DisplayText = "Add", NumericValue = 1},
+            new ComboBoxData{ DisplayText = "Subtract", NumericValue = 2},
+            new ComboBoxData{ DisplayText = "Difference", NumericValue = 3},
+            new ComboBoxData{ DisplayText = "Multiply", NumericValue = 4},
+            new ComboBoxData{ DisplayText = "Divide", NumericValue = 5},
+            new ComboBoxData{ DisplayText = "Average", NumericValue = 6}
+        };
+        public static IReadOnlyList<ComboBoxData> GetImageOperationComboBoxData() => _imageOperation;
+
+        private static readonly ImmutableDictionary<int, IReadOnlyList<Offset>> _workingDistanceOffsetMap 
+            = new Dictionary<int, IReadOnlyList<Offset>>
         {
             // [0] Working Distance 0 (기준점: 오프셋 없음)
             [0] = new Offset[]

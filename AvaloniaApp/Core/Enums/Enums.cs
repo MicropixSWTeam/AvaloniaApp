@@ -6,16 +6,9 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Core.Enums
 {
-    public enum Distance
-    {
-        Ten,
-        Twenty,
-        Thirty,
-        Forty,
-        Over,
-    }
     public enum ImageOperationType
     {
+        None,
         Add,        // A + B (Saturate)
         Subtract,   // A - B (Saturate 0)
         Difference, // |A - B| (절대값 차이)

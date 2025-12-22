@@ -35,7 +35,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private WriteableBitmap? _rgbBitmap;
         private FrameData? _rgbFrameData;
 
-        public event Action? PreviewInvalidated;
+        public event Action? RawPreviewInvalidated;
         public event Action? RgbPreviewInvalidated;
 
         public ReadOnlyObservableCollection<RegionData>? Regions => _workspaceService.Current?.RegionDatas;
@@ -46,6 +46,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWorkingDistanceComboBoxData());
+        public ObservableCollection<ComboBoxData> ImageOperationWavelength1 { get; }
+            = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
+        public ObservableCollection<ComboBoxData> ImageOperation { get; }
+            = new ObservableCollection<ComboBoxData>(Options.GetImageOperationComboBoxData());
+        public ObservableCollection<ComboBoxData> ImageOperationWavelength2 { get; }
+            = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
 
         [ObservableProperty] private ObservableCollection<CameraData> cameras = new();
         [ObservableProperty] private CameraData? selectedCamera;
@@ -55,9 +61,14 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty] private double previewFps;
         [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
         [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
-
+        [ObservableProperty] private ComboBoxData? _selectedImageOperationWavelength1;
+        [ObservableProperty] private ComboBoxData? _selectedImageOperation;
+        [ObservableProperty] private ComboBoxData? _selectedImageOperationWavelength2;
         public int CurrentWavelengthIndex => SelectedWavelengthIndex?.NumericValue ?? Options.DefaultWavelengthIndex;
         public int CurrentWorkingDistance => SelectedWorkingDistance?.NumericValue ?? Options.DefaultWorkingDistance;
+        public int ImageOperationWavelength1Index => SelectedImageOperationWavelength1?.NumericValue ?? Options.DefaultWavelengthIndex;
+        public int ImageOperationWavelength2Index => SelectedImageOperationWavelength2?.NumericValue ?? Options.DefaultWavelengthIndex;
+        public int ImageOperationType => SelectedImageOperation?.NumericValue ?? Options.DefaultImageOperation;
         public int CropWidth => Options.CropWidthSize;
         public int CropHeight => Options.CropHeightSize;
 
@@ -314,7 +325,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 if (_previewBitmap != null)
                 {
                     _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, frame);
-                    PreviewInvalidated?.Invoke();
+                    RawPreviewInvalidated?.Invoke();
                 }
             }
             finally { frame.Dispose(); }
@@ -349,7 +360,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 if (_previewBitmap is not null)
                 {
                     _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, crop);
-                    PreviewInvalidated?.Invoke();
+                    RawPreviewInvalidated?.Invoke();
                 }
             }
             finally { crop.Dispose(); }

@@ -113,6 +113,12 @@
                             </StackPanel>
                         </Button>
 
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconArithmeticImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Calculate" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

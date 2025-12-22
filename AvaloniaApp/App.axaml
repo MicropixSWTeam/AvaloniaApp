@@ -349,6 +349,61 @@
           </DrawingGroup>
         </DrawingImage>
 
+        <DrawingImage x:Key="IconArithmeticImage">
+            <DrawingGroup>
+
+
+            <!-- outer frame -->
+            <GeometryDrawing>
+            <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+            </GeometryDrawing.Pen>
+            <RectangleGeometry Rect="4.5,4.5,15,15" RadiusX="2" RadiusY="2"/>
+            </GeometryDrawing>
+
+
+            <!-- operators -->
+            <GeometryDrawing>
+            <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+            </GeometryDrawing.Pen>
+            <GeometryDrawing.Geometry>
+            <GeometryGroup>
+            <!-- + (top-left) -->
+            <LineGeometry StartPoint="9.0,7.9" EndPoint="9.0,10.1"/>
+            <LineGeometry StartPoint="7.9,9.0" EndPoint="10.1,9.0"/>
+
+
+            <!-- ? (top-right) -->
+            <LineGeometry StartPoint="13.9,9.0" EndPoint="16.1,9.0"/>
+
+
+            <!-- ¡¿ (bottom-left) -->
+            <LineGeometry StartPoint="8.0,14.0" EndPoint="10.0,16.0"/>
+            <LineGeometry StartPoint="10.0,14.0" EndPoint="8.0,16.0"/>
+
+
+            <!-- ¡À (bottom-right) -->
+            <LineGeometry StartPoint="13.9,15.0" EndPoint="16.1,15.0"/>
+            </GeometryGroup>
+            </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+
+
+            <!-- ¡À dots + subtle accent -->
+            <GeometryDrawing Brush="{StaticResource AppPrimaryBrush}">
+            <GeometryDrawing.Geometry>
+            <GeometryGroup>
+            <EllipseGeometry Center="15.0,13.9" RadiusX="0.55" RadiusY="0.55"/>
+            <EllipseGeometry Center="15.0,16.1" RadiusX="0.55" RadiusY="0.55"/>
+            </GeometryGroup>
+            </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+
+
+            </DrawingGroup>
+            </DrawingImage>
+
 
     </Application.Resources>
 

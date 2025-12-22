@@ -28,13 +28,13 @@ public partial class RawImageView : UserControl
     {
         base.OnAttachedToVisualTree(e);
         if (ViewModel != null)
-            ViewModel.CameraVM.PreviewInvalidated += InvalidatePreviewImage;
+            ViewModel.CameraVM.RawPreviewInvalidated += InvalidatePreviewImage;
     }
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         if (ViewModel != null)
-            ViewModel.CameraVM.PreviewInvalidated -= InvalidatePreviewImage;
+            ViewModel.CameraVM.RawPreviewInvalidated -= InvalidatePreviewImage;
 
         DrawCanvas.PointerCaptureLost -= DrawCanvas_PointerCaptureLost;
     }
