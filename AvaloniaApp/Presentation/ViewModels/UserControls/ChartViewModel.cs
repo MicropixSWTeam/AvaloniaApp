@@ -16,7 +16,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     public partial class ChartViewModel : ViewModelBase
     {
         [ObservableProperty] private ObservableCollection<ChartSeries> _seriesCollection = new();
-        [ObservableProperty] private bool _isTooltipEnabled = true;
 
         private readonly WorkspaceService _workspaceService;
         private readonly VimbaCameraService _cameraService;
@@ -28,20 +27,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             _workspaceService.Updated -= OnAnalysisCompleted;
             _workspaceService.Updated += OnAnalysisCompleted;
-
-            _cameraService.StreamingStateChanged += OnStreamingStateChanged;
-
-            // 초기 상태 설정: 스트리밍 중이 아니면 툴팁 켜기
-            IsTooltipEnabled = !_cameraService.IsStreaming;
-        }
-
-        private void OnStreamingStateChanged(bool isStreaming)
-        {
-            // UI 스레드에서 속성 업데이트 (View 반영 보장)
-            _service.Ui.InvokeAsync(() =>
-            {
-                IsTooltipEnabled = !isStreaming;
-            });
         }
 
         private void OnAnalysisCompleted()
@@ -101,7 +86,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         public override async ValueTask DisposeAsync()
         {
             _workspaceService.Updated -= OnAnalysisCompleted;
-            _cameraService.StreamingStateChanged -= OnStreamingStateChanged;
             await base.DisposeAsync();
         }
     }

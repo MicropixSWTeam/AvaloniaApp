@@ -11,11 +11,6 @@ using VmbNET;
 
 namespace AvaloniaApp.Infrastructure
 {
-    /// <summary>
-    /// Vimba X / VmbNET 카메라 서비스.
-    /// - Frames 채널로 FramePacket(Gray8) 전달
-    /// - Packet은 ArrayPool 버퍼 소유 → 소비자가 반드시 Dispose해야 함
-    /// </summary>
     public sealed class VimbaCameraService : IAsyncDisposable
     {
         private readonly IVmbSystem _system;
@@ -27,12 +22,11 @@ namespace AvaloniaApp.Infrastructure
         private bool _disposed;
 
         private long _generation;
-        private long _activeGeneration; // 0이면 비활성
+        private long _activeGeneration;
         private bool _frameHandlerAttached;
 
-        public event Action<bool>? StreamingStateChanged;   
+        public event Action<bool>? StreamingStateChanged;
 
-        // 최신 1프레임만 유지. (드롭 시 Dispose를 우리가 직접 해야 해서 TryWrite + TryRead 방식)
         private readonly Channel<FrameData> _frames = Channel.CreateBounded<FrameData>(
             new BoundedChannelOptions(1)
             {
@@ -43,6 +37,7 @@ namespace AvaloniaApp.Infrastructure
         public ChannelReader<FrameData> Frames => _frames.Reader;
         public CameraData? ConnectedCameraInfo { get; private set; }
         public bool IsStreaming => _acquisition is not null;
+
         public VimbaCameraService() : this(IVmbSystem.Startup(), ownsSystem: true) { }
 
         internal VimbaCameraService(IVmbSystem system, bool ownsSystem)
@@ -53,41 +48,37 @@ namespace AvaloniaApp.Infrastructure
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(VimbaCameraService));
+            if (_disposed) throw new ObjectDisposedException(nameof(VimbaCameraService));
         }
+
         private IOpenCamera EnsureOpenCamera() => _openCamera ?? throw new InvalidOperationException("카메라가 연결되지 않았습니다.");
+
         private void InvalidatePreview()
         {
             Volatile.Write(ref _activeGeneration, 0);
             Interlocked.Increment(ref _generation);
-
-            // 남아있는 Packet 정리(버퍼 반환)
-            while (_frames.Reader.TryRead(out var old))
-                old.Dispose();
+            while (_frames.Reader.TryRead(out var old)) old.Dispose();
         }
+
         private void AttachFrameHandler()
         {
-            if (_openCamera is null) return;
-            if (_frameHandlerAttached) return;
-
+            if (_openCamera is null || _frameHandlerAttached) return;
             _openCamera.FrameReceived += OnFrameReceived;
             _frameHandlerAttached = true;
         }
+
         private void DetachFrameHandler()
         {
-            if (_openCamera is null) return;
-            if (!_frameHandlerAttached) return;
-
-            try { _openCamera.FrameReceived -= OnFrameReceived; }
-            catch { }
-
+            if (_openCamera is null || !_frameHandlerAttached) return;
+            try { _openCamera.FrameReceived -= OnFrameReceived; } catch { }
             _frameHandlerAttached = false;
         }
+
         private void SafeStopAcquisition()
         {
             InvalidatePreview();
 
+            // [수정] StopFrameAcquisition 호출 제거 (IAcquisition Dispose로 충분함)
             if (_acquisition is not null)
             {
                 try { _acquisition.Dispose(); }
@@ -96,7 +87,11 @@ namespace AvaloniaApp.Infrastructure
             }
 
             DetachFrameHandler();
+
+            // 상태 변경 알림
+            StreamingStateChanged?.Invoke(false);
         }
+
         public Task<IReadOnlyList<CameraData>> GetCameraListAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -109,6 +104,7 @@ namespace AvaloniaApp.Infrastructure
 
             return Task.FromResult<IReadOnlyList<CameraData>>(result);
         }
+
         private bool IsIgnoredModel(string name)
         {
             if (string.IsNullOrEmpty(name)) return false;
@@ -118,24 +114,18 @@ namespace AvaloniaApp.Infrastructure
                    upper.Contains("DEFECT") ||
                    upper.Contains("VIRTUAL");
         }
-        /// <summary>
-        /// 카메라를 열고 영상 획득을 시작합니다.
-        /// 실패 시 자동으로 재시도하며, ID가 변경된 경우 기존 카메라를 닫고 전환합니다.
-        /// </summary>
+
         public async Task StartPreviewAsync(CancellationToken ct, string cameraId)
         {
             ThrowIfDisposed();
-            if (string.IsNullOrWhiteSpace(cameraId))
-                throw new ArgumentNullException(nameof(cameraId));
+            if (string.IsNullOrWhiteSpace(cameraId)) throw new ArgumentNullException(nameof(cameraId));
 
             await _gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                // 1. 현재 연결된 카메라 확인 (이미 연결됨)
                 if (_openCamera is not null && _acquisition is not null && ConnectedCameraInfo?.Id == cameraId)
                     return;
 
-                // 2. 다른 카메라가 켜져 있다면 정리
                 if (_openCamera is not null)
                 {
                     SafeStopAcquisition();
@@ -143,6 +133,7 @@ namespace AvaloniaApp.Infrastructure
                     _openCamera = null;
                     ConnectedCameraInfo = null;
                 }
+
                 const int MaxRetries = 3;
                 for (int attempt = 1; attempt <= MaxRetries; attempt++)
                 {
@@ -162,7 +153,6 @@ namespace AvaloniaApp.Infrastructure
                         AttachFrameHandler();
                         _acquisition = _openCamera.StartFrameAcquisition();
 
-                        // 성공 알림
                         StreamingStateChanged?.Invoke(true);
 
                         Debug.WriteLine($"[Vimba] Camera Started: {cameraId}");
@@ -180,7 +170,7 @@ namespace AvaloniaApp.Infrastructure
                         }
 
                         if (attempt == MaxRetries) throw;
-                        await Task.Delay(300, ct).ConfigureAwait(false); // 재시도 대기 시간 증가
+                        await Task.Delay(300, ct).ConfigureAwait(false);
                     }
                 }
             }
@@ -189,6 +179,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         public async Task StopPreviewAndDisconnectAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
@@ -209,6 +200,7 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
+
         private unsafe void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
         {
             try
@@ -216,65 +208,43 @@ namespace AvaloniaApp.Infrastructure
                 using var frame = e.Frame;
 
                 var gen = Volatile.Read(ref _activeGeneration);
-                if (gen == 0)
-                    return;
+                if (gen == 0) return;
 
-                if (frame.FrameStatus != IFrame.FrameStatusValue.Completed)
-                    return;
-                if (frame.PayloadType != IFrame.PayloadTypeValue.Image)
-                    return;
-                if (frame.PixelFormat != IFrame.PixelFormatValue.Mono8)
+                if (frame.FrameStatus != IFrame.FrameStatusValue.Completed ||
+                    frame.PayloadType != IFrame.PayloadTypeValue.Image ||
+                    frame.PixelFormat != IFrame.PixelFormatValue.Mono8)
                     return;
 
                 int width = checked((int)frame.Width);
                 int height = checked((int)frame.Height);
-
-                if (width <= 0 || height <= 0)
-                    return;
+                if (width <= 0 || height <= 0) return;
 
                 int packedStride = width;
                 int packedLength = checked(packedStride * height);
 
-                if (frame.ImageData == IntPtr.Zero)
-                    return;
-                if (frame.BufferSize < (uint)packedLength)
-                    return;
+                if (frame.ImageData == IntPtr.Zero || frame.BufferSize < (uint)packedLength) return;
 
                 int srcStride = packedStride;
-                uint bufSize = frame.BufferSize;
-                if (height > 0 && (bufSize % (uint)height) == 0)
+                if (height > 0 && (frame.BufferSize % (uint)height) == 0)
                 {
-                    uint pitch = bufSize / (uint)height;
-                    if (pitch >= (uint)packedStride && pitch <= int.MaxValue)
-                        srcStride = (int)pitch;
+                    uint pitch = frame.BufferSize / (uint)height;
+                    if (pitch >= (uint)packedStride) srcStride = (int)pitch;
                 }
 
-                if (Volatile.Read(ref _activeGeneration) != gen)
-                    return;
+                if (Volatile.Read(ref _activeGeneration) != gen) return;
 
                 var buffer = ArrayPool<byte>.Shared.Rent(packedLength);
-
                 try
                 {
                     byte* src = (byte*)frame.ImageData;
                     fixed (byte* dst0 = buffer)
                     {
-                        byte* dst = dst0;
-
                         if (srcStride == packedStride)
-                        {
-                            Buffer.MemoryCopy(src, dst, packedLength, packedLength);
-                        }
+                            Buffer.MemoryCopy(src, dst0, packedLength, packedLength);
                         else
                         {
                             for (int y = 0; y < height; y++)
-                            {
-                                Buffer.MemoryCopy(
-                                    src + (long)y * srcStride,
-                                    dst + (long)y * packedStride,
-                                    packedStride,
-                                    packedStride);
-                            }
+                                Buffer.MemoryCopy(src + (long)y * srcStride, dst0 + (long)y * packedStride, packedStride, packedStride);
                         }
                     }
                 }
@@ -291,126 +261,24 @@ namespace AvaloniaApp.Infrastructure
                 }
 
                 var packet = FrameData.Wrap(buffer, width, height, packedStride, packedLength);
-
                 if (!_frames.Writer.TryWrite(packet))
                 {
-                    if (_frames.Reader.TryRead(out var old))
-                        old.Dispose();
-
-                    if (!_frames.Writer.TryWrite(packet))
-                        packet.Dispose();
+                    if (_frames.Reader.TryRead(out var old)) old.Dispose();
+                    if (!_frames.Writer.TryWrite(packet)) packet.Dispose();
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
-        public async Task<double> GetExposureTimeAsync(CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
 
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
-                double value = cam.Features.ExposureTime;
-                return value;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
-        public async Task<double> SetExposureTimeAsync(double exposureTime, CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
+        public async Task<double> GetExposureTimeAsync(CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { return EnsureOpenCamera().Features.ExposureTime; } finally { _gate.Release(); } }
+        public async Task<double> SetExposureTimeAsync(double val, CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { var c = EnsureOpenCamera(); c.Features.ExposureTime = val; return c.Features.ExposureTime; } finally { _gate.Release(); } }
 
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
+        public async Task<double> GetGainAsync(CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { return EnsureOpenCamera().Features.Gain; } finally { _gate.Release(); } }
+        public async Task<double> SetGainAsync(double val, CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { var c = EnsureOpenCamera(); c.Features.Gain = val; return c.Features.Gain; } finally { _gate.Release(); } }
 
-                cam.Features.ExposureTime = exposureTime;
-                double applied = cam.Features.ExposureTime;
-                return applied;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
-        public async Task<double> GetGainAsync(CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
+        public async Task<double> GetGammaAsync(CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { return EnsureOpenCamera().Features.Gamma; } finally { _gate.Release(); } }
+        public async Task<double> SetGammaAsync(double val, CancellationToken ct) { ThrowIfDisposed(); await _gate.WaitAsync(ct); try { var c = EnsureOpenCamera(); c.Features.Gamma = val; return c.Features.Gamma; } finally { _gate.Release(); } }
 
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
-                double value = cam.Features.Gain;
-                return value;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
-        public async Task<double> SetGainAsync(double gain, CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
-
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
-                cam.Features.Gain = gain;
-                double applied = cam.Features.Gain;
-                return applied;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
-        public async Task<double> GetGammaAsync(CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
-
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
-                double value = cam.Features.Gamma;
-                return value;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
-        public async Task<double> SetGammaAsync(double gamma, CancellationToken ct)
-        {
-            ThrowIfDisposed();
-            await _gate.WaitAsync(ct).ConfigureAwait(false);
-
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                var cam = EnsureOpenCamera();
-                cam.Features.Gamma = gamma;
-                double applied = cam.Features.Gamma;
-                return applied;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-        }
         public async ValueTask DisposeAsync()
         {
             if (_disposed) return;
