@@ -1,5 +1,4 @@
-﻿// ===== AvaloniaApp.Presentation/ViewModels/UserControls/ChartViewModel.cs (체크박스 + 색상 연동 버전) =====
-using Avalonia.Media;
+﻿using Avalonia.Media;
 using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
@@ -7,17 +6,8 @@ using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.Views.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using LiveChartsCore;
-using LiveChartsCore.Defaults;
-using LiveChartsCore.SkiaSharpView;
-using LiveChartsCore.SkiaSharpView.Avalonia;
-using LiveChartsCore.SkiaSharpView.Painting;
-using SkiaSharp;
-using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -26,46 +16,92 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
     public partial class ChartViewModel : ViewModelBase
     {
         [ObservableProperty] private ObservableCollection<ChartSeries> _seriesCollection = new();
+        [ObservableProperty] private bool _isTooltipEnabled = true;
 
         private readonly WorkspaceService _workspaceService;
+        private readonly VimbaCameraService _cameraService;
 
         public ChartViewModel(AppService service) : base(service)
         {
             _workspaceService = service.WorkSpace;
+            _cameraService = service.Camera;
+
             _workspaceService.Updated -= OnAnalysisCompleted;
             _workspaceService.Updated += OnAnalysisCompleted;
+
+            _cameraService.StreamingStateChanged += OnStreamingStateChanged;
+
+            // 초기 상태 설정: 스트리밍 중이 아니면 툴팁 켜기
+            IsTooltipEnabled = !_cameraService.IsStreaming;
+        }
+
+        private void OnStreamingStateChanged(bool isStreaming)
+        {
+            // UI 스레드에서 속성 업데이트 (View 반영 보장)
+            _service.Ui.InvokeAsync(() =>
+            {
+                IsTooltipEnabled = !isStreaming;
+            });
         }
 
         private void OnAnalysisCompleted()
         {
             var ws = _service.WorkSpace.Current;
             if (ws == null) return;
+
             if (ws.IntensityDataMap == null || ws.IntensityDataMap.Count == 0)
+            {
+                if (SeriesCollection.Count > 0)
+                    _service.Ui.InvokeAsync(() => SeriesCollection.Clear());
                 return;
+            }
+
             _service.Ui.InvokeAsync(() =>
             {
-                SeriesCollection.Clear();
-                foreach (var kvp in ws.IntensityDataMap)
-                {
-                    var regionIndex = kvp.Key;
-                    var intensities = kvp.Value;
-
-                    var series = new ChartSeries
-                    {
-                        DisplayName = $"Region {regionIndex + 1}",
-                        Points = intensities.Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev)).ToList(),
-                        LinePen = new Pen(Options.GetBrushByIndex(regionIndex), 1),
-                        MarkerFill = Options.GetBrushByIndex(regionIndex),
-                        ShowErrorBars = true
-                    };
-                    SeriesCollection.Add(series);
-                }
+                if (SeriesCollection.Count != ws.IntensityDataMap.Count)
+                    RebuildAllSeries(ws.IntensityDataMap);
+                else
+                    UpdateExistingSeries(ws.IntensityDataMap);
             });
         }
+
+        private void RebuildAllSeries(IReadOnlyDictionary<int, IntensityData[]> map)
+        {
+            SeriesCollection.Clear();
+            foreach (var kvp in map.OrderBy(k => k.Key))
+            {
+                SeriesCollection.Add(CreateSeries(kvp.Key, kvp.Value));
+            }
+        }
+
+        private void UpdateExistingSeries(IReadOnlyDictionary<int, IntensityData[]> map)
+        {
+            int i = 0;
+            foreach (var kvp in map.OrderBy(k => k.Key))
+            {
+                if (i >= SeriesCollection.Count) break;
+                SeriesCollection[i].Points = kvp.Value.Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev)).ToList();
+                i++;
+            }
+        }
+
+        private ChartSeries CreateSeries(int regionIndex, IntensityData[] intensities)
+        {
+            return new ChartSeries
+            {
+                Id = regionIndex.ToString(),
+                DisplayName = $"Region {regionIndex + 1}",
+                Points = intensities.Select(d => new ChartPoint(d.wavelength, d.mean, d.stddev)).ToList(),
+                LinePen = new Pen(Options.GetBrushByIndex(regionIndex), 1),
+                MarkerFill = Options.GetBrushByIndex(regionIndex),
+                ShowErrorBars = true
+            };
+        }
+
         public override async ValueTask DisposeAsync()
         {
-            // 이벤트 구독 해제 (필수)
             _workspaceService.Updated -= OnAnalysisCompleted;
+            _cameraService.StreamingStateChanged -= OnStreamingStateChanged;
             await base.DisposeAsync();
         }
     }

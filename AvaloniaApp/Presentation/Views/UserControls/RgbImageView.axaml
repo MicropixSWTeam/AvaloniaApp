@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:vm ="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             x:Class="AvaloniaApp.Presentation.Views.UserControls.RgbImageView"
+             x:DataType="vm:RgbImageViewModel">
+    
+    <Border Background="#222222">
+        <!-- Viewbox�� ����Ͽ� �̹����� ��Ʈ�� ũ�⿡ ���� ������ �����ϸ� �� ���� ǥ�õ� -->
+        <Viewbox Stretch="Uniform">
+            <Image x:Name="RgbImage"
+                   Source="{Binding CameraVM.RgbBitmap}"
+                   Width="{Binding CameraVM.CropWidth}"
+                   Height="{Binding CameraVM.CropHeight}"
+                   Stretch="Fill"/> 
+        </Viewbox>
+    </Border>
+
+</UserControl>

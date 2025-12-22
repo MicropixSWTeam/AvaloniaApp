@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:AvaloniaApp.Presentation.Views.Controls"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             mc:Ignorable="d"
+             d:DesignWidth="1000"
+             d:DesignHeight="600"
+             x:Class="AvaloniaApp.Presentation.Views.UserControls.RawImageView"
+             x:DataType="vm:RawImageViewModel">
+
+    <Grid RowDefinitions="*,Auto" >
+        <Border Grid.Row="0" Background="#222222">
+            <Viewbox Stretch="Uniform">
+                <Grid Width="{Binding CameraVM.CropWidth}" 
+                      Height="{Binding CameraVM.CropHeight}">
+                    
+                    <Image x:Name="PreviewImage" 
+                           Source="{Binding CameraVM.PreviewBitmap}"
+                           Stretch="Fill" 
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Stretch"/>
+
+                    <Canvas x:Name="DrawCanvas"
+                            Background="Transparent"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            IsHitTestVisible="True"
+                            PointerPressed="DrawCanvas_PointerPressed"
+                            PointerMoved="DrawCanvas_PointerMoved"
+                            PointerReleased="DrawCanvas_PointerReleased">
+
+                        <controls:DrawRectControl
+                            Regions="{Binding CameraVM.Regions}"
+                            IsHitTestVisible="False"/>
+
+                        <Rectangle x:Name="DrawingRect"
+                                   StrokeThickness="1"
+                                   Fill="Transparent"
+                                   IsHitTestVisible="False"
+                                   Width="0"
+                                   Height="0" 
+                                   IsVisible="False"/>
+                    </Canvas>
+                </Grid>
+            </Viewbox>
+        </Border>
+
+
+    </Grid>
+</UserControl>

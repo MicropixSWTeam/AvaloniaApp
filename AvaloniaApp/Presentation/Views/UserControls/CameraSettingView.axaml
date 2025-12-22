@@ -6,69 +6,132 @@
              mc:Ignorable="d"
              x:Class="AvaloniaApp.Presentation.Views.UserControls.CameraSettingView"
              x:DataType="vm:CameraSettingViewModel"
-             d:DesignWidth="1000"
-             d:DesignHeight="1000"
+             d:DesignWidth="300"
+             d:DesignHeight="800"
              Loaded="OnLoaded">
 
-    <StackPanel Margin="16" Spacing="12">
-        <TextBlock Text="Camera Settings"
-                   FontSize="18"
-                   FontWeight="Bold" />
+    <!-- ScrollViewer를 추가하여 내용이 패널을 벗어나도 스크롤 가능하도록 합니다. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <!-- Spacing="16"으로 섹션 간 간격을 늘려 가독성을 높였습니다. -->
+        <StackPanel Margin="16" Spacing="16"> 
+            
+            <TextBlock Text="Camera Settings" 
+                       FontSize="18" 
+                       FontWeight="Bold" 
+                       Foreground="{DynamicResource AppPrimaryBrush}"
+                       Margin="0,0,0,4"/>
 
-        <!-- Exposure -->
-        <StackPanel Spacing="4">
-            <TextBlock Text="Exposure [us]" />
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                <!-- Slider -->
-                <Slider Grid.Row="0" Grid.ColumnSpan="2"
-                        Minimum="{Binding ExposureMin}"
-                        Maximum="{Binding ExposureMax}"
-                        Value="{Binding ExposureTime, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
+            <!-- ============================================= -->
+            <!-- 1. Exposure Setting -->
+            <!-- ============================================= -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Exposure [us]" FontWeight="SemiBold"/>
+                
+                <!-- 슬라이더와 텍스트 박스를 수직으로 배치합니다. -->
+                <Grid ColumnDefinitions="*, 100" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
+                    
+                    <!-- 슬라이더는 전체 너비 (ColumnSpan="2")를 사용합니다. -->
+                    <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                            Minimum="{Binding ExposureMin}"
+                            Maximum="{Binding ExposureMax}"
+                            Value="{Binding ExposureTime, Mode=TwoWay}" />
 
-                <!-- TextBox -->
-                <TextBox Grid.Row="1" Grid.Column="0"
-                         Width="100"
-                         Text="{Binding ExposureTime,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
-            </Grid>
+                    <!-- 텍스트 박스는 Grid.Row="1"에 배치하고, 오른쪽에 맞춥니다. -->
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBox x:Name="ExposureBox" Width="100"
+                                 Text="{Binding ExposureText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 VerticalAlignment="Center">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter"
+                                            Command="{Binding CommitExposureCommand}"
+                                            CommandParameter="{Binding #ExposureBox.Text}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <!-- ============================================= -->
+            <!-- 2. Gain Setting -->
+            <!-- ============================================= -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Gain [db]" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*, 100" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
+                    <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                            Minimum="{Binding GainMin}"
+                            Maximum="{Binding GainMax}"
+                            Value="{Binding Gain, Mode=TwoWay}" />
+                    
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBox x:Name="GainBox" Width="100"
+                                 Text="{Binding GainText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 VerticalAlignment="Center">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter"
+                                            Command="{Binding CommitGainCommand}"
+                                            CommandParameter="{Binding #GainBox.Text}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <!-- ============================================= -->
+            <!-- 3. Gamma Setting -->
+            <!-- ============================================= -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Gamma" FontWeight="SemiBold"/>
+                <Grid ColumnDefinitions="*, 100" RowDefinitions="Auto,Auto" HorizontalAlignment="Stretch">
+                    <Slider Grid.Row="0" Grid.ColumnSpan="2"
+                            Minimum="{Binding GammaMin}"
+                            Maximum="{Binding GammaMax}"
+                            Value="{Binding Gamma, Mode=TwoWay}" />
+                            
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBox x:Name="GammaBox" Width="100"
+                                 Text="{Binding GammaText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 VerticalAlignment="Center">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter"
+                                            Command="{Binding CommitGammaCommand}"
+                                            CommandParameter="{Binding #GammaBox.Text}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+            
+            <!-- 구분선 추가 -->
+            <Separator Height="1" Background="{DynamicResource AppBorderColor}" Margin="0,4"/>
+
+            <!-- ============================================= -->
+            <!-- 4. Wavelength Selection (수직 배치로 변경) -->
+            <!-- ============================================= -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Wavelength" FontWeight="SemiBold"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Stretch">
+                    <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="Gray"/>
+                    <ComboBox Width="120" HorizontalAlignment="Left"
+                              ItemsSource="{Binding CameraVM.WavelengthIndexs}"
+                              SelectedItem="{Binding CameraVM.SelectedWavelengthIndex, Mode=TwoWay}" 
+                              DisplayMemberBinding="{Binding DisplayText}"/>
+                </StackPanel>
+            </StackPanel>
+            
+            <!-- ============================================= -->
+            <!-- 5. Distance Selection (수직 배치로 변경) -->
+            <!-- ============================================= -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Distance" FontWeight="SemiBold"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Stretch">
+                    <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="Gray"/>
+                    <ComboBox Width="120" HorizontalAlignment="Left"
+                              ItemsSource="{Binding CameraVM.WorkingDistances}"
+                              SelectedItem="{Binding CameraVM.SelectedWorkingDistance, Mode=TwoWay}"
+                              DisplayMemberBinding ="{Binding DisplayText}"/>
+                </StackPanel>
+            </StackPanel>
+
         </StackPanel>
-
-        <!-- Gain -->
-        <StackPanel Spacing="4">
-            <TextBlock Text="Gain [db]" />
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                <Slider Grid.Row="0" Grid.ColumnSpan="2"
-                        Minimum="{Binding GainMin}"
-                        Maximum="{Binding GainMax}"
-                        Value="{Binding Gain, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
-                <TextBox Grid.Row="1" Grid.Column="0"
-                         Width="100"
-                         Text="{Binding Gain,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
-            </Grid>
-        </StackPanel>
-
-        <!-- Gamma -->
-        <StackPanel Spacing="4">
-            <TextBlock Text="Gamma" />
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                <Slider Grid.Row="0" Grid.ColumnSpan="2"
-                        Minimum="{Binding GammaMin}"
-                        Maximum="{Binding GammaMax}"
-                        Value="{Binding Gamma, Mode=TwoWay,StringFormat='{}{0:F1}'}" />
-                <TextBox Grid.Row="1" Grid.Column="0"
-                         Width="100"
-                         Text="{Binding Gamma,Mode=TwoWay,StringFormat='{}{0:F1}'}" />
-            </Grid>
-        </StackPanel>
-
-        <!-- 버튼 -->
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8"
-                    Margin="0,12,0,0">
-            <Button Content="Reload"
-                    Command="{Binding LoadCommand}" />
-            <Button Content="Apply"
-                    Command="{Binding ApplyCommand}" />
-        </StackPanel>
-    </StackPanel>
+    </ScrollViewer>
 </UserControl>

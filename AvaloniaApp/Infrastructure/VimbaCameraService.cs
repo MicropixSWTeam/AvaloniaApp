@@ -30,6 +30,8 @@ namespace AvaloniaApp.Infrastructure
         private long _activeGeneration; // 0이면 비활성
         private bool _frameHandlerAttached;
 
+        public event Action<bool>? StreamingStateChanged;   
+
         // 최신 1프레임만 유지. (드롭 시 Dispose를 우리가 직접 해야 해서 TryWrite + TryRead 방식)
         private readonly Channel<FrameData> _frames = Channel.CreateBounded<FrameData>(
             new BoundedChannelOptions(1)
@@ -48,6 +50,7 @@ namespace AvaloniaApp.Infrastructure
             _system = system ?? throw new ArgumentNullException(nameof(system));
             _ownsSystem = ownsSystem;
         }
+
         private void ThrowIfDisposed()
         {
             if (_disposed)
@@ -100,12 +103,21 @@ namespace AvaloniaApp.Infrastructure
             ThrowIfDisposed();
 
             var result = _system.GetCameras()
+                .Where(c => !IsIgnoredModel(c.ModelName) && !IsIgnoredModel(c.Name))
                 .Select(c => new CameraData(c.Id, c.Name, c.Serial, c.ModelName))
                 .ToArray();
 
             return Task.FromResult<IReadOnlyList<CameraData>>(result);
         }
-
+        private bool IsIgnoredModel(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            var upper = name.ToUpperInvariant();
+            return upper.Contains("SIMULATOR") ||
+                   upper.Contains("VIMBA X") ||
+                   upper.Contains("DEFECT") ||
+                   upper.Contains("VIRTUAL");
+        }
         /// <summary>
         /// 카메라를 열고 영상 획득을 시작합니다.
         /// 실패 시 자동으로 재시도하며, ID가 변경된 경우 기존 카메라를 닫고 전환합니다.
@@ -124,78 +136,51 @@ namespace AvaloniaApp.Infrastructure
                     return;
 
                 // 2. 다른 카메라가 켜져 있다면 정리
-                if (_openCamera is not null && ConnectedCameraInfo?.Id != cameraId)
+                if (_openCamera is not null)
                 {
                     SafeStopAcquisition();
-                    if (_openCamera is not null)
-                    {
-                        DetachFrameHandler();
-                        try { _openCamera.Dispose(); } catch { }
-                        _openCamera = null;
-                        ConnectedCameraInfo = null;
-                    }
+                    try { _openCamera.Dispose(); } catch { }
+                    _openCamera = null;
+                    ConnectedCameraInfo = null;
                 }
-
-                // 3. 재시도 로직
                 const int MaxRetries = 3;
-
                 for (int attempt = 1; attempt <= MaxRetries; attempt++)
                 {
                     try
                     {
                         ct.ThrowIfCancellationRequested();
 
-                        // (A) 방어적 정리
-                        if (_openCamera != null)
-                        {
-                            DetachFrameHandler();
-                            try { _openCamera.Dispose(); } catch { }
-                            _openCamera = null;
-                        }
+                        var camera = _system.GetCameraByID(cameraId)
+                                     ?? throw new InvalidOperationException($"Camera '{cameraId}' not found.");
 
-                        // (B) 카메라 찾기
-                        var camera = _system.GetCameraByID(cameraId) ?? throw new InvalidOperationException($"Camera '{cameraId}' not found.");
-
-                        // (C) 카메라 열기 (기존 코드: 인자 없음)
                         _openCamera = camera.Open();
                         ConnectedCameraInfo = new CameraData(camera.Id, camera.Name, camera.Serial, camera.ModelName);
 
-                        // (D) 핸들러 부착 및 스트리밍 시작
                         var gen = Interlocked.Increment(ref _generation);
                         Volatile.Write(ref _activeGeneration, gen);
 
                         AttachFrameHandler();
-
-                        // (E) StartFrameAcquisition 사용 (기존 코드)
-                        // 리턴값은 IAcquisition (IDisposable)
                         _acquisition = _openCamera.StartFrameAcquisition();
 
-                        // 성공 시 탈출
-                        Debug.WriteLine($"[Vimba] Camera Started Successfully: {cameraId}");
+                        // 성공 알림
+                        StreamingStateChanged?.Invoke(true);
+
+                        Debug.WriteLine($"[Vimba] Camera Started: {cameraId}");
                         return;
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[Vimba] Start failed (Attempt {attempt}/{MaxRetries}): {ex.Message}");
-
-                        // 실패 시 정리
-                        InvalidatePreview();
+                        Debug.WriteLine($"[Vimba] Start failed ({attempt}): {ex.Message}");
                         SafeStopAcquisition();
-
                         if (_openCamera != null)
                         {
-                            DetachFrameHandler();
                             try { _openCamera.Dispose(); } catch { }
                             _openCamera = null;
                             ConnectedCameraInfo = null;
                         }
 
-                        // 마지막 시도였다면 에러 전파
-                        if (attempt == MaxRetries)
-                            throw;
-
-                        // 하드웨어 리셋 대기
-                        await Task.Delay(200, ct).ConfigureAwait(false);
+                        if (attempt == MaxRetries) throw;
+                        await Task.Delay(300, ct).ConfigureAwait(false); // 재시도 대기 시간 증가
                     }
                 }
             }
@@ -204,25 +189,19 @@ namespace AvaloniaApp.Infrastructure
                 _gate.Release();
             }
         }
-
         public async Task StopPreviewAndDisconnectAsync(CancellationToken ct)
         {
             ThrowIfDisposed();
-
             await _gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                ct.ThrowIfCancellationRequested();
-
                 SafeStopAcquisition();
 
                 if (_openCamera is not null)
                 {
-                    DetachFrameHandler();
-                    _openCamera.Dispose();
+                    try { _openCamera.Dispose(); } catch { }
                     _openCamera = null;
                 }
-
                 ConnectedCameraInfo = null;
             }
             finally
@@ -434,33 +413,20 @@ namespace AvaloniaApp.Infrastructure
         }
         public async ValueTask DisposeAsync()
         {
-            if (_disposed)
-                return;
-
+            if (_disposed) return;
             _disposed = true;
 
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
                 SafeStopAcquisition();
-
                 if (_openCamera is not null)
                 {
-                    DetachFrameHandler();
-                    _openCamera.Dispose();
+                    try { _openCamera.Dispose(); } catch { }
                     _openCamera = null;
                 }
-
-                ConnectedCameraInfo = null;
-
-                if (_ownsSystem)
-                {
-                    try { _system.Shutdown(); }
-                    catch { }
-                }
-
-                try { _frames.Writer.TryComplete(); }
-                catch { }
+                if (_ownsSystem) try { _system.Shutdown(); } catch { }
+                _frames.Writer.TryComplete();
             }
             finally
             {

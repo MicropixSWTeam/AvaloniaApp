@@ -13,13 +13,13 @@ using System.Linq;
 
 namespace AvaloniaApp.Presentation.Views.Controls;
 
-// 1. 데이터 모델 정의 (int 및 byte로 최적화)
+// 1. 데이터 모델
 public readonly record struct ChartPoint(int Wavelength, byte Mean, byte? StdDev = null);
 
 public sealed class ChartSeries
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
-    public string DisplayName { get; init; } = "시리즈";
+    public string DisplayName { get; init; } = "Name";
 
     private IReadOnlyList<ChartPoint> _points = Array.Empty<ChartPoint>();
     public IReadOnlyList<ChartPoint> Points
@@ -38,17 +38,18 @@ public sealed class ChartSeries
     public double ErrorCapHalfWidth { get; init; } = 3;
 }
 
-// 2. 커스텀 컨트롤 정의
+// 2. 최종 최적화된 차트 컨트롤
 public sealed class ChartControl : Control
 {
-    // --- 의존성 속성 (정수/바이트 타입 적용) ---
+    // --- 의존성 속성 ---
     public static readonly StyledProperty<ObservableCollection<ChartSeries>> SeriesProperty =
         AvaloniaProperty.Register<ChartControl, ObservableCollection<ChartSeries>>(nameof(Series));
-
     public ObservableCollection<ChartSeries> Series { get => GetValue(SeriesProperty); set => SetValue(SeriesProperty, value); }
 
     public static readonly StyledProperty<int> XMinProperty = AvaloniaProperty.Register<ChartControl, int>(nameof(XMin), 400);
     public static readonly StyledProperty<int> XMaxProperty = AvaloniaProperty.Register<ChartControl, int>(nameof(XMax), 700);
+
+    // Y축 기본값 0~255 설정
     public static readonly StyledProperty<byte> YMinProperty = AvaloniaProperty.Register<ChartControl, byte>(nameof(YMin), 0);
     public static readonly StyledProperty<byte> YMaxProperty = AvaloniaProperty.Register<ChartControl, byte>(nameof(YMax), 255);
 
@@ -64,7 +65,7 @@ public sealed class ChartControl : Control
 
     public static readonly StyledProperty<IReadOnlyList<byte>> YTicksProperty =
         AvaloniaProperty.Register<ChartControl, IReadOnlyList<byte>>(nameof(YTicks),
-            new byte[] { 0, 51, 102, 153, 204, 255 });
+            new byte[] { 0, 50, 100, 150, 200, 250 });
     public IReadOnlyList<byte> YTicks { get => GetValue(YTicksProperty); set => SetValue(YTicksProperty, value); }
 
     public static readonly StyledProperty<bool> AutoScaleProperty = AvaloniaProperty.Register<ChartControl, bool>(nameof(AutoScale), true);
@@ -79,11 +80,15 @@ public sealed class ChartControl : Control
 
     public static readonly Thickness PlotPadding = new Thickness(50, 20, 20, 40);
 
-    // --- 내부 캐싱 ---
-    private bool _staticDirty = true;
-    private RenderTargetBitmap? _staticLayer;
+    // --- 내부 변수 ---
+    private RenderTargetBitmap? _graphLayerBitmap;
+    private bool _isGraphDirty = true;
+    private bool _pendingRender = false;
+
     private PixelSize _lastPixelSize;
     private double _lastScaling;
+
+    private static readonly PointXComparer _xComparer = new();
 
     private sealed class SeriesCache
     {
@@ -103,6 +108,11 @@ public sealed class ChartControl : Control
         }
     }
 
+    private sealed class PointXComparer : IComparer<Point>
+    {
+        public int Compare(Point x, Point y) => x.X.CompareTo(y.X);
+    }
+
     private readonly Dictionary<string, SeriesCache> _seriesCache = new();
     private FormattedText? _hoverFormatted;
     private Point _hoverPixelPos;
@@ -112,6 +122,7 @@ public sealed class ChartControl : Control
         Series = new ObservableCollection<ChartSeries>();
         AttachCollection(Series);
         ClipToBounds = true;
+
         PointerMoved += OnPointerMovedInternal;
         PointerExited += (_, __) => { _hoverFormatted = null; InvalidateVisual(); };
     }
@@ -130,28 +141,60 @@ public sealed class ChartControl : Control
         foreach (var s in col) s.Changed -= OnSeriesDataChanged;
     }
 
-    private void OnSeriesDataChanged(object? sender, EventArgs e) { if (AutoScale) UpdateAutoScale(); InvalidateVisual(); }
+    private void OnSeriesDataChanged(object? sender, EventArgs e)
+    {
+        if (AutoScale) UpdateAutoScale();
+        _isGraphDirty = true;
+
+        // [성능 개선 3] 스로틀링 구현
+        if (!_pendingRender)
+        {
+            _pendingRender = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_pendingRender)
+                {
+                    InvalidateVisual();
+                    _pendingRender = false;
+                }
+            }, Avalonia.Threading.DispatcherPriority.Input);
+        }
+    }
+
     private void OnSeriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.NewItems != null) foreach (ChartSeries s in e.NewItems) s.Changed += OnSeriesDataChanged;
         if (e.OldItems != null) foreach (ChartSeries s in e.OldItems) { s.Changed -= OnSeriesDataChanged; if (_seriesCache.TryGetValue(s.Id, out var c)) c.ReturnPool(); _seriesCache.Remove(s.Id); }
+
         if (AutoScale) UpdateAutoScale();
-        _staticDirty = true; InvalidateVisual();
+        _isGraphDirty = true;
+        InvalidateVisual();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == SeriesProperty) { DetachCollection(change.OldValue as ObservableCollection<ChartSeries>); AttachCollection(change.NewValue as ObservableCollection<ChartSeries>); _staticDirty = true; }
-        else if (change.Property == XMinProperty || change.Property == XMaxProperty || change.Property == YMinProperty || change.Property == YMaxProperty || change.Property == XTicksProperty || change.Property == YTicksProperty) _staticDirty = true;
+        if (change.Property == SeriesProperty)
+        {
+            DetachCollection(change.OldValue as ObservableCollection<ChartSeries>);
+            AttachCollection(change.NewValue as ObservableCollection<ChartSeries>);
+            _isGraphDirty = true;
+        }
+        else if (change.Property == XMinProperty || change.Property == XMaxProperty ||
+                 change.Property == YMinProperty || change.Property == YMaxProperty ||
+                 change.Property == XTicksProperty || change.Property == YTicksProperty ||
+                 change.Property == BackgroundBrushProperty)
+        {
+            _isGraphDirty = true;
+        }
         InvalidateVisual();
     }
 
     private void UpdateAutoScale()
     {
         if (Series == null || Series.Count == 0) return;
+
         int minX = int.MaxValue, maxX = int.MinValue;
-        int minY = 255, maxY = 0;
         bool hasData = false;
 
         foreach (var s in Series)
@@ -160,21 +203,21 @@ public sealed class ChartControl : Control
             hasData = true;
             foreach (var p in s.Points)
             {
-                minX = Math.Min(minX, p.Wavelength); maxX = Math.Max(maxX, p.Wavelength);
-                int yLow = p.Mean - (p.StdDev ?? 0); int yHigh = p.Mean + (p.StdDev ?? 0);
-                minY = Math.Min(minY, Math.Max(0, yLow)); maxY = Math.Max(maxY, Math.Min(255, yHigh));
+                minX = Math.Min(minX, p.Wavelength);
+                maxX = Math.Max(maxX, p.Wavelength);
             }
         }
         if (!hasData) return;
 
         double pad = RangePadding;
         int dx = maxX - minX; if (dx == 0) dx = 1;
-        int dy = maxY - minY; if (dy == 0) dy = 1;
 
         SetCurrentValue(XMinProperty, (int)(minX - dx * pad));
         SetCurrentValue(XMaxProperty, (int)(maxX + dx * pad));
-        SetCurrentValue(YMinProperty, (byte)Math.Clamp(minY - dy * pad, 0, 255));
-        SetCurrentValue(YMaxProperty, (byte)Math.Clamp(maxY + dy * pad, 0, 255));
+
+        // Y축 0~255 고정
+        SetCurrentValue(YMinProperty, (byte)0);
+        SetCurrentValue(YMaxProperty, (byte)255);
     }
 
     public override void Render(DrawingContext context)
@@ -185,34 +228,95 @@ public sealed class ChartControl : Control
         var plot = bounds.Deflate(PlotPadding);
         var range = (xmin: XMin, xmax: XMax, ymin: YMin, ymax: YMax);
 
-        EnsureStaticLayer(bounds, plot, range);
-        if (_staticLayer != null) context.DrawImage(_staticLayer, new Rect(0, 0, _staticLayer.PixelSize.Width, _staticLayer.PixelSize.Height), bounds);
+        UpdateGraphLayerIfDirty(bounds, plot, range);
 
-        if (range.xmax <= range.xmin || range.ymax <= range.ymin) return;
-        double sx = plot.Width / (range.xmax - range.xmin);
-        double sy = plot.Height / (range.ymax - range.ymin);
-        double ox = plot.Left - (double)range.xmin * sx;
-        double oy = plot.Bottom + (double)range.ymin * sy;
+        if (_graphLayerBitmap != null)
+            context.DrawImage(_graphLayerBitmap, new Rect(0, 0, _graphLayerBitmap.PixelSize.Width, _graphLayerBitmap.PixelSize.Height), bounds);
 
-        using (context.PushClip(plot))
-        {
-            EnsureSeriesCache(plot, range, sx, sy, ox, oy);
-            foreach (var s in Series)
-            {
-                if (!_seriesCache.TryGetValue(s.Id, out var cache)) continue;
-                if (cache.LineGeom != null) context.DrawGeometry(null, s.LinePen, cache.LineGeom);
-                if (s.ShowErrorBars && cache.ErrorBarGeom != null) context.DrawGeometry(null, s.LinePen, cache.ErrorBarGeom);
-                if (cache.MarkerGeom != null) context.DrawGeometry(s.MarkerFill, null, cache.MarkerGeom);
-            }
-        }
+        DrawOverlay(context, bounds);
+    }
 
+    // 누락되었던 메서드 추가됨
+    private void DrawOverlay(DrawingContext context, Rect bounds)
+    {
         if (_hoverFormatted != null)
         {
             var rect = new Rect(_hoverPixelPos.X + 12, _hoverPixelPos.Y - _hoverFormatted.Height - 12, _hoverFormatted.Width + 10, _hoverFormatted.Height + 6);
             if (rect.Right > bounds.Right) rect = rect.WithX(_hoverPixelPos.X - rect.Width - 12);
+            if (rect.Top < bounds.Top) rect = rect.WithY(_hoverPixelPos.Y + 12);
+
             context.FillRectangle(new SolidColorBrush(Color.Parse("#E6222222")), rect, 4);
             context.DrawText(_hoverFormatted, new Point(rect.X + 5, rect.Y + 3));
+            context.DrawEllipse(null, new Pen(Brushes.White, 2), _hoverPixelPos, 5, 5);
         }
+    }
+
+    private void UpdateGraphLayerIfDirty(Rect bounds, Rect plot, (int xmin, int xmax, byte ymin, byte ymax) range)
+    {
+        var scaling = VisualRoot?.RenderScaling ?? 1.0;
+        var pixelSize = PixelSize.FromSize(bounds.Size, scaling);
+
+        if (_graphLayerBitmap == null || _lastPixelSize != pixelSize || _lastScaling != scaling || _isGraphDirty)
+        {
+            _graphLayerBitmap?.Dispose();
+            _graphLayerBitmap = new RenderTargetBitmap(pixelSize, new Vector(96 * scaling, 96 * scaling));
+            _lastPixelSize = pixelSize;
+            _lastScaling = scaling;
+            _isGraphDirty = false;
+
+            using var dc = _graphLayerBitmap.CreateDrawingContext();
+
+            dc.FillRectangle(BackgroundBrush, bounds);
+            dc.DrawRectangle(new Pen(new SolidColorBrush(Color.Parse("#33FFFFFF")), 1), plot);
+
+            if (range.xmax <= range.xmin || range.ymax <= range.ymin) return;
+
+            double sx = plot.Width / (range.xmax - range.xmin);
+            double sy = plot.Height / (range.ymax - range.ymin);
+            double ox = plot.Left - (double)range.xmin * sx;
+            double oy = plot.Bottom + (double)range.ymin * sy;
+
+            DrawGridAndLabels(dc, plot, sx, sy, ox, oy);
+
+            using (dc.PushClip(plot))
+            {
+                EnsureSeriesCache(plot, range, sx, sy, ox, oy);
+                foreach (var s in Series)
+                {
+                    if (!_seriesCache.TryGetValue(s.Id, out var cache)) continue;
+                    if (cache.LineGeom != null) dc.DrawGeometry(null, s.LinePen, cache.LineGeom);
+                    if (s.ShowErrorBars && cache.ErrorBarGeom != null) dc.DrawGeometry(null, s.LinePen, cache.ErrorBarGeom);
+                    if (cache.MarkerGeom != null) dc.DrawGeometry(s.MarkerFill, null, cache.MarkerGeom);
+                }
+            }
+        }
+    }
+
+    private void DrawGridAndLabels(DrawingContext dc, Rect plot, double sx, double sy, double ox, double oy)
+    {
+        var gridPen = new Pen(new SolidColorBrush(Color.Parse("#12FFFFFF")), 1);
+        var lb = new SolidColorBrush(Color.Parse("#99FFFFFF"));
+        var tf = new Typeface(FontFamily.Default);
+
+        if (YTicks != null) foreach (var t in YTicks)
+            {
+                double y = oy - (double)t * sy;
+                if (y < plot.Top - 10 || y > plot.Bottom + 10) continue;
+
+                dc.DrawLine(gridPen, new Point(plot.Left, y), new Point(plot.Right, y));
+                var ft = new FormattedText(t.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 10, lb);
+                dc.DrawText(ft, new Point(plot.Left - ft.Width - 8, y - ft.Height / 2));
+            }
+
+        if (XTicks != null) foreach (var t in XTicks)
+            {
+                double x = ox + (double)t * sx;
+                if (x < plot.Left - 10 || x > plot.Right + 10) continue;
+
+                dc.DrawLine(gridPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+                var ft = new FormattedText(t.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 10, lb);
+                dc.DrawText(ft, new Point(x - ft.Width / 2, plot.Bottom + 6));
+            }
     }
 
     private void EnsureSeriesCache(Rect plot, (int xmin, int xmax, byte ymin, byte ymax) range, double sx, double sy, double ox, double oy)
@@ -221,6 +325,7 @@ public sealed class ChartControl : Control
         {
             if (!_seriesCache.TryGetValue(s.Id, out var cache)) _seriesCache[s.Id] = cache = new SeriesCache();
             bool mappingChanged = !cache.LastPlot.Equals(plot) || !cache.LastRange.Equals(range);
+
             if (cache.LastVersion == s.Version && !mappingChanged) continue;
 
             int count = s.Points.Count;
@@ -237,11 +342,20 @@ public sealed class ChartControl : Control
             using (var mCtx = markerGeom.Open())
             using (var eCtx = errorGeom?.Open())
             {
+                double lastX = -9999;
+
                 for (int i = 0; i < count; i++)
                 {
                     var p = s.Points[i];
                     var pp = new Point(ox + (double)p.Wavelength * sx, oy - (double)p.Mean * sy);
                     cache.PooledPixelPoints[i] = pp;
+
+                    // [성능 개선 2] 픽셀 스내핑
+                    if (i > 0 && i < count - 1 && Math.Abs(pp.X - lastX) < 0.5)
+                    {
+                        continue;
+                    }
+                    lastX = pp.X;
 
                     if (i == 0) lCtx.BeginFigure(pp, false); else lCtx.LineTo(pp);
 
@@ -265,98 +379,64 @@ public sealed class ChartControl : Control
         }
     }
 
-    private void EnsureStaticLayer(Rect bounds, Rect plot, (int xmin, int xmax, byte ymin, byte ymax) range)
-    {
-        var scaling = VisualRoot?.RenderScaling ?? 1.0;
-        var pixelSize = PixelSize.FromSize(bounds.Size, scaling);
-        if (_staticLayer == null || _lastPixelSize != pixelSize || _lastScaling != scaling || _staticDirty)
-        {
-            _staticLayer?.Dispose();
-            _staticLayer = new RenderTargetBitmap(pixelSize, new Vector(96 * scaling, 96 * scaling));
-            _lastPixelSize = pixelSize; _lastScaling = scaling; _staticDirty = false;
-            using var dc = _staticLayer.CreateDrawingContext();
-            dc.FillRectangle(BackgroundBrush, bounds);
-            dc.DrawRectangle(new Pen(new SolidColorBrush(Color.Parse("#33FFFFFF")), 1), plot);
-
-            double sx = plot.Width / (range.xmax - range.xmin);
-            double sy = plot.Height / (range.ymax - range.ymin);
-            double ox = plot.Left - (double)range.xmin * sx;
-            double oy = plot.Bottom + (double)range.ymin * sy;
-
-            var gridPen = new Pen(new SolidColorBrush(Color.Parse("#12FFFFFF")), 1);
-            var lb = new SolidColorBrush(Color.Parse("#99FFFFFF"));
-            var tf = new Typeface(FontFamily.Default);
-
-            if (YTicks != null) foreach (var t in YTicks)
-                {
-                    double y = oy - (double)t * sy;
-                    dc.DrawLine(gridPen, new Point(plot.Left, y), new Point(plot.Right, y));
-                    var ft = new FormattedText(t.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 10, lb);
-                    dc.DrawText(ft, new Point(plot.Left - ft.Width - 8, y - ft.Height / 2));
-                }
-
-            if (XTicks != null) foreach (var t in XTicks)
-                {
-                    double x = ox + (double)t * sx;
-                    dc.DrawLine(gridPen, new Point(x, plot.Top), new Point(x, plot.Bottom));
-                    var ft = new FormattedText(t.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 10, lb);
-                    dc.DrawText(ft, new Point(x - ft.Width / 2, plot.Bottom + 6));
-                }
-        }
-    }
-
     private void OnPointerMovedInternal(object? sender, PointerEventArgs e)
     {
         var pos = e.GetPosition(this);
         var plot = Bounds.Deflate(PlotPadding);
-        if (!plot.Contains(pos)) { _hoverFormatted = null; InvalidateVisual(); return; }
-        double bestD2 = 625; string? bestText = null; Point bestPos = default;
+
+        if (!plot.Contains(pos))
+        {
+            if (_hoverFormatted != null) { _hoverFormatted = null; InvalidateVisual(); }
+            return;
+        }
+
+        double bestD2 = 625;
+        string? bestText = null;
+        Point bestPos = default;
+
         foreach (var s in Series)
         {
             if (!_seriesCache.TryGetValue(s.Id, out var cache) || cache.PooledPixelPoints == null) continue;
-            for (int i = 0; i < cache.PixelCount; i++)
+
+            // [성능 개선 4] 이진 탐색
+            int idx = Array.BinarySearch(cache.PooledPixelPoints, 0, cache.PixelCount, new Point(pos.X, 0), _xComparer);
+
+            if (idx < 0) idx = ~idx;
+
+            int start = Math.Max(0, idx - 3);
+            int end = Math.Min(cache.PixelCount, idx + 3);
+
+            for (int i = start; i < end; i++)
             {
                 var pix = cache.PooledPixelPoints[i];
                 double d2 = (pix.X - pos.X) * (pix.X - pos.X) + (pix.Y - pos.Y) * (pix.Y - pos.Y);
                 if (d2 < bestD2)
                 {
-                    bestD2 = d2; bestPos = pix;
+                    bestD2 = d2;
+                    bestPos = pix;
                     bestText = $"{s.DisplayName}\nMean : {s.Points[i].Mean}\nStdDev : {s.Points[i].StdDev}";
                 }
             }
         }
+
         if (bestText != null)
         {
             _hoverFormatted = new FormattedText(bestText, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 12, Brushes.White);
             _hoverPixelPos = bestPos;
+            InvalidateVisual();
         }
-        else _hoverFormatted = null;
-        InvalidateVisual();
+        else if (_hoverFormatted != null)
+        {
+            _hoverFormatted = null;
+            InvalidateVisual();
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _staticLayer?.Dispose();
+        _graphLayerBitmap?.Dispose();
         foreach (var kv in _seriesCache) kv.Value.ReturnPool();
         _seriesCache.Clear();
-    }
-}
-
-// 데모 데이터 생성 헬퍼
-public static class ScreenshotChartDemo
-{
-    public static ObservableCollection<ChartSeries> CreateSeriesLikeScreenshot()
-    {
-        var red = new List<ChartPoint> { new(410, 25, 6), new(430, 45, 7), new(450, 35, 6), new(470, 30, 6), new(490, 85, 8), new(510, 50, 7), new(530, 45, 6), new(550, 40, 6), new(570, 35, 6), new(590, 45, 7), new(610, 120, 10), new(630, 145, 12), new(650, 155, 12), new(670, 140, 10), new(690, 140, 10) };
-        var green = new List<ChartPoint> { new(410, 20), new(430, 35), new(450, 30), new(470, 25), new(490, 90), new(510, 110), new(530, 95), new(550, 70), new(570, 55), new(590, 40), new(610, 35), new(630, 38), new(650, 36), new(670, 34), new(690, 65) };
-        var blue = new List<ChartPoint> { new(410, 30), new(430, 85), new(450, 95), new(470, 90), new(490, 92), new(510, 60), new(530, 40), new(550, 30), new(570, 25), new(590, 20), new(610, 18), new(630, 25), new(650, 22), new(670, 24), new(690, 45) };
-
-        return new ObservableCollection<ChartSeries>
-        {
-            new ChartSeries { DisplayName = "A", Points = red, LinePen = new Pen(Brushes.Crimson, 2), MarkerFill = Brushes.Crimson, ShowErrorBars = true },
-            new ChartSeries { DisplayName = "B", Points = green, LinePen = new Pen(Brushes.SeaGreen, 2), MarkerFill = Brushes.SeaGreen },
-            new ChartSeries { DisplayName = "C", Points = blue, LinePen = new Pen(Brushes.DodgerBlue, 2), MarkerFill = Brushes.DodgerBlue }
-        };
     }
 }

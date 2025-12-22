@@ -1,16 +1,12 @@
-﻿// ==============================
-// AvaloniaApp.Infrastructure/StorageService.cs
-// - 원본 전체 이미지 + 원본 타일 + 처리된 타일 + stitched 전체 이미지 저장 지원
-// ==============================
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
-using AvaloniaApp.Infrastructure;
-using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,194 +14,68 @@ namespace AvaloniaApp.Infrastructure
 {
     public class StorageService
     {
-        // 현재 MainWindow 에서 IStorageProvider 가져오기
         private IStorageProvider GetStorageProvider()
         {
-            if (Application.Current?.ApplicationLifetime
-                is IClassicDesktopStyleApplicationLifetime desktop &&
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
                 desktop.MainWindow is { } window)
             {
                 return window.StorageProvider;
             }
-
-            throw new InvalidOperationException(
-                "StorageProvider를 가져올 수 없습니다. MainWindow가 아직 준비되지 않았을 수 있습니다.");
+            throw new InvalidOperationException("StorageProvider Unavailable");
         }
 
-        /// <summary>
-        /// SaveFilePicker 를 통해 단일 Bitmap 저장 (PNG).
-        /// suggestedFileName 은 "frame.png" 같은 이름.
-        /// </summary>
-        public async Task SaveBitmapWithDialogAsync(
-            Bitmap bitmap,
-            string suggestedFileName,
-            CancellationToken ct = default)
-        {
-            if (bitmap is null)
-                throw new ArgumentNullException(nameof(bitmap));
-
-            var provider = GetStorageProvider();
-
-            var options = new FilePickerSaveOptions
-            {
-                SuggestedFileName = suggestedFileName,
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("PNG image")
-                    {
-                        Patterns = new[] { "*.png" }
-                    }
-                }
-            };
-
-            var file = await provider.SaveFilePickerAsync(options);
-            if (file is null)
-                return; // 사용자 취소
-
-            await using var stream = await file.OpenWriteAsync();
-            bitmap.Save(stream); // PNG 저장
-        }
-
-        /// <summary>
-        /// (기존) stitched + tiles 묶음을 한 번에 저장.
-        /// 그대로 두고, 필요 시 다른 곳에서 사용 가능.
-        /// </summary>
-        public async Task SaveImageSetWithFolderDialogAsync(
-            Bitmap stitched,
-            IReadOnlyList<Bitmap> tiles,
-            string? sessionName,
-            CancellationToken ct = default)
-        {
-            if (stitched is null) throw new ArgumentNullException(nameof(stitched));
-            if (tiles is null) throw new ArgumentNullException(nameof(tiles));
-
-            var provider = GetStorageProvider();
-
-            if (!provider.CanPickFolder)
-                return;
-
-            var parents = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-            {
-                AllowMultiple = false,
-                Title = "이미지 세트를 저장할 폴더를 선택하세요"
-            });
-
-            if (parents is null || parents.Count == 0)
-                return;
-
-            var parent = parents[0];
-
-            var folderName = string.IsNullOrWhiteSpace(sessionName)
-                ? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"
-                : sessionName.Trim();
-
-            var subFolder = await parent.CreateFolderAsync(folderName);
-            if (subFolder is null)
-                return;
-
-            await SaveBitmapToFolderAsync(subFolder, "stitched.png", stitched, ct);
-
-            for (int i = 0; i < tiles.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var tile = tiles[i];
-                if (tile is null)
-                    continue;
-
-                var fileName = $"tile_{i:D2}.png";
-                await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
-            }
-        }
-        /// <summary>
-        /// 원본 전체 이미지 + 원본 crop 타일 + 처리된(translation+normalize) 타일 + stitched 전체 이미지를 한 번에 저장.
-        /// </summary>
-        public async Task SaveFullImageSetWithFolderDialogAsync(
+        public async Task SaveExperimentResultAsync(
+            string folderName,
             Bitmap fullImage,
-            IReadOnlyList<Bitmap> originalTiles,
-            IReadOnlyList<Bitmap> processedTiles,
-            Bitmap stitched,
-            string? sessionName,
+            Bitmap? colorImage,
+            Dictionary<string, Bitmap> cropImages,
+            string csvContent,
             CancellationToken ct = default)
         {
-            if (fullImage is null) throw new ArgumentNullException(nameof(fullImage));
-            if (originalTiles is null) throw new ArgumentNullException(nameof(originalTiles));
-            if (processedTiles is null) throw new ArgumentNullException(nameof(processedTiles));
-            if (stitched is null) throw new ArgumentNullException(nameof(stitched));
-
             var provider = GetStorageProvider();
+            var options = new FolderPickerOpenOptions { AllowMultiple = false, Title = "실험 데이터를 저장할 상위 폴더를 선택하세요" };
+            var parents = await provider.OpenFolderPickerAsync(options);
+            if (parents is null || parents.Count == 0) return;
 
-            if (!provider.CanPickFolder)
-                return;
+            var parentFolder = parents[0];
+            // 사용자가 입력한 이름으로 폴더 생성
+            var targetFolder = await parentFolder.CreateFolderAsync(folderName);
+            if (targetFolder is null) return;
 
-            // 1) 부모 폴더 선택
-            var parents = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            await SaveBitmapToFolderAsync(targetFolder, "FullImage.png", fullImage);
+            if (colorImage != null) await SaveBitmapToFolderAsync(targetFolder, "ColorImage.png", colorImage);
+
+            foreach (var kvp in cropImages)
             {
-                AllowMultiple = false,
-                Title = "이미지 세트를 저장할 폴더를 선택하세요"
-            });
-
-            if (parents is null || parents.Count == 0)
-                return;
-
-            var parent = parents[0];
-
-            // 2) 세션 폴더 이름
-            var folderName = string.IsNullOrWhiteSpace(sessionName)
-                ? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"
-                : sessionName.Trim();
-
-            // 3) 서브 폴더 생성
-            var subFolder = await parent.CreateFolderAsync(folderName);
-            if (subFolder is null)
-                return;
-
-            // 4) 원본 전체 이미지 저장
-            await SaveBitmapToFolderAsync(subFolder, "full_original.png", fullImage, ct);
-
-            // 5) stitched 전체 이미지 저장
-            await SaveBitmapToFolderAsync(subFolder, "stitched.png", stitched, ct);
-
-            // 6) 원본 crop 타일 저장
-            for (int i = 0; i < originalTiles.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var tile = originalTiles[i];
-                if (tile is null)
-                    continue;
-
-                var fileName = $"orig_tile_{i:D2}.png";
-                await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
+                await SaveBitmapToFolderAsync(targetFolder, $"{kvp.Key}.png", kvp.Value);
             }
 
-            // 7) 처리된(translation+normalize) 타일 저장
-            for (int i = 0; i < processedTiles.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var tile = processedTiles[i];
-                if (tile is null)
-                    continue;
-
-                var fileName = $"proc_tile_{i:D2}.png";
-                await SaveBitmapToFolderAsync(subFolder, fileName, tile, ct);
-            }
+            await SaveTextToFolderAsync(targetFolder, "IntensityData.csv", csvContent);
         }
-        private static async Task SaveBitmapToFolderAsync(
-            IStorageFolder folder,
-            string fileName,
-            Bitmap bitmap,
-            CancellationToken ct)
+
+        private async Task SaveBitmapToFolderAsync(IStorageFolder folder, string fileName, Bitmap bitmap)
         {
-            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var file = await folder.CreateFileAsync(fileName);
+                if (file is null) return;
+                using var stream = await file.OpenWriteAsync();
+                bitmap.Save(stream);
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Save Error ({fileName}): {ex}"); }
+        }
 
-            var file = await folder.CreateFileAsync(fileName);
-            if (file is null)
-                return;
-
-            await using var stream = await file.OpenWriteAsync();
-            bitmap.Save(stream);
+        private async Task SaveTextToFolderAsync(IStorageFolder folder, string fileName, string content)
+        {
+            try
+            {
+                var file = await folder.CreateFileAsync(fileName);
+                if (file is null) return;
+                using var stream = await file.OpenWriteAsync();
+                using var writer = new StreamWriter(stream, Encoding.UTF8);
+                await writer.WriteAsync(content);
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Save CSV Error: {ex}"); }
         }
     }
 }

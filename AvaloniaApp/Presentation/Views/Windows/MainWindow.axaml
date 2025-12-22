@@ -36,66 +36,80 @@
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden">
                     <StackPanel Orientation="Horizontal" Spacing="4">
 
-                        <Button Classes="ToolButton" Command="{Binding StartCameraAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button Classes="ToolButton" Command="{Binding StartCameraCommand}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconStartImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Start" FontSize="11" FontWeight="SemiBold"/>
+                                <TextBlock Text="Start" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
 
-                        <Button Classes="ToolButton" Command="{Binding StopCameraAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button Classes="ToolButton" Command="{Binding StopCameraCommand}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconStopImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Stop" FontSize="11" FontWeight="SemiBold"/>
+                                <TextBlock Text="Stop" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
 
-                        <Button Classes="ToolButton" Command="{Binding OpenCameraSettingViewAsync}" Margin="10,0,0,0">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconSettingImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Setting" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenCameraSettingViewAsync}" Margin="10,0,0,0">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconProcessImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Process" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconSpectrumImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Spectrum" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconHistogramImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Histogram" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconRGBImage}" Width="24" Height="24"/>
-                                <TextBlock Text="RGB" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{StaticResource IconRawImage}" Width="24" Height="24"/>
-                                <TextBlock Text="RAW" FontSize="11" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-
-                        <Button Classes="ToolButton" Command="{Binding OpenChartViewAsync}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button Classes="ToolButton" Command="{Binding SaveExperimentCommand}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconSaveImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Save" FontSize="11" FontWeight="SemiBold"/>
+                                <TextBlock Text="Save" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconLoadImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Load" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }" >
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconSettingImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Setting" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }" >
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconProcessImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Process" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconRawImage}" Width="24" Height="24"/>
+                                <TextBlock Text="RAW" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconRGBImage}" Width="24" Height="24"/>
+                                <TextBlock Text="RGB" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconSpectrumImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Spectrum" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconHistogramImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Histogram" FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="ToolButton" Command="{Binding }">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Image Source="{StaticResource IconGridArrangeImage}" Width="24" Height="24"/>
+                                <TextBlock Text="Arrange" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
 
@@ -104,47 +118,47 @@
             </Border>
 
             <Grid Grid.Row="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="1*"/>
+                    <RowDefinition Height="{StaticResource AppGapVal}"/>
+                    <RowDefinition Height="1*"/>
+                </Grid.RowDefinitions>
+
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="1*"/>
                     <ColumnDefinition Width="{StaticResource AppGapVal}"/>
-                    <ColumnDefinition Width="8*"/>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="{StaticResource AppGapVal}"/>
+                    <ColumnDefinition Width="1*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Classes="PanelStyle">
-                    <ContentControl Content="{Binding SidebarContent}"/>
+                <Border Grid.Row="0" Grid.Column="0" Classes="PanelStyle">
+                    <ContentControl Content="{Binding TopLeftContent}"/>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="2" Classes="PanelStyle">
+                    <ContentControl Content="{Binding TopCenterContent}"/>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="4" Classes="PanelStyle">
+                    <ContentControl Content="{Binding TopRightContent}"/>
                 </Border>
 
-                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
+                <Border Grid.Row="2" Grid.Column="0" Classes="PanelStyle">
+                    <ContentControl Content="{Binding BottomLeftContent}"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="2" Classes="PanelStyle">
+                    <ContentControl Content="{Binding BottomCenterContent}"/>
+                </Border>
+                <Border Grid.Row="2" Grid.Column="4" Classes="PanelStyle">
+                    <ContentControl Content="{Binding BottomRightContent}"/>
+                </Border>
 
-                <Grid Grid.Column="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="{StaticResource AppGapVal}"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="{StaticResource AppGapVal}"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                <GridSplitter Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" 
+                              ResizeDirection="Columns" Background="Transparent"/>
+                <GridSplitter Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" 
+                              ResizeDirection="Columns" Background="Transparent"/>
 
-                    <Border Grid.Row="0" Grid.Column="0" Classes="PanelStyle">
-                        <ContentControl Content="{Binding TopLeftContent}"/>
-                    </Border>
-                    <Border Grid.Row="0" Grid.Column="2" Classes="PanelStyle">
-                        <ContentControl Content="{Binding TopRightContent}"/>
-                    </Border>
-                    <Border Grid.Row="2" Grid.Column="0" Classes="PanelStyle">
-                        <ContentControl Content="{Binding BottomLeftContent}"/>
-                    </Border>
-                    <Border Grid.Row="2" Grid.Column="2" Classes="PanelStyle">
-                        <ContentControl Content="{Binding BottomRightContent}"/>
-                    </Border>
-
-                    <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="3" ResizeDirection="Columns" Background="Transparent"/>
-                    <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" ResizeDirection="Rows" Background="Transparent"/>
-
-                </Grid>
+                <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" 
+                              ResizeDirection="Rows" Background="Transparent"/>
             </Grid>
         </Grid>
     </dialogHost:DialogHost>

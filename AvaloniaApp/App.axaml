@@ -270,6 +270,86 @@
                 <GeometryDrawing Brush="{StaticResource AppPrimaryBrush}" Geometry="M8,15 H16 V19 H8 Z"/>
             </DrawingGroup>
         </DrawingImage>
+        <DrawingImage x:Key="IconLoadImage">
+          <DrawingGroup>
+            <GeometryDrawing>
+              <GeometryDrawing.Brush>
+                <SolidColorBrush Color="{StaticResource AppPrimaryColor}" Opacity="0.10"/>
+              </GeometryDrawing.Brush>
+              <GeometryDrawing.Pen>
+                <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+              </GeometryDrawing.Pen>
+              <GeometryDrawing.Geometry>
+                <PathGeometry Figures="M4.8,8.2 L10.2,8.2 L12.2,6.2 L19.2,6.2 L19.2,18.6 L4.8,18.6 Z"/>
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+
+            <GeometryDrawing Geometry="M4.8,9.8 H19.2">
+              <GeometryDrawing.Pen>
+                <Pen Brush="{StaticResource AppSubTextBrush}" Thickness="1.2" LineCap="Round"/>
+              </GeometryDrawing.Pen>
+            </GeometryDrawing>
+
+            <GeometryDrawing>
+              <GeometryDrawing.Pen>
+                <Pen Brush="{StaticResource AppPrimaryBrush}" Thickness="1.8" LineCap="Round" LineJoin="Round"/>
+              </GeometryDrawing.Pen>
+              <GeometryDrawing.Geometry>
+                <GeometryGroup>
+                  <LineGeometry StartPoint="12,10.2" EndPoint="12,15.0"/>
+                  <LineGeometry StartPoint="9.8,12.8" EndPoint="12,15.0"/>
+                  <LineGeometry StartPoint="14.2,12.8" EndPoint="12,15.0"/>
+                </GeometryGroup>
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+        </DrawingImage>
+
+        <DrawingImage x:Key="IconGridArrangeImage">
+          <DrawingGroup>
+
+            <!-- (선택) 9개 타일 채움: 필요 없으면 이 블록 삭제 -->
+            <GeometryDrawing>
+              <GeometryDrawing.Brush>
+                <SolidColorBrush Color="{StaticResource AppPrimaryColor}" Opacity="0.12"/>
+              </GeometryDrawing.Brush>
+              <GeometryDrawing.Geometry>
+                <GeometryGroup>
+                  <!-- row 1 -->
+                  <RectangleGeometry Rect="5.5,5.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="10.5,5.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="15.5,5.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <!-- row 2 -->
+                  <RectangleGeometry Rect="5.5,10.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="10.5,10.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="15.5,10.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <!-- row 3 -->
+                  <RectangleGeometry Rect="5.5,15.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="10.5,15.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                  <RectangleGeometry Rect="15.5,15.5,3.0,3.0" RadiusX="1" RadiusY="1"/>
+                </GeometryGroup>
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+
+            <!-- outer frame -->
+            <GeometryDrawing>
+              <GeometryDrawing.Pen>
+                <Pen Brush="{StaticResource AppTextBrush}" Thickness="1.6" LineCap="Round" LineJoin="Round"/>
+              </GeometryDrawing.Pen>
+              <RectangleGeometry Rect="4.5,4.5,15,15" RadiusX="2" RadiusY="2"/>
+            </GeometryDrawing>
+
+            <!-- grid split lines (정확히 3등분: 5,5,5) -->
+            <GeometryDrawing Geometry="M9.5,5.1 V18.9 M14.5,5.1 V18.9 M5.1,9.5 H18.9 M5.1,14.5 H18.9">
+              <GeometryDrawing.Pen>
+                <Pen Brush="{StaticResource AppSubTextBrush}" Thickness="1.2" LineCap="Round"/>
+              </GeometryDrawing.Pen>
+            </GeometryDrawing>
+
+          </DrawingGroup>
+        </DrawingImage>
+
+
     </Application.Resources>
 
     <Application.Styles>

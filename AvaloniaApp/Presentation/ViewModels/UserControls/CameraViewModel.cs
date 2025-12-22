@@ -1,5 +1,4 @@
-﻿using AutoMapper.Configuration.Annotations;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Configuration;
@@ -8,7 +7,6 @@ using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LiveChartsCore.Kernel;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -18,26 +16,32 @@ using System.Threading.Tasks;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
+
     public partial class CameraViewModel : ViewModelBase
     {
         private readonly VimbaCameraService _cameraService;
         private readonly ImageProcessService _imageProcessService;
         private readonly WorkspaceService _workspaceService;
-        private readonly UiThrottler _throttler;
+        private readonly UiThrottler _uiThrottler;
 
         private CancellationTokenSource? _consumeCts;
         private Task? _consumeTask;
-
         private volatile bool _stopRequested;
-        private volatile bool _drawRequested;
+
+        // 분석 상태 플래그 (0: Idle, 1: Busy) - Interlocked용
+        private int _isAnalyzing = 0;
 
         private WriteableBitmap? _previewBitmap;
-        private FrameData? _previewFrameData;
+        private FrameData? _previewFrameData; // UI 공유용
+
+        private WriteableBitmap? _rgbBitmap;
+        private FrameData? _rgbFrameData;
 
         public event Action? PreviewInvalidated;
-
+        public event Action? RgbPreviewInvalidated;
         public ReadOnlyObservableCollection<RegionData>? Regions => _workspaceService.Current?.RegionDatas;
-        public int NextAvailableRegionColorIndex => _workspaceService.Current?.GetNextAvailableIndex() ?? -1;    
+        public int NextAvailableRegionColorIndex => _workspaceService.Current?.GetNextAvailableIndex() ?? -1;
+        public bool IsChartTooltipEnabled => !IsPreviewing;
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
@@ -46,10 +50,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty] private ObservableCollection<CameraData> cameras = new();
         [ObservableProperty] private CameraData? selectedCamera;
         [ObservableProperty] private Bitmap? previewBitmap;
+        [ObservableProperty] private Bitmap? rgbBitmap;
         [ObservableProperty] private bool isPreviewing;
         [ObservableProperty] private double previewFps;
         [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
         [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
+
         public int CurrentWavelengthIndex => SelectedWavelengthIndex?.NumericValue ?? Options.DefaultWavelengthIndex;
         public int CurrentWorkingDistance => SelectedWorkingDistance?.NumericValue ?? Options.DefaultWorkingDistance;
         public int CropWidth => Options.CropWidthSize;
@@ -57,61 +63,47 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         public CameraViewModel(AppService service) : base(service)
         {
-            _cameraService = service.Camera ?? throw new ArgumentNullException("CameraService missing");
+            _cameraService = service.Camera ?? throw new ArgumentNullException();
             _imageProcessService = service.ImageProcess;
             _workspaceService = service.WorkSpace;
-            _throttler = _service.Ui.CreateThrottler();
+            _uiThrottler = _service.Ui.CreateThrottler();
+
             SelectedWavelengthIndex = WavelengthIndexs.FirstOrDefault();
             SelectedWorkingDistance = WorkingDistances.FirstOrDefault();
-        }
-        partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
-        {
-            if (IsPreviewing) return;
 
-            _service.Ui.InvokeAsync( () => DisplayWorkspaceImage(CurrentWavelengthIndex,CurrentWorkingDistance));
-            
+            _workspaceService.Update(ws => ws.SetWorkingDistance(CurrentWorkingDistance));
         }
-        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue)
+
+        partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
+        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
+        partial void OnIsPreviewingChanged(bool value){ OnPropertyChanged(nameof(IsChartTooltipEnabled));}
+        private void UpdateDisplayIfStopped()
         {
-            if (IsPreviewing) return;
-            
-            _service.Ui.InvokeAsync( () => DisplayWorkspaceImage(CurrentWavelengthIndex,CurrentWorkingDistance));
-            
+            if (!IsPreviewing)
+                _service.Ui.InvokeAsync(() => DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance));
         }
 
         [RelayCommand]
         public async Task AddRegion(Rect rect)
         {
-            if (IsPreviewing) return;
-             
             _workspaceService.Update(ws => ws.AddRegionData(rect));
-
-            await CalculateIntensityDatasAsync();
-            
+            // 정지 상태라면 수동으로 분석 실행
+            if (!IsPreviewing) await CalculateIntensityDatasAsync();
         }
 
         [RelayCommand]
         private async Task RefreshCamerasAsync()
         {
-            await RunOperationAsync(
-                key: "RefreshCameras",
-                backgroundWork: async (ct, ctx) =>
+            await RunOperationAsync("RefreshCameras", async (ct, ctx) =>
+            {
+                var list = await _cameraService.GetCameraListAsync(ct);
+                await UiInvokeAsync(() =>
                 {
-                    ctx.ReportIndeterminate("카메라 목록을 찾는 중입니다...");
-                    var list = await _cameraService.GetCameraListAsync(ct).ConfigureAwait(false);
-
-                    await UiInvokeAsync(() =>
-                    {
-                        Cameras.Clear();
-                        foreach (var c in list) Cameras.Add(c);
-                        SelectedCamera ??= Cameras.FirstOrDefault();
-                    }).ConfigureAwait(false);
-                },
-                configure: opt =>
-                {
-                    opt.JobName = "GetCameraList";
-                    opt.Timeout = TimeSpan.FromSeconds(5);
+                    Cameras.Clear();
+                    foreach (var c in list) Cameras.Add(c);
+                    SelectedCamera ??= Cameras.FirstOrDefault();
                 });
+            });
         }
 
         [RelayCommand]
@@ -120,24 +112,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             if (Cameras.Count == 0) await RefreshCamerasAsync();
             if (SelectedCamera is null || IsPreviewing) return;
 
-            await RunOperationAsync(
-                key: "PreviewStart",
-                backgroundWork: async (ct, ctx) =>
-                {
-                    ctx.ReportIndeterminate("카메라 연결 및 프리뷰 시작 중...");
-                    await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id).ConfigureAwait(false);
-                    RestartConsumeLoop();
-                    await UiInvokeAsync(() =>
-                    {
-                        IsPreviewing = true;
-                        PreviewFps = 0;
-                    }).ConfigureAwait(false);
-                },
-                configure: opt =>
-                {
-                    opt.JobName = "StartPreview";
-                    opt.Timeout = TimeSpan.FromSeconds(10);
-                });
+            await RunOperationAsync("PreviewStart", async (ct, ctx) =>
+            {
+                await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id);
+                RestartConsumeLoop();
+                await UiInvokeAsync(() => IsPreviewing = true);
+            });
         }
 
         [RelayCommand]
@@ -145,136 +125,135 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             if (!IsPreviewing) return;
 
-            await RunOperationAsync(
-                key: "PreviewStop",
-                backgroundWork: async (ct, ctx) =>
+            await RunOperationAsync("PreviewStop", async (ct, ctx) =>
+            {
+                _stopRequested = true;
+                if (_consumeTask != null)
                 {
-                    ctx.ReportIndeterminate("프리뷰 정지 및 연결 해제 중...");
-                    _stopRequested = true;
+                    await Task.WhenAny(_consumeTask, Task.Delay(1000));
+                    CancelConsumeLoop();
+                }
 
-                    if (_consumeTask != null)
-                    {
-                        var finished = await Task.WhenAny(_consumeTask, Task.Delay(500));
-                        if (finished != _consumeTask)
-                        {
-                            CancelConsumeLoop();
-                            await _consumeTask;
-                        }
-                    }
-                    await _cameraService.StopPreviewAndDisconnectAsync(ct).ConfigureAwait(false);
+                await _cameraService.StopPreviewAndDisconnectAsync(ct);
 
-                    await UiInvokeAsync(() =>
-                    {
-                        IsPreviewing = false;
-                        PreviewFps = 0;
-                        DisplayWorkspaceImage(CurrentWavelengthIndex,CurrentWorkingDistance);
-                    });
-                },
-                configure: opt =>
+                await UiInvokeAsync(() =>
                 {
-                    opt.JobName = "StopPreview";
-                    opt.Timeout = TimeSpan.FromSeconds(5);
+                    IsPreviewing = false;
+                    DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance);
                 });
+            });
         }
+
         private async Task CalculateIntensityDatasAsync()
         {
-            if(IsPreviewing) return;
+            await RunOperationAsync("CalculateIntensityDatas", async (ct, ctx) =>
+            {
+                var currentWorkspace = _workspaceService.Current;
+                if (currentWorkspace?.EntireFrameData is null) return;
 
-            await RunOperationAsync(
-                key: "CalculateIntensityDatas",
-                backgroundWork: async (ct, ctx) =>
-                {
-                    var currentWorkspace = _workspaceService.Current;
+                var intensityMap = _imageProcessService.ComputeIntensityDataMap(
+                    currentWorkspace.EntireFrameData,
+                    currentWorkspace.RegionDatas.ToList(),
+                    CurrentWorkingDistance);
 
-                    if (currentWorkspace?.EntireFrameData is null)
-                        return;
-
-                    ctx.ReportIndeterminate("영역 별 RegionData추출");
-                    var intensityMap = _imageProcessService.ComputeIntensityDataMap(
-                        currentWorkspace.EntireFrameData,
-                        currentWorkspace.RegionDatas.ToList(),
-                        CurrentWorkingDistance);
-
-                    _workspaceService.Update(ws => ws.UpdateIntensityDataMap(intensityMap));
-                },
-                configure: opt =>
-                {
-                    opt.JobName = "CalculateIntensityDatas";
-                    opt.Timeout = TimeSpan.FromSeconds(10);
-                });
+                _workspaceService.Update(ws => ws.UpdateIntensityDataMap(intensityMap));
+            });
         }
+
         private void RestartConsumeLoop()
         {
             CancelConsumeLoop();
             _stopRequested = false;
             _consumeCts = new CancellationTokenSource();
-            _consumeTask = Task.Run(()=>ConsumeFramesAsync(_consumeCts.Token));
+            _consumeTask = Task.Run(() => ConsumeFramesAsync(_consumeCts.Token));
         }
-        private void CancelConsumeLoop()
-        {
-            _consumeCts?.Cancel();
-        }
+
+        private void CancelConsumeLoop() => _consumeCts?.Cancel();
+
+        // ---------------------------------------------------------
+        // [핵심 로직] 스트리밍 데이터 처리
+        // ---------------------------------------------------------
         private async Task ConsumeFramesAsync(CancellationToken ct)
         {
             var reader = _cameraService.Frames;
-
             try
             {
                 while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
                 {
                     while (reader.TryRead(out var frame))
                     {
-                        _workspaceService.SetEntireFrame(_imageProcessService.CloneFrameData(frame));
-                        var crop = Interlocked.Exchange(ref _previewFrameData, _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex,CurrentWorkingDistance));  
-                        crop?.Dispose();
+                        if (_stopRequested) { frame.Dispose(); continue; }
+
+                        // 1. [전처리] OpenCV 처리 (In-place) - 모든 곳에서 이 결과를 사용함
+                        _imageProcessService.ProcessFrame(frame);
+
+                        // 2. [보관] Workspace에 전체 프레임 복제본 저장 (CloneFullFrame 사용)
+                        var fullFrameClone = _imageProcessService.CloneFrameData(frame);
+                        _workspaceService.SetEntireFrame(fullFrameClone);
+
+                        // 3. [프리뷰] UI 업데이트 (Throttler 사용)
+                        //    ProcessFrame이 이미 되었으므로 GetCrop에서는 자르기만 함
+                        var previewCrop = _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex, CurrentWorkingDistance);
+                        var oldPreview = Interlocked.Exchange(ref _previewFrameData, previewCrop);
+                        oldPreview?.Dispose();
+
+                        var rgbFrame = _imageProcessService.GetRgbFrameData(frame, CurrentWorkingDistance);
+                        var oldRgb = Interlocked.Exchange(ref _rgbFrameData, rgbFrame);
+                        oldRgb?.Dispose();
+
+                        _uiThrottler.Run(UpdateUI);
+
+                        // 4. [분석] 백그라운드 차트 분석 (Drop Frame 전략)
+                        //    이전 분석이 아직 안 끝났다면(_isAnalyzing == 1) 이번 프레임 분석은 스킵
+                        if (Interlocked.CompareExchange(ref _isAnalyzing, 1, 0) == 0)
+                        {
+                            var analysisFrame = _imageProcessService.CloneFrameData(frame);
+                            _ = Task.Run(() => RunAnalysisAndUnlock(analysisFrame));
+                        }
+
+                        // 원본 프레임 반환
                         frame.Dispose();
-                        _throttler.Run(UpdateUI);
                     }
                 }
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex){ }
-            finally
-            {
-                var pending = Interlocked.Exchange(ref _previewFrameData, null);
-                pending?.Dispose();
-                _throttler.Reset();
-            }
+            catch (Exception ex) { Debug.WriteLine(ex); }
+            finally { CleanupPendingFrames(); }
         }
-        /// <summary>
-        /// 백그라운드 스레드에서 Workspace 데이터를 처리하고 교체합니다.
-        /// </summary>
-        private void UpdateWorkspaceBackground(FrameData fullframe)
+
+        private void RunAnalysisAndUnlock(FrameData frame)
         {
             try
             {
-                // [Background Thread] 무거운 이미지 처리
-                var newCrops = _imageProcessService.GetCropFrameDatas(fullframe);
-
-                FrameData? stitchFrame = null;
-                try
+                var regions = _workspaceService.Current?.RegionDatas?.ToList();
+                if (regions != null && regions.Count > 0)
                 {
-                    stitchFrame = _imageProcessService.GetStitchFrameData(newCrops);
+                    // 병렬 처리된 분석 메서드 호출
+                    var map = _imageProcessService.ComputeIntensityDataMap(frame, regions, CurrentWorkingDistance);
+                    _workspaceService.Update(ws => ws.UpdateIntensityDataMap(map));
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Stitch Failed: {ex}");
-                }
-
-                // Workspace 객체 생성
-                var newWorkspace = new Workspace();
-
-                // [중요] Service의 Clone 기능을 사용 (내부적으로 ArrayPool 최적화됨)
-                newWorkspace.SetEntireFrameData(_imageProcessService.CloneFrameData(fullframe));
-                // [Thread-Safe] 교체
-                _workspaceService.Replace(newWorkspace);
             }
-            catch (Exception ex)
+            catch (Exception ex) { Debug.WriteLine(ex); }
+            finally
             {
-                Debug.WriteLine($"Workspace Save Error: {ex}");
+                frame.Dispose();
+                Interlocked.Exchange(ref _isAnalyzing, 0); // 락 해제
             }
         }
+
+        private void CleanupPendingFrames()
+        {
+            var p = Interlocked.Exchange(ref _previewFrameData, null); p?.Dispose();
+            var a = Interlocked.Exchange(ref _rgbFrameData, null); a?.Dispose();
+            _uiThrottler.Reset();
+            Interlocked.Exchange(ref _isAnalyzing, 0);
+        }
         private void UpdateUI()
+        {
+            if (!IsPreviewing) return;
+            UpdatePreviewUI();
+            UpdateRGBUI();
+        }
+        private void UpdatePreviewUI()
         {
             if (!IsPreviewing) return;
             var frame = Interlocked.Exchange(ref _previewFrameData, null);
@@ -288,60 +267,77 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     PreviewInvalidated?.Invoke();
                 }
             }
-            finally { frame?.Dispose(); }
+            finally { frame.Dispose(); }
         }
+        private void UpdateRGBUI()
+        {
+            if (!IsPreviewing) return;
+            var frame = Interlocked.Exchange(ref _rgbFrameData, null);
+            if (frame is null) return;
+            try
+            {
+                EnsureRgbBitmap(frame.Width, frame.Height);
+                if (_rgbBitmap != null)
+                {
+                    _imageProcessService.ConvertRgbFrameDataToWriteableBitmap(_rgbBitmap, frame);
+                    RgbPreviewInvalidated?.Invoke();
+                }
+            }
+            finally { frame.Dispose(); }
+        }
+
         private void DisplayWorkspaceImage(int index, int wd)
         {
             var ws = _workspaceService.Current;
-
             var frame = ws?.EntireFrameData;
-
-            if (frame is null)
-                return;
+            if (frame is null) return;
 
             var crop = _imageProcessService.GetCropFrameData(frame, index, wd);
-
-            EnsureSharedPreview(crop.Width, crop.Height);
-
-            if (_previewBitmap is not null)
+            try
             {
-                _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, crop);
-                PreviewInvalidated?.Invoke();
+                EnsureSharedPreview(crop.Width, crop.Height);
+                if (_previewBitmap is not null)
+                {
+                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, crop);
+                    PreviewInvalidated?.Invoke();
+                }
             }
+            finally { crop.Dispose(); }
         }
+
         private void EnsureSharedPreview(int width, int height)
         {
             if (_previewBitmap is not null)
             {
                 var ps = _previewBitmap.PixelSize;
-                if (ps.Width == width && ps.Height == height)
-                    return;
-
+                if (ps.Width == width && ps.Height == height) return;
                 _previewBitmap.Dispose();
                 _previewBitmap = null;
             }
-
-            _previewBitmap = new WriteableBitmap(
-                new PixelSize(width, height),
-                new Vector(96, 96),
-                PixelFormats.Gray8,
-                AlphaFormat.Opaque);
-
+            _previewBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Gray8, AlphaFormat.Opaque);
             PreviewBitmap = _previewBitmap;
+        }
+        private void EnsureRgbBitmap(int width, int height)
+        {
+            if (_rgbBitmap is not null)
+            {
+                var ps = _rgbBitmap.PixelSize;
+                if (ps.Width == width && ps.Height == height) return;
+                _rgbBitmap.Dispose();
+                _rgbBitmap = null;
+            }
+            // 3채널 컬러 이미지용 Bgr24 포맷 사용
+            _rgbBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Bgr24, AlphaFormat.Opaque);
+            RgbBitmap = _rgbBitmap;
         }
         public override async ValueTask DisposeAsync()
         {
             CancelConsumeLoop();
             if (_consumeTask != null) await _consumeTask.ConfigureAwait(false);
-
-            try
-            {
-                await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch { }
-
+            CleanupPendingFrames();
+            try { await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None); } catch { }
             _previewBitmap?.Dispose();
-
+            _rgbBitmap?.Dispose();
             await base.DisposeAsync();
         }
     }

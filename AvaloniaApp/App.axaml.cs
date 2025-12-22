@@ -40,16 +40,19 @@ namespace AvaloniaApp
             services.AddSingleton<StorageService>();
             services.AddSingleton<ImageHelperService>();
 
+            services.AddSingleton<ProcessViewModel>();
             services.AddSingleton<CameraViewModel>();
-            services.AddSingleton<CameraConnectViewModel>();
+            services.AddSingleton<RawImageViewModel>();
+            services.AddSingleton<RgbImageViewModel>();
             services.AddSingleton<CameraSettingViewModel>();
             services.AddSingleton<ChartViewModel>();
             services.AddSingleton<MainWindowViewModel>();
             services.AddSingleton<PopupHostWindowViewModel>();    
 
             // View
-            services.AddSingleton<CameraView>();
-            services.AddSingleton<CameraConnectView>();
+            services.AddSingleton<RawImageView>();
+            services.AddSingleton<RgbImageView>();
+            services.AddSingleton<ProcessView>();
             services.AddSingleton<CameraSettingView>();
             services.AddSingleton<ChartView>();
             services.AddSingleton<MainWindow>();
