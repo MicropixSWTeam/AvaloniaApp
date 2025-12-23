@@ -36,10 +36,6 @@ namespace AvaloniaApp.Infrastructure
     /// </summary>
     public sealed class UiService
     {
-        // =========================================================
-        // 1. Dispatcher 기본 기능 (Global)
-        // =========================================================
-
         public void Post(Action action, DispatcherPriority priority = default)
         {
             if (Dispatcher.UIThread.CheckAccess())
@@ -57,15 +53,59 @@ namespace AvaloniaApp.Infrastructure
                 action();
                 return Task.CompletedTask;
             }
+
+            // 기존에 이게 컴파일 되고 있었다면 그대로 두세요.
             return Dispatcher.UIThread.InvokeAsync(action, priority).GetTask();
         }
 
-        public async Task<T> InvokeAsync<T>(Func<T> func, DispatcherPriority priority = default)
+        // ✅ 핵심: async 작업을 "진짜로" 기다리는 UI Invoke
+        public Task InvokeAsync(Func<Task> func, DispatcherPriority priority = default)
         {
-            if (Dispatcher.UIThread.CheckAccess()) return func();
-            return await Dispatcher.UIThread.InvokeAsync(func, priority);
+            if (Dispatcher.UIThread.CheckAccess())
+                return func();
+
+            var tcs = new TaskCompletionSource<object?>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Dispatcher.UIThread.Post(async () =>
+            {
+                try
+                {
+                    await func(); // UI 스레드에서 실행, 완료까지 대기
+                    tcs.TrySetResult(null);
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            }, priority);
+
+            return tcs.Task;
         }
 
+        public Task<T> InvokeAsync<T>(Func<Task<T>> func, DispatcherPriority priority = default)
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+                return func();
+
+            var tcs = new TaskCompletionSource<T>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Dispatcher.UIThread.Post(async () =>
+            {
+                try
+                {
+                    var result = await func();
+                    tcs.TrySetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            }, priority);
+
+            return tcs.Task;
+        }
         // =========================================================
         // 2. 팩토리 기능 (Factory Method)
         // =========================================================

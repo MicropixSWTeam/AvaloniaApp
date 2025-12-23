@@ -10,14 +10,25 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.RawImageView"
              x:DataType="vm:RawImageViewModel">
 
-    <Grid RowDefinitions="*,Auto" Margin="8" >
-        <Border Grid.Row="0" Background="#222222">
+    <!-- 전체 여백을 주어 꽉 막힌 느낌 해소 -->
+    <Grid RowDefinitions="*,Auto" Margin="16">
+        
+        <!-- 1. 이미지 뷰어 영역 -->
+        <!-- CornerRadius와 ClipToBounds로 둥근 모서리 적용 -->
+        <!-- 옅은 테두리(BorderBrush)로 영역 구분감을 줌 -->
+        <Border Grid.Row="0" 
+                Background="#222222"
+                BorderBrush="#333333"
+                BorderThickness="1"
+                CornerRadius="12"
+                ClipToBounds="True">
+            
             <Viewbox Stretch="Uniform">
                 <Grid Width="{Binding CameraVM.CropWidth}" 
                       Height="{Binding CameraVM.CropHeight}">
                     
                     <Image x:Name="PreviewImage" 
-                           Source="{Binding CameraVM.PreviewBitmap}"
+                           Source="{Binding CameraVM.RawBitmap}"
                            Stretch="Fill" 
                            HorizontalAlignment="Stretch"
                            VerticalAlignment="Stretch"/>
@@ -46,7 +57,5 @@
                 </Grid>
             </Viewbox>
         </Border>
-
-
     </Grid>
 </UserControl>

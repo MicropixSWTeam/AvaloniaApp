@@ -11,8 +11,8 @@
     </Application.DataTemplates>
 
     <Application.Resources>
-        <GridLength x:Key="AppGapVal">8</GridLength>
-        <Thickness x:Key="AppGap">8</Thickness>
+        <GridLength x:Key="AppGapVal">6</GridLength>
+        <Thickness x:Key="AppGap">6</Thickness>
 
         <Color x:Key="AppBgColor">#20242D</Color>         
         <Color x:Key="AppCardColor">#303744</Color>       

@@ -25,13 +25,11 @@ namespace AvaloniaApp.Core.Models
     {
         private int _disposed;
         private readonly Action<byte[]>? _return;
-
         public int Width { get; }
         public int Height { get; }
         public int Stride { get; }
         public int Length { get; }
         public byte[] Bytes { get; }
-
         private FrameData(byte[] bytes, int width, int height, int stride, int length, Action<byte[]>? @return)
         {
             Bytes = bytes ?? throw new ArgumentNullException(nameof(bytes));
@@ -45,18 +43,14 @@ namespace AvaloniaApp.Core.Models
             if (stride <= 0) throw new ArgumentOutOfRangeException(nameof(stride));
             if (length <= 0 || length > bytes.Length) throw new ArgumentOutOfRangeException(nameof(length));
         }
-
         // [GC 최적화] 풀 반환용 delegate
         private static void ReturnToPool(byte[] b) => ArrayPool<byte>.Shared.Return(b);
-
         // [스트리밍용] 외부에서 Rent한 버퍼를 감쌀 때 (Dispose 시 Return)
         public static FrameData Wrap(byte[] buffer, int width, int height, int stride, int length)
             => new FrameData(buffer, width, height, stride, length, ReturnToPool);
-
         // [소유권용] 특정 버퍼를 영구 소유하거나 별도 관리할 때 (Dispose 시 반환 안 함)
         public static FrameData Own(byte[] buffer, int width, int height, int stride, int length)
             => new FrameData(buffer, width, height, stride, length, @return: null);
-
         // [GC 최적화] ArrayPool을 사용하여 FullFrame 복사
         public static FrameData CloneFullFrame(FrameData src)
         {
@@ -73,7 +67,6 @@ namespace AvaloniaApp.Core.Models
                 throw;
             }
         }
-
         // [GC 최적화] ArrayPool을 사용하여 Crop 복사
         public static FrameData CloneCropFrame(FrameData src, OpenCvSharp.Rect roi)
         {
@@ -108,7 +101,6 @@ namespace AvaloniaApp.Core.Models
                 throw;
             }
         }
-
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 1)

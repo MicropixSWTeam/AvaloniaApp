@@ -50,7 +50,7 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Classes="ToolButton" Command="{Binding SaveExperimentCommand}">
+                        <Button Classes="ToolButton" Command="{Binding SaveCommand}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconSaveImage}" Width="24" Height="24"/>
                                 <TextBlock Text="Save" FontSize="12" FontWeight="SemiBold"/>
@@ -116,7 +116,7 @@
                         <Button Classes="ToolButton" Command="{Binding }">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconArithmeticImage}" Width="24" Height="24"/>
-                                <TextBlock Text="Calculate" FontSize="12" FontWeight="SemiBold"/>
+                                <TextBlock Text="Calculator" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -124,47 +124,72 @@
             </Border>
 
             <Grid Grid.Row="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="1*"/>
-                    <RowDefinition Height="{StaticResource AppGapVal}"/>
-                    <RowDefinition Height="1*"/>
-                </Grid.RowDefinitions>
-
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="1*" />
                     <ColumnDefinition Width="{StaticResource AppGapVal}"/>
-                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="2*"/>
                     <ColumnDefinition Width="{StaticResource AppGapVal}"/>
-                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="2*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Row="0" Grid.Column="0" Classes="PanelStyle">
-                    <ContentControl Content="{Binding TopLeftContent}"/>
-                </Border>
-                <Border Grid.Row="0" Grid.Column="2" Classes="PanelStyle">
-                    <ContentControl Content="{Binding TopCenterContent}"/>
-                </Border>
-                <Border Grid.Row="0" Grid.Column="4" Classes="PanelStyle">
-                    <ContentControl Content="{Binding TopRightContent}"/>
-                </Border>
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="3*"/>
+                        <RowDefinition Height="{StaticResource AppGapVal}"/>
+<!--                        <RowDefinition Height="1*"/>
+-->                    </Grid.RowDefinitions>
 
-                <Border Grid.Row="2" Grid.Column="0" Classes="PanelStyle">
-                    <ContentControl Content="{Binding BottomLeftContent}"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="2" Classes="PanelStyle">
-                    <ContentControl Content="{Binding BottomCenterContent}"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="4" Classes="PanelStyle">
-                    <ContentControl Content="{Binding BottomRightContent}"/>
-                </Border>
+                    <Border Grid.Row="0" Classes="PanelStyle">
+                        <ContentControl Content="{Binding TopLeftContent}"/>
+                    </Border>
 
-                <GridSplitter Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" 
-                              ResizeDirection="Columns" Background="Transparent"/>
-                <GridSplitter Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" 
-                              ResizeDirection="Columns" Background="Transparent"/>
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
 
-                <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" 
-                              ResizeDirection="Rows" Background="Transparent"/>
+                    <Border Grid.Row="2" Classes="PanelStyle">
+                        <ContentControl Content="{Binding BottomLeftContent}"/>
+                    </Border>
+                </Grid>
+
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
+
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*"/>
+                        <RowDefinition Height="{StaticResource AppGapVal}"/>
+                        <RowDefinition Height="1*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Classes="PanelStyle">
+                        <ContentControl Content="{Binding TopCenterContent}"/>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
+
+                    <Border Grid.Row="2" Classes="PanelStyle">
+                        <ContentControl Content="{Binding BottomCenterContent}"/>
+                    </Border>
+                </Grid>
+
+                <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="Transparent"/>
+
+                <Grid Grid.Column="4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="1*"/>
+                        <RowDefinition Height="{StaticResource AppGapVal}"/>
+                        <RowDefinition Height="1*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Classes="PanelStyle">
+                        <ContentControl Content="{Binding TopRightContent}"/>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
+
+                    <Border Grid.Row="2" Classes="PanelStyle">
+                        <ContentControl Content="{Binding BottomRightContent}"/>
+                    </Border>
+                </Grid>
+
             </Grid>
         </Grid>
     </dialogHost:DialogHost>

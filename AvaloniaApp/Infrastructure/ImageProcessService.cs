@@ -27,7 +27,7 @@ namespace AvaloniaApp.Infrastructure
 
             // 필수 파장 체크
             if (!map.TryGetValue(450, out int idxBlue) ||
-                !map.TryGetValue(530, out int idxGreen) ||
+                !map.TryGetValue(550, out int idxGreen) ||
                 !map.TryGetValue(630, out int idxRed))
             {
                 throw new InvalidOperationException("RGB wavelengths mapping not found.");
@@ -177,7 +177,7 @@ namespace AvaloniaApp.Infrastructure
         public FrameData GetRgbFrameData(FrameData fullframe, int wd = 0)
         {
             int idxBlue = Options.GetWavelengthIndexMap()[450];
-            int idxGreen = Options.GetWavelengthIndexMap()[530];
+            int idxGreen = Options.GetWavelengthIndexMap()[550];
             int idxRed = Options.GetWavelengthIndexMap()[630];
 
             var coords = Options.GetCoordinates(wd);

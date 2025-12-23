@@ -2,15 +2,19 @@
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Configuration;
+using AvaloniaApp.Core.Enums;
 using AvaloniaApp.Core.Models;
+using AvaloniaApp.Core.Utils;
 using AvaloniaApp.Infrastructure;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,6 +25,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private readonly VimbaCameraService _cameraService;
         private readonly ImageProcessService _imageProcessService;
         private readonly WorkspaceService _workspaceService;
+        private readonly StorageService _storageService;
         private readonly UiThrottler _uiThrottler;
 
         private CancellationTokenSource? _consumeCts;
@@ -29,46 +34,60 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private int _isAnalyzing = 0;
 
-        private WriteableBitmap? _previewBitmap;
+        // Preview & RGB Bitmaps
+        private WriteableBitmap? _rawpreviewBitmap;
         private FrameData? _previewFrameData;
 
         private WriteableBitmap? _rgbBitmap;
         private FrameData? _rgbFrameData;
 
+        // Processed Result
+        private FrameData? _processedFrameData;
+        private WriteableBitmap? _processedBitmap;
+
         public event Action? RawPreviewInvalidated;
         public event Action? RgbPreviewInvalidated;
+        public event Action? ProcessedPreviewInvalidated;
 
         public ReadOnlyObservableCollection<RegionData>? Regions => _workspaceService.Current?.RegionDatas;
         public int NextAvailableRegionColorIndex => _workspaceService.Current?.GetNextAvailableIndex() ?? -1;
-        public bool IsChartTooltipEnabled => !IsPreviewing;
 
+        // ComboBox Items
         public ObservableCollection<ComboBoxData> WavelengthIndexs { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
         public ObservableCollection<ComboBoxData> WorkingDistances { get; }
             = new ObservableCollection<ComboBoxData>(Options.GetWorkingDistanceComboBoxData());
-        public ObservableCollection<ComboBoxData> ImageOperationWavelength1 { get; }
-            = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
-        public ObservableCollection<ComboBoxData> ImageOperation { get; }
-            = new ObservableCollection<ComboBoxData>(Options.GetImageOperationComboBoxData());
-        public ObservableCollection<ComboBoxData> ImageOperationWavelength2 { get; }
-            = new ObservableCollection<ComboBoxData>(Options.GetWavelengthIndexComboBoxData());
 
+        // Camera & Status Properties
         [ObservableProperty] private ObservableCollection<CameraData> cameras = new();
         [ObservableProperty] private CameraData? selectedCamera;
-        [ObservableProperty] private Bitmap? previewBitmap;
+        [ObservableProperty] private Bitmap? rawBitmap;
+        [ObservableProperty] private Bitmap? previewBitmap; // (참고: 로직상 주로 RawBitmap을 사용 중)
         [ObservableProperty] private Bitmap? rgbBitmap;
         [ObservableProperty] private bool isPreviewing;
         [ObservableProperty] private double previewFps;
+
+        // Selections
         [ObservableProperty] private ComboBoxData? _selectedWavelengthIndex;
         [ObservableProperty] private ComboBoxData? _selectedWorkingDistance;
-        [ObservableProperty] private ComboBoxData? _selectedImageOperationWavelength1;
-        [ObservableProperty] private ComboBoxData? _selectedImageOperation;
-        [ObservableProperty] private ComboBoxData? _selectedImageOperationWavelength2;
+
+        // Process State
+        [ObservableProperty] private bool _isProcessApply;
+        [ObservableProperty] private Bitmap? processedBitmap;
+        [ObservableProperty] private string expressionText = string.Empty;
+
+        // 저장 관련 속성
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+        private string _saveFolderName = $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}";
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+        private bool _isSaving;
+
+        // Computed Properties
         public int CurrentWavelengthIndex => SelectedWavelengthIndex?.NumericValue ?? Options.DefaultWavelengthIndex;
         public int CurrentWorkingDistance => SelectedWorkingDistance?.NumericValue ?? Options.DefaultWorkingDistance;
-        public int ImageOperationWavelength1Index => SelectedImageOperationWavelength1?.NumericValue ?? Options.DefaultWavelengthIndex;
-        public int ImageOperationWavelength2Index => SelectedImageOperationWavelength2?.NumericValue ?? Options.DefaultWavelengthIndex;
-        public int ImageOperationType => SelectedImageOperation?.NumericValue ?? Options.DefaultImageOperation;
         public int CropWidth => Options.CropWidthSize;
         public int CropHeight => Options.CropHeightSize;
 
@@ -77,6 +96,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _cameraService = service.Camera ?? throw new ArgumentNullException();
             _imageProcessService = service.ImageProcess;
             _workspaceService = service.WorkSpace;
+            _storageService = service.Storage;
             _uiThrottler = _service.Ui.CreateThrottler();
 
             SelectedWavelengthIndex = WavelengthIndexs.FirstOrDefault();
@@ -87,7 +107,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
         partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
-        partial void OnIsPreviewingChanged(bool value) { OnPropertyChanged(nameof(IsChartTooltipEnabled)); }
 
         private void UpdateDisplayIfStopped()
         {
@@ -107,8 +126,19 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             if (region == null) return;
             _workspaceService.Update(ws => ws.RemoveRegionData(region));
-            // 정지 상태여도 삭제 반영을 위해 분석 실행
             if (!IsPreviewing) await CalculateIntensityDatasAsync();
+        }
+
+        [RelayCommand]
+        private void ApplyImageProcess()
+        {
+            IsProcessApply = true;
+        }
+
+        [RelayCommand]
+        private void StopImageProcess()
+        {
+            IsProcessApply = false;
         }
 
         [RelayCommand]
@@ -130,7 +160,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private async Task StartPreviewAsync()
         {
             if (IsPreviewing) return;
-
             if (Cameras.Count == 0 || SelectedCamera == null)
             {
                 await RefreshCamerasAsync();
@@ -139,39 +168,21 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
             await RunOperationAsync("PreviewStart", async (ct, ctx) =>
             {
-                // [수정] "될 때까지 Stop -> Start 반복" 전략 적용
-                // 무한 루프처럼 보이지만, 사용자가 취소(ct)하거나 성공할 때까지 재시도합니다.
                 bool isConnected = false;
-
                 while (!ct.IsCancellationRequested && !isConnected)
                 {
                     try
                     {
-                        // 연결 시도
                         await _cameraService.StartPreviewAsync(ct, SelectedCamera.Id);
-                        isConnected = true; // 성공 시 루프 탈출
+                        isConnected = true;
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Camera Start Failed: {ex.Message}. Initiating Reset Sequence...");
-
-                        // [핵심 로직] Start 실패 시 -> 명시적 Stop 호출 -> 대기 -> 재시도
-                        // 하드웨어나 드라이버가 꼬인 상태를 풀기 위해 StopPreviewAndDisconnectAsync를 호출합니다.
-                        try
-                        {
-                            await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None);
-                        }
-                        catch (Exception stopEx)
-                        {
-                            // Stop 중 에러는 무시하고 계속 진행 (이미 닫혀있을 수 있음)
-                            Debug.WriteLine($"Reset(Stop) warning: {stopEx.Message}");
-                        }
-
-                        // 하드웨어 안정화를 위해 잠시 대기 (너무 빠르면 드라이버가 응답 못할 수 있음)
-                        try { await Task.Delay(1000, ct); } catch (OperationCanceledException) { break; }
+                        Debug.WriteLine($"Start Failed: {ex.Message}. Resetting...");
+                        try { await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None); } catch { }
+                        try { await Task.Delay(1000, ct); } catch { break; }
                     }
                 }
-
                 if (isConnected)
                 {
                     RestartConsumeLoop();
@@ -184,30 +195,161 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private async Task StopPreviewAsync()
         {
             if (!IsPreviewing) return;
-
             await RunOperationAsync("PreviewStop", async (ct, ctx) =>
             {
                 try
                 {
                     _stopRequested = true;
                     CancelConsumeLoop();
-
-                    if (_consumeTask != null)
-                        await Task.WhenAny(_consumeTask, Task.Delay(2000));
-
+                    if (_consumeTask != null) await Task.WhenAny(_consumeTask, Task.Delay(2000));
                     await _cameraService.StopPreviewAndDisconnectAsync(ct);
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Stop preview failed: {ex.Message}");
-                }
+                catch (Exception ex) { Debug.WriteLine($"Stop failed: {ex.Message}"); }
                 finally
                 {
-                    await UiInvokeAsync(() =>
-                    {
+                    await UiInvokeAsync(() => {
                         IsPreviewing = false;
                         DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance);
                     });
+                }
+            });
+        }
+
+        private bool IsCanSave()
+        {
+            return !IsSaving && !string.IsNullOrWhiteSpace(SaveFolderName);
+        }
+
+        [RelayCommand(CanExecute = nameof(IsCanSave))]
+        private async Task SaveAsync()
+        {
+            var currentWs = _workspaceService.Current;
+            if (currentWs == null) return;
+
+            FrameData? safeSnapshot = null;
+
+            lock (_workspaceService)
+            {
+                var sourceRef = currentWs.EntireFrameData;
+                if (sourceRef != null)
+                {
+                    safeSnapshot = _imageProcessService.CloneFrameData(sourceRef);
+                }
+                else
+                {
+                    Debug.WriteLine("[Save] 저장할 데이터가 없습니다.");
+                }
+            }
+
+            if (safeSnapshot is null) return;
+
+            await UiInvokeAsync(() => IsSaving = true);
+
+            await RunOperationAsync("SaveExperiment", async (ct, ctx) =>
+            {
+                ctx.ReportIndeterminate("Saving...");
+
+                int currentWd = currentWs.WorkingDistance;
+                var disposables = new List<IDisposable>();
+                disposables.Add(safeSnapshot);
+
+                Bitmap? fullBmp = null;
+                Bitmap? colorBmp = null;
+                var cropBitmaps = new Dictionary<string, Bitmap>();
+
+                try
+                {
+                    // 1. Calculations (Background Thread)
+                    var cropFrames = _imageProcessService.GetCropFrameDatas(safeSnapshot, currentWd);
+                    foreach (var f in cropFrames) disposables.Add(f);
+
+                    var wavelengths = Options.GetWavelengthList();
+                    var waveToIndex = Options.GetWavelengthIndexMap();
+
+                    // [핵심 수정] Bitmap 생성은 반드시 UI Thread에서 수행
+                    await UiInvokeAsync(() =>
+                    {
+                        foreach (var wl in wavelengths)
+                        {
+                            if (!waveToIndex.TryGetValue(wl, out int idx)) continue;
+                            if (idx >= cropFrames.Count) continue;
+
+                            var cropBmp = _imageProcessService.CreateBitmapFromFrame(cropFrames[idx]);
+                            if (cropBmp != null) cropBitmaps[$"{wl}nm"] = cropBmp;
+                        }
+                    });
+
+                    // 2. RGB Calculation (Background)
+                    FrameData? rgbFrame = null;
+                    try
+                    {
+                        rgbFrame = _imageProcessService.GetRgbFrameDataFromCropFrames(cropFrames);
+                        if (rgbFrame != null) disposables.Add(rgbFrame);
+                    }
+                    catch { }
+
+                    // RGB Bitmap (UI Thread)
+                    if (rgbFrame != null)
+                    {
+                        await UiInvokeAsync(() =>
+                        {
+                            colorBmp = _imageProcessService.CreateBitmapFromFrame(rgbFrame, PixelFormats.Bgr24);
+                        });
+                    }
+
+                    // 3. Stitching (Background - Heavy)
+                    var stitchedFrame = _imageProcessService.GetStitchFrameData(safeSnapshot, cropFrames, currentWd);
+                    if (stitchedFrame != null) disposables.Add(stitchedFrame);
+
+                    // Stitched Bitmap (UI Thread)
+                    await UiInvokeAsync(() =>
+                    {
+                        if (stitchedFrame != null)
+                        {
+                            fullBmp = _imageProcessService.CreateBitmapFromFrame(stitchedFrame);
+                        }
+
+                        // Fallback
+                        if (fullBmp == null)
+                        {
+                            Debug.WriteLine("[Save] Fallback to original frame.");
+                            fullBmp = _imageProcessService.CreateBitmapFromFrame(safeSnapshot);
+                        }
+                    });
+
+                    // 4. CSV (Background)
+                    var sb = new StringBuilder();
+                    sb.AppendLine("RegionIndex,Wavelength,Mean,StdDev");
+                    if (currentWs.IntensityDataMap != null)
+                    {
+                        foreach (var kvp in currentWs.IntensityDataMap.OrderBy(k => k.Key))
+                        {
+                            foreach (var data in kvp.Value)
+                                sb.AppendLine($"{kvp.Key},{data.wavelength},{data.mean},{data.stddev}");
+                        }
+                    }
+
+                    // 5. Save to Disk (UI Thread)
+
+                    if (fullBmp == null) return;
+
+                    await _storageService.SaveExperimentResultAsync(SaveFolderName, fullBmp, colorBmp, cropBitmaps, sb.ToString(), ct).ConfigureAwait(false); ;
+
+                    await UiInvokeAsync(() =>
+                    {
+                        SaveFolderName = $"Experiment_{DateTime.Now:yyyyMMdd_HHmmss}";
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Save Error] {ex}");
+                }
+                finally
+                {
+                    fullBmp?.Dispose();
+                    colorBmp?.Dispose();
+                    foreach (var bmp in cropBitmaps.Values) bmp.Dispose();
+                    foreach (var d in disposables) d.Dispose();
                 }
             });
         }
@@ -250,9 +392,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         if (_stopRequested) { frame.Dispose(); continue; }
 
                         _imageProcessService.ProcessFrame(frame);
-
                         var fullFrameClone = _imageProcessService.CloneFrameData(frame);
-                        _workspaceService.SetEntireFrame(fullFrameClone);
+
+                        lock (_workspaceService)
+                        {
+                            _workspaceService.SetEntireFrame(fullFrameClone);
+                        }
 
                         var previewCrop = _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex, CurrentWorkingDistance);
                         var oldPreview = Interlocked.Exchange(ref _previewFrameData, previewCrop);
@@ -262,6 +407,29 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         var oldRgb = Interlocked.Exchange(ref _rgbFrameData, rgbFrame);
                         oldRgb?.Dispose();
 
+                        if (IsProcessApply)
+                        {
+                            try
+                            {
+                                int wd = CurrentWorkingDistance;
+
+                                var processedFrame = ImageCalculator.Evaluate(ExpressionText, (index) =>
+                                {
+                                    var crop = _imageProcessService.GetCropFrameData(frame, index, wd);
+                                    return crop;
+                                });
+
+                                if ((processedFrame is null))
+                                {
+                                    return;
+                                }
+
+                                var oldProcessed = Interlocked.Exchange(ref _processedFrameData, processedFrame);
+                                oldProcessed?.Dispose();
+                            }
+                            catch { }
+                        }
+
                         _uiThrottler.Run(UpdateUI);
 
                         if (Interlocked.CompareExchange(ref _isAnalyzing, 1, 0) == 0)
@@ -269,7 +437,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                             var analysisFrame = _imageProcessService.CloneFrameData(frame);
                             _ = Task.Run(() => RunAnalysisAndUnlock(analysisFrame));
                         }
-
                         frame.Dispose();
                     }
                 }
@@ -284,16 +451,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             try
             {
                 var regions = _workspaceService.Current?.RegionDatas?.ToList();
-
-                // [핵심 수정] 빈 리스트(Count=0)여도 분석을 수행해야 함.
-                // 그래야 '빈 맵'이 생성되어 차트를 클리어할 수 있음.
                 if (regions != null)
                 {
                     var map = _imageProcessService.ComputeIntensityDataMap(frame, regions, CurrentWorkingDistance);
                     _workspaceService.Update(ws => ws.UpdateIntensityDataMap(map));
                 }
             }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch { }
             finally
             {
                 frame.Dispose();
@@ -305,15 +469,37 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             var p = Interlocked.Exchange(ref _previewFrameData, null); p?.Dispose();
             var a = Interlocked.Exchange(ref _rgbFrameData, null); a?.Dispose();
+            var proc = Interlocked.Exchange(ref _processedFrameData, null); proc?.Dispose();
             _uiThrottler.Reset();
             Interlocked.Exchange(ref _isAnalyzing, 0);
         }
+
         private void UpdateUI()
         {
             if (!IsPreviewing) return;
             UpdatePreviewUI();
             UpdateRGBUI();
+            UpdateProcessedUI();
         }
+
+        private void UpdateProcessedUI()
+        {
+            if (!IsProcessApply) return;
+            var frame = Interlocked.Exchange(ref _processedFrameData, null);
+            if (frame is null) return;
+            try
+            {
+                EnsureProcessedBitmap(frame.Width, frame.Height);
+                if (_processedBitmap != null)
+                {
+                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_processedBitmap, frame);
+                    ProcessedPreviewInvalidated?.Invoke();
+                    OnPropertyChanged(nameof(ProcessedBitmap));
+                }
+            }
+            finally { frame.Dispose(); }
+        }
+
         private void UpdatePreviewUI()
         {
             if (!IsPreviewing) return;
@@ -322,14 +508,15 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             try
             {
                 EnsureSharedPreview(frame.Width, frame.Height);
-                if (_previewBitmap != null)
+                if (_rawpreviewBitmap != null)
                 {
-                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, frame);
+                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_rawpreviewBitmap, frame);
                     RawPreviewInvalidated?.Invoke();
                 }
             }
             finally { frame.Dispose(); }
         }
+
         private void UpdateRGBUI()
         {
             if (!IsPreviewing) return;
@@ -349,35 +536,40 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private void DisplayWorkspaceImage(int index, int wd)
         {
-            var ws = _workspaceService.Current;
-            var frame = ws?.EntireFrameData;
-            if (frame is null) return;
-
-            var crop = _imageProcessService.GetCropFrameData(frame, index, wd);
-            try
+            lock (_workspaceService)
             {
-                EnsureSharedPreview(crop.Width, crop.Height);
-                if (_previewBitmap is not null)
+                var ws = _workspaceService.Current;
+                var frame = ws?.EntireFrameData;
+
+                if (frame is null) return;
+
+                var crop = _imageProcessService.GetCropFrameData(frame, index, wd);
+                try
                 {
-                    _imageProcessService.ConvertFrameDataToWriteableBitmap(_previewBitmap, crop);
-                    RawPreviewInvalidated?.Invoke();
+                    EnsureSharedPreview(crop.Width, crop.Height);
+                    if (_rawpreviewBitmap is not null)
+                    {
+                        _imageProcessService.ConvertFrameDataToWriteableBitmap(_rawpreviewBitmap, crop);
+                        RawPreviewInvalidated?.Invoke();
+                    }
                 }
+                finally { crop.Dispose(); }
             }
-            finally { crop.Dispose(); }
         }
 
         private void EnsureSharedPreview(int width, int height)
         {
-            if (_previewBitmap is not null)
+            if (_rawpreviewBitmap is not null)
             {
-                var ps = _previewBitmap.PixelSize;
+                var ps = _rawpreviewBitmap.PixelSize;
                 if (ps.Width == width && ps.Height == height) return;
-                _previewBitmap.Dispose();
-                _previewBitmap = null;
+                _rawpreviewBitmap.Dispose();
+                _rawpreviewBitmap = null;
             }
-            _previewBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Gray8, AlphaFormat.Opaque);
-            PreviewBitmap = _previewBitmap;
+            _rawpreviewBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Gray8, AlphaFormat.Opaque);
+            RawBitmap = _rawpreviewBitmap;
         }
+
         private void EnsureRgbBitmap(int width, int height)
         {
             if (_rgbBitmap is not null)
@@ -391,14 +583,28 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             RgbBitmap = _rgbBitmap;
         }
 
+        private void EnsureProcessedBitmap(int width, int height)
+        {
+            if (_processedBitmap is not null)
+            {
+                var ps = _processedBitmap.PixelSize;
+                if (ps.Width == width && ps.Height == height) return;
+                _processedBitmap.Dispose();
+                _processedBitmap = null;
+            }
+            _processedBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormats.Gray8, AlphaFormat.Opaque);
+            ProcessedBitmap = _processedBitmap;
+        }
+
         public override async ValueTask DisposeAsync()
         {
             CancelConsumeLoop();
             if (_consumeTask != null) await _consumeTask.ConfigureAwait(false);
             CleanupPendingFrames();
             try { await _cameraService.StopPreviewAndDisconnectAsync(CancellationToken.None); } catch { }
-            _previewBitmap?.Dispose();
+            _rawpreviewBitmap?.Dispose();
             _rgbBitmap?.Dispose();
+            _processedBitmap?.Dispose();
             await base.DisposeAsync();
         }
     }

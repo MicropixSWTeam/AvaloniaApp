@@ -10,10 +10,12 @@
              x:Class="AvaloniaApp.Presentation.Views.UserControls.ChartView"
              x:DataType="vm:ChartViewModel">
 
-  <Grid ColumnDefinitions="auto,*" Margin="8">
-   <cc:ChartControl Grid.Column="1"
-                               x:Name="Chart"
-                               Series="{Binding SeriesCollection}"
-                               />
-  </Grid>
+    <!-- 여백 및 컨테이너 스타일 적용 -->
+    <Grid Margin="16">   
+        <Grid ColumnDefinitions="auto,*">
+            <cc:ChartControl Grid.Column="1"
+                                x:Name="Chart"
+                                Series="{Binding SeriesCollection}"/>
+        </Grid>
+    </Grid>
 </UserControl>

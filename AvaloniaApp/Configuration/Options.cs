@@ -85,13 +85,14 @@ namespace AvaloniaApp.Configuration
 
         private static readonly ComboBoxData[] _workingDistance = new ComboBoxData[]
         {
-            new ComboBoxData{ DisplayText = "Over", NumericValue = 0},
+            new ComboBoxData{ DisplayText = "Over", NumericValue = 70},
             new ComboBoxData{ DisplayText = "10cm", NumericValue = 10},
             new ComboBoxData{ DisplayText = "20cm", NumericValue = 20},
             new ComboBoxData{ DisplayText = "30cm", NumericValue = 30},
             new ComboBoxData{ DisplayText = "40cm", NumericValue = 40},
             new ComboBoxData{ DisplayText = "50cm", NumericValue = 50},
             new ComboBoxData{ DisplayText = "60cm", NumericValue = 60},
+            new ComboBoxData{ DisplayText = "70cm", NumericValue = 70},
         };
         public static IReadOnlyList<ComboBoxData> GetWorkingDistanceComboBoxData() => _workingDistance;
 
@@ -107,49 +108,63 @@ namespace AvaloniaApp.Configuration
         };
         public static IReadOnlyList<ComboBoxData> GetImageOperationComboBoxData() => _imageOperation;
 
-        private static readonly ImmutableDictionary<int, IReadOnlyList<Offset>> _workingDistanceOffsetMap 
+        private static readonly ImmutableDictionary<int, IReadOnlyList<Offset>> _workingDistanceOffsetMap
             = new Dictionary<int, IReadOnlyList<Offset>>
-        {
-            // [0] Working Distance 0 (기준점: 오프셋 없음)
-            [0] = new Offset[]
             {
-                new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0),
-                new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0),
-                new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0)
-            }.ToImmutableList(),
+                [0] = new Offset[]
+                {
+                    new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0),
+                    new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0),
+                    new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0), new Offset(0,0)
+                }.ToImmutableList(),
 
-            // [10] Working Distance 10 (로그 블록 1)
-            [10] = new Offset[]
-            {
-                new Offset(-42,-41), new Offset(-17,-33), new Offset(8,-24), new Offset(35,-15), new Offset(59,-5),
-                new Offset(-50,-17), new Offset(-25,-8),  new Offset(0,0),   new Offset(24,10),  new Offset(50,18),
-                new Offset(-58,6),   new Offset(-33,15),   new Offset(-8,23),  new Offset(17,32),  new Offset(42,39)
-            }.ToImmutableList(),
+                [10] = new Offset[]
+                {
+                    new Offset(-42,-41), new Offset(-17,-33), new Offset(8,-24),  new Offset(35,-15), new Offset(59,-5),
+                    new Offset(-50,-17), new Offset(-25,-8),  new Offset(0,0),    new Offset(24,10),  new Offset(50,18),
+                    new Offset(-58,6),   new Offset(-33,15),  new Offset(-8,23),  new Offset(17,32),  new Offset(42,39)
+                }.ToImmutableList(),
 
-            // [20] Working Distance 20 (로그 블록 2)
-            [20] = new Offset[]
-            {
-                new Offset(-13,-28), new Offset(-2,-20),  new Offset(9,-10),  new Offset(19,-1),  new Offset(30,8),
-                new Offset(-21,-16), new Offset(-10,-7),  new Offset(0,0),    new Offset(10,11),  new Offset(22,18),
-                new Offset(-29,-7),  new Offset(-19,3),   new Offset(-8,9),   new Offset(3,19),   new Offset(14,28)
-            }.ToImmutableList(),
+                [20] = new Offset[]
+                {
+                    new Offset(-13,-28), new Offset(-2,-20),  new Offset(9,-10),  new Offset(19,-1),  new Offset(30,8),
+                    new Offset(-21,-16), new Offset(-10,-7),  new Offset(0,0),    new Offset(10,11),  new Offset(22,18),
+                    new Offset(-29,-7),  new Offset(-19,3),   new Offset(-8,9),   new Offset(3,19),   new Offset(14,28)
+                }.ToImmutableList(),
 
-            // [30] Working Distance 30 (로그 블록 3)
-            [30] = new Offset[]
-            {
-                new Offset(-4,-23),  new Offset(2,-15),   new Offset(8,-7),   new Offset(15,2),   new Offset(21,11),
-                new Offset(-12,-16), new Offset(-6,-8),   new Offset(0,0),    new Offset(6,10),   new Offset(14,18),
-                new Offset(-20,-11), new Offset(-15,-1),  new Offset(-8,5),   new Offset(-1,14),  new Offset(5,23)
-            }.ToImmutableList(),
+                [30] = new Offset[]
+                {
+                    new Offset(-4,-23),  new Offset(2,-15),   new Offset(8,-7),   new Offset(15,2),   new Offset(21,11),
+                    new Offset(-12,-16), new Offset(-6,-8),   new Offset(0,0),    new Offset(6,10),   new Offset(14,18),
+                    new Offset(-20,-11), new Offset(-15,-1),  new Offset(-8,5),   new Offset(-1,14),  new Offset(5,23)
+                }.ToImmutableList(),
+                [40] = new Offset[]
+                {
+                    new Offset(0,-21),   new Offset(4,-13),   new Offset(8,-5),   new Offset(12,3),   new Offset(17,13),
+                    new Offset(-8,-16),  new Offset(-4,-8),   new Offset(0,0),    new Offset(4,9),    new Offset(9,17),
+                    new Offset(-16,-13), new Offset(-13,-4),  new Offset(-8,3),   new Offset(-3,12),  new Offset(1,20)
+                }.ToImmutableList(),
 
-            // [40] Working Distance 40 (로그 블록 4)
-            [40] = new Offset[]
-            {
-                new Offset(0,-21),   new Offset(4,-13),   new Offset(8,-5),   new Offset(12,3),   new Offset(17,13),
-                new Offset(-8,-16),  new Offset(-4,-8),   new Offset(0,0),    new Offset(4,9),    new Offset(9,17),
-                new Offset(-16,-13), new Offset(-13,-4),  new Offset(-8,3),   new Offset(-3,12),  new Offset(1,20)
-            }.ToImmutableList(),
-        }.ToImmutableDictionary();
+                [50] = new Offset[]
+                {
+                    new Offset(0,-15),  new Offset(2,-8),   new Offset(4,-3),   new Offset(6,0),    new Offset(9,7),
+                    new Offset(-5,-10), new Offset(-2,-5),  new Offset(0,0),    new Offset(2,5),    new Offset(5,10),
+                    new Offset(-9,-8),  new Offset(-7,-2),  new Offset(-4,1),   new Offset(-1,6),   new Offset(0,10)
+                }.ToImmutableList(),
+
+                [60] = new Offset[]
+                {
+                    new Offset(0,-7),   new Offset(1,-4),   new Offset(3,-1),   new Offset(4,1),    new Offset(6,4),
+                    new Offset(-3,-5),  new Offset(-1,-3),  new Offset(0,0),    new Offset(1,3),    new Offset(3,6),
+                    new Offset(-5,-4),  new Offset(-4,-1),  new Offset(-2,1),   new Offset(-1,4),   new Offset(0,7)
+                }.ToImmutableList(),
+                [70] = new Offset[]
+                {
+                    new Offset(0,-3),   new Offset(1,-2),   new Offset(1,0),    new Offset(2,1),    new Offset(3,2),
+                    new Offset(-1,-2),  new Offset(0,-1),   new Offset(0,0),    new Offset(0,1),    new Offset(1,3),
+                    new Offset(-2,-2),  new Offset(-1,0),   new Offset(-1,1),   new Offset(0,2),    new Offset(1,3)
+                }.ToImmutableList()
+            }.ToImmutableDictionary();
 
         public static IReadOnlyDictionary<int, IReadOnlyList<Offset>> GetWorkingDistanceOffsetMap() => _workingDistanceOffsetMap;
         public static IReadOnlyList<Offset> GetWorkingDistanceOffsets(int key) => _workingDistanceOffsetMap[key];
