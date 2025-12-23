@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             x:Class="AvaloniaApp.Presentation.Views.UserControls.DialogView"
+             x:DataType="vm:DialogViewModel">
+    
+    <Border Background="White" CornerRadius="8" BoxShadow="0 4 10 0 #40000000" MinWidth="300" MaxWidth="500">
+        <Grid RowDefinitions="Auto, *, Auto">
+            <!-- 헤더 -->
+            <Border Grid.Row="0" Background="{Binding HeaderColor}" CornerRadius="8 8 0 0" Padding="15">
+                <TextBlock Text="{Binding Title}" Foreground="White" FontWeight="Bold" FontSize="16"/>
+            </Border>
+            
+            <!-- 내용 -->
+            <ScrollViewer Grid.Row="1" MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding Message}" Margin="20" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="14"/>
+            </ScrollViewer>
+
+            <!-- 버튼 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="15">
+                <Button Content="취소" Command="{Binding CancelCommand}" IsVisible="{Binding IsCancelVisible}"/>
+                <Button Content="확인" Command="{Binding ConfirmCommand}" Background="{Binding HeaderColor}" Foreground="White" FontWeight="Bold"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

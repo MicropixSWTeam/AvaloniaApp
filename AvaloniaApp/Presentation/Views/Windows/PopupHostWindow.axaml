@@ -31,7 +31,13 @@
         <DataTemplate DataType="{x:Type vm:ProcessViewModel}">
             <v:ProcessView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DialogViewModel}">
+            <v:DialogView />
+        </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:LoadViewModel}">
+            <v:LoadView />
+        </DataTemplate>
     </Window.DataTemplates>
 
     <ContentControl Content="{Binding}"/>

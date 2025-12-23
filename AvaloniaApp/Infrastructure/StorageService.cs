@@ -1,8 +1,4 @@
-﻿using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
+﻿using Avalonia.Media.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,14 +11,28 @@ namespace AvaloniaApp.Infrastructure
 {
     public class StorageService
     {
-        private IStorageProvider GetStorageProvider()
+        // EXE 파일 실행 위치 기준 "SaveData" 폴더 경로
+        private string SaveRootPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SaveData");
+
+        public StorageService()
         {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
-                desktop.MainWindow is { } window)
+            // 서비스 시작 시 폴더가 없으면 생성
+            if (!Directory.Exists(SaveRootPath))
             {
-                return window.StorageProvider;
+                Directory.CreateDirectory(SaveRootPath);
             }
-            throw new InvalidOperationException("StorageProvider Unavailable");
+        }
+
+        // 저장된 폴더 목록 가져오기 (로드 화면용)
+        public List<string> GetSavedFolders()
+        {
+            if (!Directory.Exists(SaveRootPath)) return new List<string>();
+
+            return new DirectoryInfo(SaveRootPath)
+                .GetDirectories()
+                .OrderByDescending(d => d.CreationTime) // 최신순 정렬
+                .Select(d => d.Name)
+                .ToList();
         }
 
         public async Task SaveExperimentResultAsync(
@@ -33,108 +43,50 @@ namespace AvaloniaApp.Infrastructure
             string csvContent,
             CancellationToken ct = default)
         {
-            var provider = GetStorageProvider();
-
-            // 1. 저장할 상위 폴더 선택
-            var options = new FolderPickerOpenOptions
-            {
-                AllowMultiple = false,
-                Title = "실험 데이터를 저장할 위치(상위 폴더)를 선택하세요"
-            };
-
-            var parents = await provider.OpenFolderPickerAsync(options);
-            if (parents is null || parents.Count == 0) return;
-
-            var parentFolder = parents[0];
-
-            // 2. 타겟 폴더 생성 (폴더명 정제)
+            // 폴더명 정제 (특수문자 제거)
             var safeFolderName = SanitizeFileName(folderName);
-            var targetFolder = await parentFolder.CreateFolderAsync(safeFolderName);
+            var targetFolderPath = Path.Combine(SaveRootPath, safeFolderName);
 
-            if (targetFolder is null) return;
+            if (!Directory.Exists(targetFolderPath)) Directory.CreateDirectory(targetFolderPath);
 
-            // 3. 전체 이미지 저장 (Null 체크)
-            if (fullImage != null)
+            try
             {
-                await SaveBitmapToFolderAsync(targetFolder, "FullImage.png", fullImage);
-            }
+                // 이미지 및 CSV 저장 (System.IO 사용)
+                if (fullImage != null)
+                    await SaveBitmapToPathAsync(Path.Combine(targetFolderPath, "FullImage.png"), fullImage);
 
-            // 4. 컬러 이미지 저장 (Null 체크 - 여기서 터졌던 것임)
-            if (colorImage != null)
+                if (colorImage != null)
+                    await SaveBitmapToPathAsync(Path.Combine(targetFolderPath, "ColorImage.png"), colorImage);
+
+                foreach (var kvp in cropImages)
+                {
+                    if (kvp.Value == null) continue;
+                    var fileName = $"{SanitizeFileName(kvp.Key)}.png";
+                    await SaveBitmapToPathAsync(Path.Combine(targetFolderPath, fileName), kvp.Value);
+                }
+
+                await File.WriteAllTextAsync(Path.Combine(targetFolderPath, "IntensityData.csv"), csvContent, Encoding.UTF8, ct);
+            }
+            catch (Exception ex)
             {
-                await SaveBitmapToFolderAsync(targetFolder, "ColorImage.png", colorImage);
+                System.Diagnostics.Debug.WriteLine($"[StorageService] Error: {ex.Message}");
+                throw; // 에러를 상위(ViewModel)로 던져서 알림창을 띄우게 함
             }
-
-            // 5. Crop 이미지들 저장
-            foreach (var kvp in cropImages)
-            {
-                if (kvp.Value is null) continue; // 비트맵 없으면 스킵
-
-                var safeFileName = $"{SanitizeFileName(kvp.Key)}.png";
-                await SaveBitmapToFolderAsync(targetFolder, safeFileName, kvp.Value);
-            }
-
-            // 6. CSV 데이터 저장
-            await SaveTextToFolderAsync(targetFolder, "IntensityData.csv", csvContent);
         }
 
-        /// <summary>
-        /// 파일명에 사용할 수 없는 문자를 언더스코어(_)로 변경
-        /// </summary>
         private static string SanitizeFileName(string name)
         {
             var invalidChars = Path.GetInvalidFileNameChars();
             return string.Join("_", name.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).Trim();
         }
 
-        private async Task SaveBitmapToFolderAsync(IStorageFolder folder, string fileName, Bitmap? bitmap)
+        private async Task SaveBitmapToPathAsync(string path, Bitmap bitmap)
         {
-            // [핵심 수정] 비트맵이 Null이면 저장 시도조차 하지 않고 리턴
-            if (bitmap is null) return;
-
-            try
+            await Task.Run(() =>
             {
-                var file = await folder.CreateFileAsync(fileName);
-                if (file is null) return;
-
-                // await using 사용
-                await using var stream = await file.OpenWriteAsync();
-
-                if (stream.CanSeek)
-                {
-                    stream.SetLength(0);
-                }
-
-                // 여기서 bitmap이 null이면 터지는데, 위에서 막았으므로 안전함
+                using var stream = File.Open(path, FileMode.Create);
                 bitmap.Save(stream);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Save Error ({fileName}): {ex.Message}");
-            }
-        }
-
-        private async Task SaveTextToFolderAsync(IStorageFolder folder, string fileName, string content)
-        {
-            try
-            {
-                var file = await folder.CreateFileAsync(fileName);
-                if (file is null) return;
-
-                await using var stream = await file.OpenWriteAsync();
-
-                if (stream.CanSeek)
-                {
-                    stream.SetLength(0);
-                }
-
-                await using var writer = new StreamWriter(stream, Encoding.UTF8);
-                await writer.WriteAsync(content);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Save CSV Error: {ex.Message}");
-            }
+            });
         }
     }
 }

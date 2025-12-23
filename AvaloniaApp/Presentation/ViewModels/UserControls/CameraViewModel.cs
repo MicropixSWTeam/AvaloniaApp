@@ -74,7 +74,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         // Process State
         [ObservableProperty] private bool _isProcessApply;
         [ObservableProperty] private Bitmap? processedBitmap;
-        [ObservableProperty] private string expressionText = string.Empty;
+        [ObservableProperty] private string expressionText = "(450 + 550)";
 
         // 저장 관련 속성
         [ObservableProperty]
@@ -407,27 +407,18 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         var oldRgb = Interlocked.Exchange(ref _rgbFrameData, rgbFrame);
                         oldRgb?.Dispose();
 
-                        if (IsProcessApply)
+
+                        int wd = CurrentWorkingDistance;
+                        var processedFrame = ImageCalculator.Evaluate(ExpressionText, (index) =>
                         {
-                            try
-                            {
-                                int wd = CurrentWorkingDistance;
+                            return _imageProcessService.GetCropFrameData(frame, index, wd);
+                        });
 
-                                var processedFrame = ImageCalculator.Evaluate(ExpressionText, (index) =>
-                                {
-                                    var crop = _imageProcessService.GetCropFrameData(frame, index, wd);
-                                    return crop;
-                                });
-
-                                if ((processedFrame is null))
-                                {
-                                    return;
-                                }
-
-                                var oldProcessed = Interlocked.Exchange(ref _processedFrameData, processedFrame);
-                                oldProcessed?.Dispose();
-                            }
-                            catch { }
+                        // 2. 결과 비트맵 업데이트 및 이벤트 발생
+                        if (processedFrame != null)
+                        {
+                            var old = Interlocked.Exchange(ref _processedFrameData, processedFrame);
+                            old?.Dispose();
                         }
 
                         _uiThrottler.Run(UpdateUI);

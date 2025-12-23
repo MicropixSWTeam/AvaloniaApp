@@ -1,61 +1,98 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using OpenCvSharp;
 using AvaloniaApp.Core.Models;
 
 namespace AvaloniaApp.Core.Utils
 {
+    // [최적화] 매 프레임 파싱하지 않도록 미리 컴파일된 식을 저장
+    public class CompiledExpression
+    {
+        public Queue<string> RpnQueue { get; }
+        public CompiledExpression(Queue<string> rpnQueue)
+        {
+            RpnQueue = rpnQueue;
+        }
+    }
+
     public static class ImageCalculator
     {
         private static readonly Dictionary<string, int> _precedence = new()
         {
             { "(", 0 }, { "+", 1 }, { "-", 1 }, { "|", 1 },
-            { "*", 2 }, { "/", 2 }, { "&", 2 }
+            { "*", 2 }, { "/", 2 }, { "&", 2 } // &는 평균(Average)
         };
 
-        public static FrameData? Evaluate(string expression, Func<int, FrameData> frameProvider)
+        // 문자열 파싱과 연산 분리 (편의용 오버로드)
+        public static FrameData? Evaluate(string expression, Func<int, FrameData?> frameProvider)
         {
             if (string.IsNullOrWhiteSpace(expression)) return null;
+            if (!TryParse(expression, out var compiled, out _)) return null;
 
-            // 스택을 try 블록 밖에서 선언하여 finally에서 접근 가능하게 함
+            return Evaluate(compiled!, frameProvider);
+        }
+
+        // [핵심 로직] 컴파일된 식(RPN)을 받아 실제 연산 수행
+        public static FrameData? Evaluate(CompiledExpression compiled, Func<int, FrameData?> frameProvider)
+        {
+            if (compiled == null || compiled.RpnQueue.Count == 0) return null;
+
+            var tokens = compiled.RpnQueue.ToArray();
             var stack = new Stack<MatInfo>();
 
             try
             {
-                var rpnQueue = ParseToRPN(expression);
-                if (rpnQueue.Count == 0) return null;
-
-                foreach (var token in rpnQueue)
+                foreach (var token in tokens)
                 {
-                    if (int.TryParse(token, out int wavelength))
+                    // 1. 숫자인 경우 (이미지 인덱스 또는 상수)
+                    if (double.TryParse(token, out double val))
                     {
-                        // 1. FrameData 가져오기
-                        using var frame = frameProvider(wavelength);
-                        if (frame == null) throw new ArgumentException($"Wavelength {wavelength} not found");
+                        bool isImageLoaded = false;
 
-                        // 2. 32F Mat로 변환 (정밀도 유지)
-                        var matF = new Mat();
-                        try
+                        // 정수라면 파장(Wavelength)으로 간주하고 이미지 로드 시도
+                        if (val == (int)val)
                         {
-                            using var mat8 = Mat.FromPixelData(frame.Height, frame.Width, MatType.CV_8UC1, frame.Bytes, frame.Stride);
-                            mat8.ConvertTo(matF, MatType.CV_32FC1);
+                            try
+                            {
+                                // 이미지가 존재하면 로드 (FrameData 복사본 생성 방지 위해 using 처리 주의)
+                                var frame = frameProvider((int)val);
+                                if (frame != null)
+                                {
+                                    var matF = new Mat();
+                                    // 8비트 이미지를 32비트 실수(Float)로 변환하여 정밀도 유지
+                                    using var mat8 = Mat.FromPixelData(frame.Height, frame.Width, MatType.CV_8UC1, frame.Bytes, frame.Stride);
+                                    mat8.ConvertTo(matF, MatType.CV_32FC1);
 
-                            // 성공적으로 생성된 경우에만 스택에 푸시
-                            stack.Push(new MatInfo(matF, isTemporary: true));
+                                    stack.Push(new MatInfo(matF, isTemporary: true));
+                                    isImageLoaded = true;
+
+                                    // frameProvider가 복사본을 준 경우라면 여기서 Dispose 해야 함 (상황에 따라 다름)
+                                    // 보통 Provider가 "사용 후 버려도 되는" Frame을 준다면 Dispose 호출.
+                                    frame.Dispose();
+                                }
+                            }
+                            catch
+                            {
+                                // 로드 실패 시 무시하고 상수로 처리
+                            }
                         }
-                        catch
+
+                        // 이미지가 아니거나 로드에 실패했다면 -> 상수(Scalar)로 취급 (예: "/ 3")
+                        if (!isImageLoaded)
                         {
-                            matF.Dispose(); // 변환 실패 시 즉시 해제
-                            throw;
+                            // 1x1 크기의 Scalar Mat 생성
+                            var scalarMat = new Mat(1, 1, MatType.CV_32FC1, new Scalar(val));
+                            stack.Push(new MatInfo(scalarMat, isTemporary: true));
                         }
                     }
+                    // 2. 연산자인 경우 (+, -, *, / ...)
                     else
                     {
-                        if (stack.Count < 2) throw new ArgumentException("Invalid expression: Not enough operands");
+                        if (stack.Count < 2) throw new ArgumentException("Not enough operands");
 
-                        // 스택에서 꺼내기 (Pop된 순간 소유권은 이 지역변수로 넘어옴)
                         var right = stack.Pop();
                         var left = stack.Pop();
 
@@ -66,113 +103,211 @@ namespace AvaloniaApp.Core.Utils
                         }
                         finally
                         {
-                            // 연산에 사용된 임시 Mat 해제
+                            // 연산에 사용된 임시 매트릭스 해제
                             if (left.isTemporary) left.mat.Dispose();
                             if (right.isTemporary) right.mat.Dispose();
                         }
-
-                        // 결과 스택에 푸시
                         stack.Push(new MatInfo(resultMat, isTemporary: true));
                     }
                 }
 
-                if (stack.Count != 1) throw new ArgumentException("Calculation failed: Stack not empty/balanced");
+                if (stack.Count != 1) throw new ArgumentException("Calculation failed: Stack not balanced");
 
+                // 최종 결과 처리
                 var final = stack.Pop();
-                using var finalMatF = final.mat; // 여기서 소유권 가져오고 자동 해제 예약
+                using var finalMatF = final.mat;
 
-                // 3. 결과 포장 (32F -> 8U) 및 Saturation(0~255 자르기) 자동 적용
+                // 결과가 1x1 Scalar인 경우 (예: "3 + 5") -> 예외 처리 혹은 단색 이미지 생성
+                // 여기서는 전체 크기로 확장하거나, 일반적으론 이미지 크기가 됨
+                if (finalMatF.Width == 1 && finalMatF.Height == 1)
+                {
+                    // 결과가 숫자 하나라면 처리가 애매하지만, 일단 null 리턴 혹은 무시
+                    return null;
+                }
+
+                // 32F -> 8U 변환 (Saturate Cast 자동 적용: 0~255 범위로 잘림)
                 int len = finalMatF.Width * finalMatF.Height;
                 var buffer = ArrayPool<byte>.Shared.Rent(len);
-
-                // MatType.CV_8UC1으로 생성만 함 (데이터 복사는 ConvertTo에서)
                 using var finalMat8 = new Mat(finalMatF.Height, finalMatF.Width, MatType.CV_8UC1);
 
-                // 32F -> 8U 변환 (자동으로 소수점 반올림 및 0~255 클램핑 됨)
                 finalMatF.ConvertTo(finalMat8, MatType.CV_8UC1);
 
-                // OpenCvSharp Mat 데이터를 배열로 복사
+                // 버퍼 복사
                 System.Runtime.InteropServices.Marshal.Copy(finalMat8.Data, buffer, 0, len);
 
-                // FrameData.Wrap이 버퍼 소유권을 가져간다고 가정 (아니라면 로직 확인 필요)
                 return FrameData.Wrap(buffer, finalMat8.Width, finalMat8.Height, finalMat8.Width, len);
             }
             catch (Exception ex)
             {
-                // 로그 처리 (실제 앱에서는 ILogger 등을 사용)
-                System.Diagnostics.Debug.WriteLine($"Expression Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[Eval Error] {ex.Message}");
                 return null;
             }
             finally
             {
-                // [중요] 예외 발생 시 스택에 남아있는 모든 Mat 해제
+                // 스택에 남은 잔여물 정리
                 while (stack.Count > 0)
                 {
                     var item = stack.Pop();
-                    if (item.isTemporary)
-                    {
-                        item.mat.Dispose();
-                    }
+                    if (item.isTemporary) item.mat.Dispose();
                 }
             }
         }
 
+        // [구조 개선] Mat vs Mat, Mat vs Scalar 모두 처리 가능하도록 개선
         private static Mat PerformOperation(Mat a, Mat b, string op)
         {
-            if (a.Size() != b.Size()) throw new InvalidOperationException($"Size mismatch: {a.Size()} vs {b.Size()}");
+            // 1x1 Mat인지 확인 (상수 여부 판별)
+            bool aIsScalar = (a.Rows == 1 && a.Cols == 1);
+            bool bIsScalar = (b.Rows == 1 && b.Cols == 1);
+
+            // 둘 다 이미지가 아니고, 크기가 다르면 연산 불가 (Scalar 브로드캐스팅 제외)
+            if (!aIsScalar && !bIsScalar && a.Size() != b.Size())
+                throw new InvalidOperationException($"Size mismatch: {a.Size()} vs {b.Size()}");
 
             var dst = new Mat();
             try
             {
-                switch (op)
+                // OpenCV는 Mat과 Scalar 간 연산을 직접 지원하지 않는 메서드도 있으므로 분기 처리
+                // 하지만 MatType이 CV_32F로 통일되어 있으므로, Scalar도 1x1 Mat으로 취급하여 연산 가능
+                // 단, 크기가 다른 두 Mat의 연산은 OpenCV 기본 함수에서 에러가 발생할 수 있음 -> Scalar 변환 필요
+
+                // Helper: 1x1 Mat에서 값 추출
+                double GetScalar(Mat m) => m.At<float>(0, 0);
+
+                if (aIsScalar && !bIsScalar) // Scalar op Image
                 {
-                    case "+": Cv2.Add(a, b, dst); break;
-                    case "-": Cv2.Subtract(a, b, dst); break;
-                    case "|": Cv2.Absdiff(a, b, dst); break;
-                    case "*": Cv2.Multiply(a, b, dst); break;
-                    case "/": Cv2.Divide(a, b, dst); break; // 0으로 나누기 방어는 OpenCV가 0으로 처리함
-                    case "&": Cv2.AddWeighted(a, 0.5, b, 0.5, 0, dst); break;
-                    default: throw new ArgumentException($"Unknown operator: {op}");
+                    double s = GetScalar(a);
+                    switch (op)
+                    {
+                        case "+": Cv2.Add(new Scalar(s), b, dst); break;
+                        case "-": Cv2.Subtract(new Scalar(s), b, dst); break; // s - b
+                        case "*": Cv2.Multiply(new Scalar(s), b, dst); break;
+                        case "/": Cv2.Divide(new Scalar(s), b, dst); break;   // s / b
+                        case "|": Cv2.Absdiff(new Scalar(s), b, dst); break;
+                        default: throw new ArgumentException($"Unknown operator for Scalar-Image: {op}");
+                    }
                 }
+                else if (!aIsScalar && bIsScalar) // Image op Scalar (가장 흔한 케이스, 예: Img / 3)
+                {
+                    double s = GetScalar(b);
+                    switch (op)
+                    {
+                        case "+": Cv2.Add(a, new Scalar(s), dst); break;
+                        case "-": Cv2.Subtract(a, new Scalar(s), dst); break;
+                        case "*": Cv2.Multiply(a, new Scalar(s), dst); break;
+                        case "/": Cv2.Divide(a, new Scalar(s), dst); break;
+                        case "|": Cv2.Absdiff(a, new Scalar(s), dst); break;
+                        case "&": Cv2.AddWeighted(a, 0.5, a, 0.5, 0, dst); break; // Image & Scalar? (의미 모호함, 무시하거나 a 리턴)
+                        default: throw new ArgumentException($"Unknown operator for Image-Scalar: {op}");
+                    }
+                }
+                else // Image op Image (또는 Scalar op Scalar)
+                {
+                    switch (op)
+                    {
+                        case "+": Cv2.Add(a, b, dst); break;
+                        case "-": Cv2.Subtract(a, b, dst); break;
+                        case "|": Cv2.Absdiff(a, b, dst); break;
+                        case "*": Cv2.Multiply(a, b, dst); break;
+                        case "/": Cv2.Divide(a, b, dst); break;
+                        case "&": Cv2.AddWeighted(a, 0.5, b, 0.5, 0, dst); break; // 평균
+                        default: throw new ArgumentException($"Unknown operator: {op}");
+                    }
+                }
+
                 return dst;
             }
             catch
             {
-                dst.Dispose(); // 연산 실패 시 생성한 dst 해제
+                dst.Dispose();
                 throw;
             }
         }
 
-        // ParseToRPN 및 MatInfo는 기존과 동일하게 유지
+        // 검증 및 파싱 로직
+        public static bool TryParse(string expression, out CompiledExpression? result, out string? errorMessage)
+        {
+            result = null;
+            errorMessage = null;
+
+            if (string.IsNullOrWhiteSpace(expression))
+            {
+                errorMessage = "Expression is empty";
+                return false;
+            }
+
+            try
+            {
+                var rpnQueue = ParseToRPN(expression);
+                if (rpnQueue.Count == 0)
+                {
+                    errorMessage = "No valid tokens found";
+                    return false;
+                }
+                result = new CompiledExpression(rpnQueue);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        // 중위 표기법 -> 후위 표기법(RPN) 변환 (Shunting-yard algorithm)
         private static Queue<string> ParseToRPN(string expression)
         {
             var output = new Queue<string>();
             var stack = new Stack<string>();
-            // 정수 뿐만 아니라 소수점도 고려하고 싶다면 pattern 수정 필요 (현재는 정수만)
-            var matches = Regex.Matches(expression, @"(\d+)|([\+\-\*\/\|\&\(\)])");
+            // 정수, 실수(소수점 포함), 연산자, 괄호 인식 정규식
+            var matches = Regex.Matches(expression, @"(\d+(\.\d+)?)|([\+\-\*\/\|\&\(\)])");
 
             foreach (Match m in matches)
             {
                 string token = m.Value;
-                if (int.TryParse(token, out _)) output.Enqueue(token);
-                else if (token == "(") stack.Push(token);
+                if (double.TryParse(token, out _)) // 숫자면 큐에 추가
+                {
+                    output.Enqueue(token);
+                }
+                else if (token == "(")
+                {
+                    stack.Push(token);
+                }
                 else if (token == ")")
                 {
-                    while (stack.Count > 0 && stack.Peek() != "(") output.Enqueue(stack.Pop());
-                    if (stack.Count > 0) stack.Pop();
+                    bool foundParen = false;
+                    while (stack.Count > 0)
+                    {
+                        if (stack.Peek() == "(")
+                        {
+                            foundParen = true;
+                            stack.Pop();
+                            break;
+                        }
+                        output.Enqueue(stack.Pop());
+                    }
+                    if (!foundParen) throw new ArgumentException("Mismatched parentheses");
                 }
-                else
+                else // 연산자
                 {
                     while (stack.Count > 0 && _precedence.ContainsKey(stack.Peek()) &&
                            _precedence[stack.Peek()] >= _precedence[token])
+                    {
                         output.Enqueue(stack.Pop());
+                    }
                     stack.Push(token);
                 }
             }
-            while (stack.Count > 0) output.Enqueue(stack.Pop());
+            while (stack.Count > 0)
+            {
+                var top = stack.Pop();
+                if (top == "(") throw new ArgumentException("Mismatched parentheses");
+                output.Enqueue(top);
+            }
             return output;
         }
 
+        // Stack 관리를 위한 내부 레코드
         private record MatInfo(Mat mat, bool isTemporary);
     }
 }

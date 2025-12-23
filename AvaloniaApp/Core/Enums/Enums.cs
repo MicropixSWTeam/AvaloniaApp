@@ -16,4 +16,11 @@ namespace AvaloniaApp.Core.Enums
         Divide,     // A / B (0 처리 필요)
         Average     // (A + B) / 2
     }
+
+    public enum DialogType
+    {
+        Error,
+        Complete,
+        Confirm,
+    }
 }
