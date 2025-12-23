@@ -20,14 +20,16 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private int _startSyncVersion;
         private int _isApplying;
 
-        // 숫자/텍스트 초기값을 반드시 일치시킴 (기존에는 숫자=0, 텍스트만 100/0/1)
-        [ObservableProperty] private double _exposureTime = 100.0;
+        // 사용자 요청: 시작 시 고정된 값(100/0/1)으로 초기화되는 것을 방지하고, 
+        // LoadAsync()를 통해 카메라의 실제 값으로 즉시 동기화하도록 변경.
+        // 초기값은 0.0으로 설정하여 Load 전까지 임시 상태로 둡니다.
+        [ObservableProperty] private double _exposureTime = 0.0;
         [ObservableProperty] private double _gain = 0.0;
-        [ObservableProperty] private double _gamma = 1.0;
+        [ObservableProperty] private double _gamma = 0.0;
 
-        [ObservableProperty] private string _exposureText = "100.0";
+        [ObservableProperty] private string _exposureText = "0.0";
         [ObservableProperty] private string _gainText = "0.0";
-        [ObservableProperty] private string _gammaText = "1.0";
+        [ObservableProperty] private string _gammaText = "0.0";
 
         [ObservableProperty] private double _exposureMin = 100;
         [ObservableProperty] private double _exposureMax = 1000000;
@@ -63,12 +65,13 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 if (version != Volatile.Read(ref _startSyncVersion)) return;
                 if (!_cameraService.IsStreaming) return;
 
-                // 사용자가 Start 전에 값을 건드렸으면 그 값 적용
-                // 안 건드렸으면 카메라 현재값을 Load해서 UI 동기화
-                if (_hasUserEdits)
-                    await ApplyAsync().ConfigureAwait(false);
-                else
-                    await LoadAsync().ConfigureAwait(false);
+                // [수정된 로직] 사용자가 Start 전에 값을 건드렸는지 여부와 관계없이
+                // 항상 카메라의 현재 실제 값(Load)을 불러와 UI를 동기화합니다.
+                await LoadAsync().ConfigureAwait(false);
+
+                // 불러오기가 완료되었으므로, 사용자가 Start 이전에 편집한 내역이 있더라도
+                // 카메라 값으로 덮어쓰기 했으니 편집 플래그를 초기화합니다.
+                _hasUserEdits = false;
             });
         }
 
