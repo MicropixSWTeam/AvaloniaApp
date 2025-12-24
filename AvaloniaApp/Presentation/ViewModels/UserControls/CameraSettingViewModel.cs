@@ -6,6 +6,7 @@ using System;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
@@ -16,13 +17,12 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         private bool _isUpdatingFromCamera;
         private int _autoApplyVersion;
-
-        // 적용/로드 겹침 방지
         private readonly SemaphoreSlim _syncGate = new(1, 1);
-
-        // Preview 시작 전 사용자 입력은 “보류 → Start 시 적용”
         private int _pendingApply;
         private int _hasUserEdited;
+
+        // Draft Expression
+        [ObservableProperty] private string _draftExpression = "";
 
         [ObservableProperty] private double _exposureTime = 5000;
         [ObservableProperty] private double _gain = 0.0;
@@ -39,28 +39,26 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         [ObservableProperty] private double _gammaMin = 0.3;
         [ObservableProperty] private double _gammaMax = 2.8;
 
-        [ObservableProperty] private string _draftExpression = "";
-
         public CameraSettingViewModel(AppService service, CameraViewModel cameraViewModel) : base(service)
         {
             _cameraService = service.Camera;
             CameraVM = cameraViewModel;
+
+            // 초기값 동기화
             DraftExpression = CameraVM.ExpressionText;
+
             _cameraService.StreamingStateChanged += OnStreamingStateChanged;
         }
 
-        private bool CanAccessCamera()
-            => CameraVM.IsPreviewing || _cameraService.IsStreaming;
+        private bool CanAccessCamera() => CameraVM.IsPreviewing || _cameraService.IsStreaming;
 
         private void OnStreamingStateChanged(bool isStreaming)
         {
             if (isStreaming)
             {
-                // 카메라가 켜지면 UI 스레드에서 설정값을 로딩합니다.
                 _service.Ui.InvokeAsync(() => LoadAsync());
             }
         }
-
 
         partial void OnExposureTimeChanged(double value)
         {
@@ -84,7 +82,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             if (_isUpdatingFromCamera) return;
 
-            // Preview 전이면 “보류”만 하고 종료
             if (!CanAccessCamera())
             {
                 Volatile.Write(ref _pendingApply, 1);
@@ -102,7 +99,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private async Task CommitExposureAsync(string text)
         {
             Volatile.Write(ref _hasUserEdited, 1);
-
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var val))
             {
                 ExposureTime = val;
@@ -118,7 +114,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private async Task CommitGainAsync(string text)
         {
             Volatile.Write(ref _hasUserEdited, 1);
-
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var val))
             {
                 Gain = val;
@@ -134,7 +129,6 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         private async Task CommitGammaAsync(string text)
         {
             Volatile.Write(ref _hasUserEdited, 1);
-
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var val))
             {
                 Gamma = val;
@@ -165,11 +159,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                         try
                         {
                             _isUpdatingFromCamera = true;
-
                             ExposureTime = exp;
                             Gain = gn;
                             Gamma = gm;
-
                             ExposureText = exp.ToString("F1", CultureInfo.InvariantCulture);
                             GainText = gn.ToString("F1", CultureInfo.InvariantCulture);
                             GammaText = gm.ToString("F1", CultureInfo.InvariantCulture);
@@ -192,33 +184,26 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         {
             if (!_cameraService.IsStreaming) return;
 
-            // 범위 클램프
             var targetExp = Math.Clamp(ExposureTime, ExposureMin, ExposureMax);
             var targetGain = Math.Clamp(Gain, GainMin, GainMax);
             var targetGamma = Math.Clamp(Gamma, GammaMin, GammaMax);
 
             await RunOperationAsync("ApplySettings", async (ct, ctx) =>
             {
-                // 1) Set (반환값을 신뢰하지 않음)
                 await _cameraService.SetExposureTimeAsync(targetExp, ct);
                 await _cameraService.SetGainAsync(targetGain, ct);
                 await _cameraService.SetGammaAsync(targetGamma, ct);
 
-                // 2) Read-back (실제 적용값)
                 double exp = targetExp, gn = targetGain, gm = targetGamma;
-
                 for (int i = 0; i < 3; i++)
                 {
                     exp = await _cameraService.GetExposureTimeAsync(ct);
                     gn = await _cameraService.GetGainAsync(ct);
                     gm = await _cameraService.GetGammaAsync(ct);
-
-                    // 충분히 근접하면 종료 (카메라가 round/clamp할 수 있음)
                     if (Math.Abs(exp - targetExp) < 1e-6 &&
                         Math.Abs(gn - targetGain) < 1e-6 &&
                         Math.Abs(gm - targetGamma) < 1e-6)
                         break;
-
                     await Task.Delay(50, ct);
                 }
 
@@ -227,11 +212,9 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     try
                     {
                         _isUpdatingFromCamera = true;
-
                         ExposureTime = exp;
                         Gain = gn;
                         Gamma = gm;
-
                         ExposureText = exp.ToString("F1", CultureInfo.InvariantCulture);
                         GainText = gn.ToString("F1", CultureInfo.InvariantCulture);
                         GammaText = gm.ToString("F1", CultureInfo.InvariantCulture);
@@ -243,15 +226,23 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 });
             });
         }
+
+        // [핵심 기능] 수식 입력 커맨드: 수식 적용 및 정지 상태 즉시 갱신
         [RelayCommand]
         public void CommitExpression(string text)
         {
-            if (text != null)
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            DraftExpression = text;
+            CameraVM.ExpressionText = text;
+
+            // 카메라가 Stop 상태일 때도 즉시 반영 (Workspace 이미지 사용)
+            if (!CameraVM.IsPreviewing)
             {
-                DraftExpression = text;
-                CameraVM.ExpressionText = text; // 여기서 실제 연산 뷰모델에 전달
+                CameraVM.RefreshProcessedImageInStopState();
             }
         }
+
         private static double ParseOrDefault(string s, double fallback)
             => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : fallback;
 
