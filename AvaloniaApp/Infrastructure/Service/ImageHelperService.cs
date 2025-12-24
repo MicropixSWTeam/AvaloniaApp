@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Infrastructure.Service
 {
     /// <summary>
     /// 이미지 좌표 변환 및 FrameData 통계 계산을 담당하는 순수 도우미

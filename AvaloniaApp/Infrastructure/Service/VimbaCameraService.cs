@@ -9,7 +9,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using VmbNET;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Infrastructure.Service
 {
     public sealed class VimbaCameraService : IAsyncDisposable
     {

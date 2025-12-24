@@ -1,11 +1,12 @@
-﻿using System;
+﻿using AvaloniaApp.Configuration;
+using AvaloniaApp.Core.Models;
+using OpenCvSharp;
+using OpenCvSharp.Flann;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Collections.Concurrent;
 using System.Threading.Tasks;
-using OpenCvSharp;
-using AvaloniaApp.Core.Models;
-using AvaloniaApp.Configuration;
 using RectCv = OpenCvSharp.Rect;
 
 namespace AvaloniaApp.Infrastructure
@@ -52,6 +53,10 @@ namespace AvaloniaApp.Infrastructure
                 byte mean = 0, std = 0;
                 if (fw > 0 && fh > 0)
                     (mean, std) = CalcMeanStdDev8(fullFrame, fx, fy, fw, fh);
+
+                int g = Options.GetSpectralGainQ8ByIndex( tileIndex);
+                mean = (byte)Math.Min(255, (mean * g + 128) >> 8);
+                std = (byte)Math.Min(255, (std * g + 128) >> 8);
 
                 result[i] = new IntensityData(wl, mean, std);
             }

@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Infrastructure.Service
 {
     /// <summary>
     /// Singleton DI 주입을 위한 매니저
@@ -21,6 +21,7 @@ namespace AvaloniaApp.Infrastructure
         public ImageHelperService ImageHelper{ get; }
         public StorageService Storage{ get; }
         public PopupService Popup{ get; }
+        public LayoutService Layout { get; }
         public WorkspaceService WorkSpace { get;}
         public AppService(
             UiService ui,
@@ -30,6 +31,7 @@ namespace AvaloniaApp.Infrastructure
             ImageHelperService imagehelper,
             StorageService storage,
             PopupService popup,
+            LayoutService layout,
             WorkspaceService workspace) 
         { 
             Ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -39,6 +41,7 @@ namespace AvaloniaApp.Infrastructure
             ImageHelper = imagehelper?? throw new ArgumentNullException(nameof(imagehelper));    
             Storage = storage ?? throw new ArgumentNullException(nameof(storage));
             Popup = popup ?? throw new ArgumentNullException(nameof(popup));
+            Layout = layout ?? throw new ArgumentNullException(nameof(layout));
             WorkSpace = workspace ?? throw new ArgumentNullException(nameof(workspace));
         }
     }

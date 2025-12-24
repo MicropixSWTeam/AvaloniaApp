@@ -6,6 +6,7 @@ using AvaloniaApp.Core.Enums;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Utils;
 using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -377,43 +378,53 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                     {
                         if (_stopRequested) { frame.Dispose(); continue; }
 
-                        _imageProcessService.ProcessFrame(frame);
-                        var fullFrameClone = _imageProcessService.CloneFrameData(frame);
-
-                        lock (_workspaceService) { _workspaceService.SetEntireFrame(fullFrameClone); }
-
-                        // Raw/Rgb 처리
-                        var previewCrop = _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex, CurrentWorkingDistance);
-                        var oldPreview = Interlocked.Exchange(ref _previewFrameData, previewCrop);
-                        oldPreview?.Dispose();
-
-                        var rgbFrame = _imageProcessService.GetRgbFrameData(frame, CurrentWorkingDistance);
-                        var oldRgb = Interlocked.Exchange(ref _rgbFrameData, rgbFrame);
-                        oldRgb?.Dispose();
-
-                        // [핵심] Streaming 중 수식 계산
-                        int wd = CurrentWorkingDistance;
-                        var processedFrame = ImageCalculator.Evaluate(ExpressionText, (index) =>
+                        // [중요] 내부 try-catch로 단일 프레임 에러가 루프를 죽이지 않도록 방어
+                        try
                         {
-                            // 실시간 프레임에서 Crop
-                            return _imageProcessService.GetCropFrameData(frame, index, wd);
-                        });
+                            //_imageProcessService.ProcessFrame(frame);
+                            var fullFrameClone = _imageProcessService.CloneFrameData(frame);
 
-                        if (processedFrame != null)
-                        {
-                            var old = Interlocked.Exchange(ref _processedFrameData, processedFrame);
-                            old?.Dispose();
+                            lock (_workspaceService) { _workspaceService.SetEntireFrame(fullFrameClone); }
+
+                            var previewCrop = _imageProcessService.GetCropFrameData(frame, CurrentWavelengthIndex, CurrentWorkingDistance);
+                            var oldPreview = Interlocked.Exchange(ref _previewFrameData, previewCrop);
+                            oldPreview?.Dispose();
+
+                            var rgbFrame = _imageProcessService.GetRgbFrameData(frame, CurrentWorkingDistance);
+                            var oldRgb = Interlocked.Exchange(ref _rgbFrameData, rgbFrame);
+                            oldRgb?.Dispose();
+
+                            int wd = CurrentWorkingDistance;
+
+                            // 스트리밍 중 수식 계산
+                            var processedFrame = ImageCalculator.Evaluate(ExpressionText, (index) =>
+                            {
+                                return _imageProcessService.GetCropFrameData(frame, index, wd);
+                            });
+
+                            if (processedFrame != null)
+                            {
+                                var old = Interlocked.Exchange(ref _processedFrameData, processedFrame);
+                                old?.Dispose();
+                            }
+
+                            _uiThrottler.Run(UpdateUI);
+
+                            if (Interlocked.CompareExchange(ref _isAnalyzing, 1, 0) == 0)
+                            {
+                                var analysisFrame = _imageProcessService.CloneFrameData(frame);
+                                _ = Task.Run(() => RunAnalysisAndUnlock(analysisFrame));
+                            }
                         }
-
-                        // UI 업데이트 (Raw, Rgb, Processed 모두 포함)
-                        _uiThrottler.Run(UpdateUI);
-
-                        if (Interlocked.CompareExchange(ref _isAnalyzing, 1, 0) == 0)
+                        catch (Exception ex)
                         {
-                            var analysisFrame = _imageProcessService.CloneFrameData(frame);
-                            _ = Task.Run(() => RunAnalysisAndUnlock(analysisFrame));
+                            // 프레임 처리 중 에러 로그만 남기고 루프는 유지
+                            Debug.WriteLine($"[Frame Error] {ex}");
                         }
-                        frame.Dispose();
+                        finally
+                        {
+                            frame.Dispose();
+                        }
                     }
                 }
             }

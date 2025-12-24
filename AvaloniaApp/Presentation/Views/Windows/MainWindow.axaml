@@ -50,14 +50,14 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Classes="ToolButton" Command="{Binding SaveCommand}">
+                        <Button Classes="ToolButton" Command="{Binding ClickSaveButtonCommand}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconSaveImage}" Width="24" Height="24"/>
                                 <TextBlock Text="Save" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
 
-                        <Button Classes="ToolButton" Command="{Binding }">
+                        <Button Classes="ToolButton" Command="{Binding ClickLoadButtonCommand}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconLoadImage}" Width="24" Height="24"/>
                                 <TextBlock Text="Load" FontSize="12" FontWeight="SemiBold"/>

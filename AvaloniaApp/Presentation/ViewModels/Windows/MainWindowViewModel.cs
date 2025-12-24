@@ -3,7 +3,7 @@ using Avalonia.Platform;
 using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Operations;
-using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +24,8 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         private readonly ChartViewModel _chartViewModel;
         private readonly CameraSettingViewModel _cameraSettingViewModel;
         private readonly ProcessViewModel _processViewModel;
+        private readonly LoadDialogViewModel _loadViewModel;
+        private readonly DialogViewModel _dialogViewModel;
 
         [ObservableProperty] private ViewModelBase _topLeftContent;
         [ObservableProperty] private ViewModelBase _topCenterContent;
@@ -39,7 +41,10 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             CameraViewModel cameraViewModel,
             ChartViewModel chartViewModel,
             CameraSettingViewModel cameraSettingViewModel,
-            ProcessViewModel processViewModel) : base(service)
+            ProcessViewModel processViewModel,
+            LoadDialogViewModel loadViewModel,
+            DialogViewModel dialogViewModel
+            ) : base(service)
         {
             _rawImageViewModel = rawImage;
             _rgbImageViewModel = rgbImage;
@@ -47,6 +52,8 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
             _chartViewModel = chartViewModel;
             _cameraSettingViewModel = cameraSettingViewModel;
             _processViewModel = processViewModel;
+            _loadViewModel = loadViewModel;
+            _dialogViewModel = dialogViewModel;
 
             _topLeftContent = _cameraSettingViewModel;
             _topCenterContent = _rawImageViewModel;
@@ -69,9 +76,17 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         }
 
         [RelayCommand]
-        public async Task SaveAsync()
+        public async Task OnClickSaveButtonAsync()
         {
-            await _cameraViewModel.SaveCommand.ExecuteAsync(null);
+            string? fileName = await _service.Popup.ShowCustomAsync<InputDialogViewModel, string>(vm =>
+            {
+                vm.Init("데이터 저장", "저장할 폴더(파일) 이름을 입력하세요.", $"Experiment_{DateTime.Now:yyyyMMdd_HHmmss}");
+            });
+        }
+        [RelayCommand]
+        public async Task OnClickLoadButtonAsync()
+        {
+            await _service.Popup.ShowModalAsync(_loadViewModel);
         }
     }
 }

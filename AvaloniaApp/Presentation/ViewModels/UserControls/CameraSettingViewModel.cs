@@ -1,5 +1,4 @@
-﻿using AvaloniaApp.Infrastructure;
-using AvaloniaApp.Presentation.ViewModels.Base;
+﻿using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
@@ -7,6 +6,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using AvaloniaApp.Infrastructure.Service;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {

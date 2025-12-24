@@ -1,4 +1,4 @@
-﻿using AvaloniaApp.Infrastructure;
+﻿using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.Operations;
 using System;
 using System.Threading;

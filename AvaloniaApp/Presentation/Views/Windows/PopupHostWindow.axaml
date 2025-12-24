@@ -7,7 +7,6 @@
         xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
         xmlns:window="using:AvaloniaApp.Presentation.ViewModels.Windows"
         mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="500"
-        Width="{Binding}" Height="{Binding}"
         x:Class="AvaloniaApp.Presentation.Views.Windows.PopupHostWindow"
         x:DataType="window:PopupHostWindowViewModel">
     <Window.DataTemplates>
@@ -31,13 +30,18 @@
         <DataTemplate DataType="{x:Type vm:ProcessViewModel}">
             <v:ProcessView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:DialogViewModel}">
             <v:DialogView />
         </DataTemplate>
 
-        <DataTemplate DataType="{x:Type vm:LoadViewModel}">
-            <v:LoadView />
+        <DataTemplate DataType="{x:Type vm:LoadDialogViewModel}">
+            <v:LoadDialogView />
         </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:InputDialogViewModel}">
+        <v:InputDialogView />
+    </DataTemplate>
     </Window.DataTemplates>
 
     <ContentControl Content="{Binding}"/>

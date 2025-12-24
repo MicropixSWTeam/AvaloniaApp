@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AvaloniaApp.Presentation.ViewModels.UserControls"
+             x:Class="AvaloniaApp.Presentation.Views.UserControls.InputDialogView"
+             x:DataType="vm:InputDialogViewModel">
+
+    <Border Background="{DynamicResource AppCardBrush}" 
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8" 
+            BoxShadow="0 4 12 0 #50000000" 
+            Width="400"
+            Height="300">
+        
+        <Grid RowDefinitions="Auto, *, Auto" Margin="20">
+            <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,15">
+                <TextBlock Text="{Binding Title}" 
+                           FontSize="16" 
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource AppTextBrush}"/>
+                <TextBlock Text="{Binding Message}" 
+                           FontSize="12" 
+                           Foreground="{DynamicResource AppSubTextBrush}" 
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <TextBox Grid.Row="1" 
+                     Text="{Binding InputText}" 
+                     Watermark="입력하세요..." 
+                     CornerRadius="4"
+                     VerticalAlignment="Center"
+                     Background="#10FFFFFF"
+                     Foreground="{DynamicResource AppTextBrush}"
+                     CaretBrush="{DynamicResource AppPrimaryBrush}"
+                     BorderBrush="{DynamicResource AppBorderBrush}"/>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,20,0,0">
+                <Button Command="{Binding ConfirmCommand}" 
+                        Content="Confirm"
+                        Background="{DynamicResource AppPrimaryBrush}"
+                        Foreground="#20242D"
+                        FontWeight="Bold"
+                        CornerRadius="6"
+                        FontSize="13"
+                        Padding="12,6"/>
+                <Button Command="{Binding CancelCommand}"
+                        Content="Cancel"
+                        Background="Transparent"
+                        BorderBrush="{DynamicResource AppBorderBrush}"
+                        BorderThickness="1"
+                        Foreground="{DynamicResource AppSubTextBrush}"
+                        CornerRadius="6"
+                        FontSize="13"
+                        Padding="12,6"/>
+                
+
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

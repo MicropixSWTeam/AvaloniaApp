@@ -9,6 +9,12 @@ namespace AvaloniaApp.Presentation.Views.Windows
         public PopupHostWindow()
         {
             InitializeComponent();
+
+            this.Opened += (s, e) =>
+            {
+                this.SizeToContent = SizeToContent.Manual;
+                this.SizeToContent = SizeToContent.WidthAndHeight;
+            };
         }
     }
 }

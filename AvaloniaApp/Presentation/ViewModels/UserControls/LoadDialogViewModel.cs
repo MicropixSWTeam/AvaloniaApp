@@ -1,4 +1,5 @@
-﻿using AvaloniaApp.Infrastructure;
+﻿using AvaloniaApp.Core.Interfaces;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,10 +8,10 @@ using System.Collections.ObjectModel;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public partial class LoadViewModel : ViewModelBase
+    public partial class LoadDialogViewModel : ViewModelBase, IDialogRequestClose
     {
-        private readonly Action<string?> _closeAction;
         private readonly StorageService _storageService;
+        public event EventHandler<DialogResultEventArgs>? CloseRequested;
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(LoadCommand))]
@@ -18,26 +19,24 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
 
         public ObservableCollection<string> FolderList { get; } = new();
 
-        public LoadViewModel(StorageService storageService, Action<string?> closeAction) : base(null)
+        public LoadDialogViewModel(StorageService storageService, AppService service) : base(service)
         {
             _storageService = storageService;
-            _closeAction = closeAction;
             LoadFolders();
         }
 
         private void LoadFolders()
         {
             FolderList.Clear();
-            var folders = _storageService.GetSavedFolders();
-            foreach (var f in folders) FolderList.Add(f);
+            foreach (var f in _storageService.GetSavedFolders()) FolderList.Add(f);
         }
 
         private bool CanLoad() => !string.IsNullOrEmpty(SelectedFolder);
 
         [RelayCommand(CanExecute = nameof(CanLoad))]
-        private void Load() => _closeAction?.Invoke(SelectedFolder);
+        private void Load() => CloseRequested?.Invoke(this, new DialogResultEventArgs(SelectedFolder));
 
         [RelayCommand]
-        private void Cancel() => _closeAction?.Invoke(null);
+        private void Cancel() => CloseRequested?.Invoke(this, new DialogResultEventArgs(null));
     }
 }

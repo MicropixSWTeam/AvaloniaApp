@@ -4,9 +4,9 @@ using Avalonia.Markup.Xaml;
 
 namespace AvaloniaApp.Presentation.Views.UserControls;
 
-public partial class LoadView : UserControl
+public partial class LoadDialogView : UserControl
 {
-    public LoadView()
+    public LoadDialogView()
     {
         InitializeComponent();
     }

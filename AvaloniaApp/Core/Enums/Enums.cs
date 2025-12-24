@@ -19,6 +19,7 @@ namespace AvaloniaApp.Core.Enums
 
     public enum DialogType
     {
+        Info,
         Error,
         Complete,
         Confirm,

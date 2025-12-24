@@ -7,6 +7,8 @@ using AvaloniaApp.Core.Jobs;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Operations;
 using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Infrastructure.Factory;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.UserControls;
 using AvaloniaApp.Presentation.ViewModels.Windows;
 using AvaloniaApp.Presentation.Views.UserControls;
@@ -37,8 +39,15 @@ namespace AvaloniaApp
             services.AddSingleton<VimbaCameraService>();
             services.AddSingleton<ImageProcessService>();
             services.AddSingleton<PopupService>();
+            services.AddSingleton<LayoutService>();
             services.AddSingleton<StorageService>();
             services.AddSingleton<ImageHelperService>();
+
+            services.AddSingleton<ViewModelFactory>();
+
+            services.AddTransient<LoadDialogViewModel>();
+            services.AddTransient<DialogViewModel>();
+            services.AddTransient<InputDialogViewModel>();
 
             services.AddSingleton<ProcessViewModel>();
             services.AddSingleton<CameraViewModel>();
@@ -56,6 +65,9 @@ namespace AvaloniaApp
             services.AddSingleton<CameraSettingView>();
             services.AddSingleton<ChartView>();
             services.AddSingleton<MainWindow>();
+            services.AddSingleton<LoadDialogView>();  
+            services.AddSingleton<DialogView>(); 
+            services.AddSingleton<InputDialogView>();
             services.AddTransient<PopupHostWindow>();
             services.AddTransient<Func<PopupHostWindow>>(sp =>
             {

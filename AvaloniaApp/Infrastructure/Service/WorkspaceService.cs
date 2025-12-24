@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VmbNET;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Infrastructure.Service
 {
     public class WorkspaceService : IDisposable
     {

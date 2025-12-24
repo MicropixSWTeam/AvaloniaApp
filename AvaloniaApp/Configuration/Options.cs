@@ -192,6 +192,18 @@ namespace AvaloniaApp.Configuration
 
         public static IReadOnlyDictionary<int, IReadOnlyList<Rect>> GetWorkingDistanceCoordinateTable => _workingDistanceCoordinateTable;
         public static IReadOnlyList<Rect> GetCoordinates(int wd) => _workingDistanceCoordinateTable.ContainsKey(wd) ? _workingDistanceCoordinateTable[wd] : _workingDistanceCoordinateTable[0];
+
+        private static readonly int[] _spectralGainQ8ByIndex = new int[]
+        {
+            194, 192, 162, 183, 238, 253, 221, 190, 162, 187, 281, 221, 239, 227, 263
+        };
+
+        public static int GetSpectralGainQ8ByIndex(int tileIndex)
+        {
+            if ((uint)tileIndex < (uint)_spectralGainQ8ByIndex.Length)
+                return _spectralGainQ8ByIndex[tileIndex];
+            return 256; // default 1.0
+        }
         #endregion
     }
 }

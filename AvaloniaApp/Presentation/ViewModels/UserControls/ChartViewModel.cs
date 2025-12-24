@@ -2,7 +2,7 @@
 using AvaloniaApp.Configuration;
 using AvaloniaApp.Core.Interfaces;
 using AvaloniaApp.Core.Models;
-using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.Base;
 using AvaloniaApp.Presentation.Views.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;

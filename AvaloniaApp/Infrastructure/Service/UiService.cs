@@ -3,7 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Infrastructure
+namespace AvaloniaApp.Infrastructure.Service
 {
     public sealed class UiThrottler
     {

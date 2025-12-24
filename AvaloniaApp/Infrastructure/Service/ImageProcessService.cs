@@ -146,13 +146,61 @@ namespace AvaloniaApp.Infrastructure
             // 필요 시 여기에 정규화, 노이즈 제거 등의 로직 추가
             // Cv2.Normalize(mat, mat, 0, 255, NormTypes.MinMax);
         }
+        // ImageProcessService.cs (CropFrameData가 있는 곳)
+        private unsafe FrameData CropFrameData(FrameData src, Rect roi, int gainQ8)
+        {
+            // gain==1.0이면 기존 빠른 경로 유지
+            if (gainQ8 == 256)
+                return FrameData.CloneCropFrame(src, roi);
 
+            int w = roi.Width;
+            int h = roi.Height;
+            int dstStride = w;
+            int len = checked(w * h);
+
+            var dst = ArrayPool<byte>.Shared.Rent(len);
+            try
+            {
+                fixed (byte* pSrc0 = src.Bytes)
+                fixed (byte* pDst0 = dst)
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        byte* s = pSrc0 + (long)(roi.Y + y) * src.Stride + roi.X;
+                        byte* d = pDst0 + (long)y * dstStride;
+
+                        for (int x = 0; x < w; x++)
+                        {
+                            int v = (s[x] * gainQ8 + 128) >> 8; // Q8 multiply
+                            if (v > 255) v = 255;
+                            d[x] = (byte)v;
+                        }
+                    }
+                }
+
+                return FrameData.Wrap(dst, w, h, dstStride, len);
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(dst);
+                throw;
+            }
+        }
         public FrameData GetCropFrameData(FrameData fullframe, int previewIndex, int wd = 0)
         {
-            var coordinates = Options.GetCoordinates(wd);
-            var rect = coordinates[previewIndex];
-            return CropFrameData(fullframe, rect);
+            var rect = Options.GetCoordinates(wd)[previewIndex]; // wd로 rect 계산은 그대로
+            int g = Options.GetSpectralGainQ8ByIndex(previewIndex);
+            return CropFrameData(fullframe, rect, g);
         }
+        // 기존 시그니처 유지용(원하면)
+        //private FrameData CropFrameData(FrameData src, Rect roi)
+        //    => CropFrameData(src, roi, 256);
+        //public FrameData GetCropFrameData(FrameData fullframe, int previewIndex, int wd = 0)
+        //{
+        //    var coordinates = Options.GetCoordinates(wd);
+        //    var rect = coordinates[previewIndex];
+        //    return CropFrameData(fullframe, rect);
+        //}
 
         public List<FrameData> GetCropFrameDatas(FrameData fullframe, int wd = 0)
         {
@@ -162,7 +210,8 @@ namespace AvaloniaApp.Infrastructure
             {
                 for (int i = 0; i < coordinates.Count; i++)
                 {
-                    results.Add(CropFrameData(fullframe, coordinates[i]));
+                    int g = Options.GetSpectralGainQ8ByIndex(i);
+                    results.Add(CropFrameData(fullframe, coordinates[i], g));
                 }
                 return results;
             }
@@ -186,9 +235,9 @@ namespace AvaloniaApp.Infrastructure
             var rectRed = coords[idxRed];
 
             // 1. 각 채널 Crop (최적화된 CloneCropFrame 사용)
-            using var frameB = CropFrameData(fullframe, rectBlue);
-            using var frameG = CropFrameData(fullframe, rectGreen);
-            using var frameR = CropFrameData(fullframe, rectRed);
+            using var frameB = CropFrameData(fullframe, rectBlue, Options.GetSpectralGainQ8ByIndex(idxBlue));
+            using var frameG = CropFrameData(fullframe, rectGreen, Options.GetSpectralGainQ8ByIndex(idxGreen));
+            using var frameR = CropFrameData(fullframe, rectRed, Options.GetSpectralGainQ8ByIndex(idxRed));
 
             int w = frameB.Width;
             int h = frameB.Height;

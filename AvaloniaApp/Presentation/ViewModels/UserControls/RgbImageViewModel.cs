@@ -1,4 +1,4 @@
-﻿using AvaloniaApp.Infrastructure;
+﻿using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.ViewModels.Base;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls

@@ -1,5 +1,5 @@
 ﻿using AvaloniaApp.Core.Operations;
-using AvaloniaApp.Infrastructure;
+using AvaloniaApp.Infrastructure.Service;
 using AvaloniaApp.Presentation.Operations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
