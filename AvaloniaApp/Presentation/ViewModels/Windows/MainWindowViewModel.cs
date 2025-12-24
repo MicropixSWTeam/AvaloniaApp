@@ -1,6 +1,7 @@
 ﻿using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using AvaloniaApp.Configuration;
+using AvaloniaApp.Core.Enums;
 using AvaloniaApp.Core.Models;
 using AvaloniaApp.Core.Operations;
 using AvaloniaApp.Infrastructure.Service;
@@ -86,7 +87,10 @@ namespace AvaloniaApp.Presentation.ViewModels.Windows
         [RelayCommand]
         public async Task OnClickLoadButtonAsync()
         {
-            await _service.Popup.ShowModalAsync(_loadViewModel);
+            // 1. LoadViewModel 팝업 띄우기 (Factory 생성)
+            string? folderName = await _service.Popup.ShowCustomAsync<LoadDialogViewModel, string>();
+
+            if (string.IsNullOrEmpty(folderName)) return;
         }
     }
 }

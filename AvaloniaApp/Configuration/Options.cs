@@ -61,9 +61,12 @@ namespace AvaloniaApp.Configuration
 
         private static readonly IReadOnlyDictionary<int, int> _wavelengthIndexMap = new Dictionary<int, int>
         {
-            { 490, 0 },{ 470, 1 },{ 450, 2 },{ 430, 3 },{ 410, 4 },
-            { 590, 5 },{ 570, 6 }, { 550, 7 },{ 530, 8 }, { 510, 9 },
-            { 690, 10 },{ 670, 11 },{ 650, 12 }, { 630, 13 }, { 610, 14 }
+            //{ 490, 0 },{ 470, 1 },{ 450, 2 },{ 430, 3 },{ 410, 4 },
+            //{ 590, 5 },{ 570, 6 }, { 550, 7 },{ 530, 8 }, { 510, 9 },
+            //{ 690, 10 },{ 670, 11 },{ 650, 12 }, { 630, 13 }, { 610, 14 }
+            { 610, 0 },{ 630, 1 },{ 650, 2 },{ 670, 3 },{ 690, 4 },
+            { 510, 5 },{ 530, 6 }, { 550, 7 },{ 570, 8 }, { 590, 9 },
+            { 410, 10 },{ 430, 11 },{ 450, 12 }, { 470, 13 }, { 490, 14 }
         };
         public static IReadOnlyDictionary<int, int> GetWavelengthIndexMap() => _wavelengthIndexMap;
         public static IReadOnlyList<int> GetWavelengthList()
