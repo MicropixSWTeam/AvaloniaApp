@@ -75,7 +75,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
         // Process State
         [ObservableProperty] private bool _isProcessApply;
         [ObservableProperty] private Bitmap? processedBitmap;
-        [ObservableProperty] private string expressionText = "(450 + 550) / 2";
+        [ObservableProperty] private string expressionText = "";
 
         // 저장 관련 속성
         [ObservableProperty]
@@ -103,26 +103,59 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             SelectedWorkingDistance = WorkingDistances.FirstOrDefault();
 
             _workspaceService.Update(ws => ws.SetWorkingDistance(CurrentWorkingDistance));
+            _workspaceService.Updated += OnWorkspaceUpdated;
         }
 
-        partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
-        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => UpdateDisplayIfStopped();
+        partial void OnSelectedWavelengthIndexChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => OnWorkspaceUpdated();
+        partial void OnSelectedWorkingDistanceChanged(ComboBoxData? oldValue, ComboBoxData? newValue) => OnWorkspaceUpdated();
 
-        // [Stop 상태 업데이트] Raw/Rgb뿐만 아니라 Processed 이미지도 갱신
-        private void UpdateDisplayIfStopped()
+        private void OnWorkspaceUpdated()
         {
-            if (!IsPreviewing)
+            if(!IsPreviewing)
             {
+                OnPropertyChanged(nameof(NextAvailableRegionColorIndex));
+                OnPropertyChanged(nameof(Regions));
                 _service.Ui.InvokeAsync(() =>
                 {
                     DisplayWorkspaceImage(CurrentWavelengthIndex, CurrentWorkingDistance);
-                    RefreshProcessedImageInStopState(); // 정지 상태에서도 연산 실행
+                    RefreshRgbImage();
+                    RefreshProcessedImage(); // 정지 상태에서도 연산 실행
                 });
             }
         }
+        private void RefreshRgbImage()
+        {
+            lock (_workspaceService)
+            {
+                var ws = _workspaceService.Current;
+                var frame = ws?.EntireFrameData;
+                if (frame == null) return;
 
+                // Workspace에 있는 전체 프레임에서 RGB 추출
+                // (ImageProcessService에 GetRgbFrameData 메서드가 있다고 가정)
+                var rgbFrame = _imageProcessService.GetRgbFrameData(frame, CurrentWorkingDistance);
+
+                if (rgbFrame != null)
+                {
+                    try
+                    {
+                        EnsureRgbBitmap(rgbFrame.Width, rgbFrame.Height);
+                        if (_rgbBitmap != null)
+                        {
+                            _imageProcessService.ConvertRgbFrameDataToWriteableBitmap(_rgbBitmap, rgbFrame);
+                            RgbPreviewInvalidated?.Invoke();
+                            OnPropertyChanged(nameof(RgbBitmap));
+                        }
+                    }
+                    finally
+                    {
+                        rgbFrame.Dispose();
+                    }
+                }
+            }
+        }
         // [핵심 기능] 정지(Stop) 상태에서 Workspace 데이터를 기반으로 수식 연산 및 화면 갱신
-        public void RefreshProcessedImageInStopState()
+        public void RefreshProcessedImage()
         {
             if (IsPreviewing) return; // 스트리밍 중이면 루프에서 처리
 
@@ -247,7 +280,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
                 {
                     await UiInvokeAsync(() => {
                         IsPreviewing = false;
-                        UpdateDisplayIfStopped(); // 멈춘 직후 화면 갱신
+                        OnWorkspaceUpdated(); // 멈춘 직후 화면 갱신
                     });
                 }
             });
@@ -591,6 +624,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             _rawpreviewBitmap?.Dispose();
             _rgbBitmap?.Dispose();
             _processedBitmap?.Dispose();
+            _workspaceService.Updated -= OnWorkspaceUpdated;
             await base.DisposeAsync();
         }
     }

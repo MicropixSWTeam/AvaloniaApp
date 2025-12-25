@@ -36,7 +36,7 @@
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden">
                     <StackPanel Orientation="Horizontal" Spacing="4">
 
-                        <Button Classes="ToolButton" Command="{Binding StartCameraCommand}">
+                        <Button Classes="ToolButton" Command="{Binding StartCameraCommand}" >
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="{StaticResource IconStartImage}" Width="24" Height="24"/>
                                 <TextBlock Text="Start" FontSize="12" FontWeight="SemiBold"/>
@@ -119,6 +119,7 @@
                                 <TextBlock Text="Calculator" FontSize="12" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
+
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -136,22 +137,22 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="3*"/>
                         <RowDefinition Height="{StaticResource AppGapVal}"/>
-<!--                        <RowDefinition Height="1*"/>
--->                    </Grid.RowDefinitions>
+                        <RowDefinition Height="1*"/>
+                    </Grid.RowDefinitions>
 
                     <Border Grid.Row="0" Classes="PanelStyle">
                         <ContentControl Content="{Binding TopLeftContent}"/>
                     </Border>
 
-                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
-
+<!--                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
+-->
                     <Border Grid.Row="2" Classes="PanelStyle">
                         <ContentControl Content="{Binding BottomLeftContent}"/>
                     </Border>
                 </Grid>
 
-                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
-
+<!--                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
+-->
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="1*"/>
@@ -163,15 +164,15 @@
                         <ContentControl Content="{Binding TopCenterContent}"/>
                     </Border>
 
-                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
-
+<!--                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
+-->
                     <Border Grid.Row="2" Classes="PanelStyle">
                         <ContentControl Content="{Binding BottomCenterContent}"/>
                     </Border>
                 </Grid>
 
-                <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="Transparent"/>
-
+<!--                <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="Transparent"/>
+-->
                 <Grid Grid.Column="4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="1*"/>
@@ -183,8 +184,8 @@
                         <ContentControl Content="{Binding TopRightContent}"/>
                     </Border>
 
-                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
-
+<!--                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="Transparent"/>
+-->
                     <Border Grid.Row="2" Classes="PanelStyle">
                         <ContentControl Content="{Binding BottomRightContent}"/>
                     </Border>

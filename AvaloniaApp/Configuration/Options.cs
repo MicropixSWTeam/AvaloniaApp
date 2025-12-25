@@ -34,8 +34,8 @@ namespace AvaloniaApp.Configuration
         public static int CropRowCount { get; } = 3;
         public static int CropColumnCount { get; } = 5;
         public static int CropTotalCount { get; } = 15;
-        public static int CropWidthSize { get; } = 548;
-        public static int CropHeightSize { get; } = 544; 
+        public static int CropWidthSize { get; } = 708;
+        public static int CropHeightSize { get; } = 704; 
         public static int MaxRegionCount { get; } = 6;
         public static int DefaultWavelengthIndex{get;} = 7;
         public static int DefaultWorkingDistance{get;} = 0;

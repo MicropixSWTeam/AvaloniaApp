@@ -31,7 +31,7 @@ namespace AvaloniaApp.Infrastructure.Service
             new BoundedChannelOptions(1)
             {
                 AllowSynchronousContinuations = false,
-                FullMode = BoundedChannelFullMode.Wait
+                FullMode = BoundedChannelFullMode.DropOldest
             });
 
         public ChannelReader<FrameData> Frames => _frames.Reader;

@@ -66,5 +66,16 @@
     <Compile Update="Presentation\Views\UserControls\RgbImageView.axaml.cs">
       <DependentUpon>RgbImageView.axaml</DependentUpon>
     </Compile>
+    <Compile Update="Presentation\Views\UserControls\LogoView.axaml.cs">
+      <DependentUpon>LogoView.axaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
   </ItemGroup>
 </Project>

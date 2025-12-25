@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AvaloniaApp.Infrastructure.Service;
+using AvaloniaApp.Presentation.ViewModels.Base;
 
 namespace AvaloniaApp.Presentation.ViewModels.UserControls
 {
-    public class LogoViewModel
+    public class LogoViewModel: ViewModelBase
     {
+        public LogoViewModel(AppService service) : base(service)
+        {
+        }
     }
 }

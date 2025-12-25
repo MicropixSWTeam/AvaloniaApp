@@ -1,4 +1,5 @@
 ﻿using Avalonia.Media.Imaging;
+using AvaloniaApp.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -73,7 +74,32 @@ namespace AvaloniaApp.Infrastructure.Service
                 throw; // 에러를 상위(ViewModel)로 던져서 알림창을 띄우게 함
             }
         }
+        public async Task<FrameData?> LoadFullImageAsFrameDataAsync(string folderName)
+        {
+            var path = Path.Combine(SaveRootPath, folderName, "FullImage.png");
+            if (!File.Exists(path)) return null;
 
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    // OpenCvSharp으로 이미지 읽기 (Grayscale)
+                    using var mat = OpenCvSharp.Cv2.ImRead(path, OpenCvSharp.ImreadModes.Grayscale);
+                    if (mat.Empty()) return null;
+
+                    // byte[] 변환 후 FrameData 생성
+                    int length = (int)(mat.Total() * mat.ElemSize());
+                    var buffer = new byte[length];
+                    System.Runtime.InteropServices.Marshal.Copy(mat.Data, buffer, 0, length);
+
+                    return FrameData.Own(buffer, mat.Width, mat.Height, (int)mat.Step(), length);
+                }
+                catch
+                {
+                    return null;
+                }
+            });
+        }
         private static string SanitizeFileName(string name)
         {
             var invalidChars = Path.GetInvalidFileNameChars();

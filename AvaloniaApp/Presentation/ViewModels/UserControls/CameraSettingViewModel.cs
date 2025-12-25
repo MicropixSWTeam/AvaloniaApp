@@ -239,7 +239,7 @@ namespace AvaloniaApp.Presentation.ViewModels.UserControls
             // 카메라가 Stop 상태일 때도 즉시 반영 (Workspace 이미지 사용)
             if (!CameraVM.IsPreviewing)
             {
-                CameraVM.RefreshProcessedImageInStopState();
+                CameraVM.RefreshProcessedImage();
             }
         }
 
