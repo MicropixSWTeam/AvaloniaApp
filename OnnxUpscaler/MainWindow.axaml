@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OnnxUpscaler.ViewModels"
+        x:Class="OnnxUpscaler.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="ONNX Image Upscaler"
+        Width="800" Height="600"
+        MinWidth="400" MinHeight="300">
+
+    <DockPanel>
+        <!-- Top: Button toolbar for future use -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Margin="8"
+                    Spacing="8">
+            <!-- Future buttons will go here -->
+            <TextBlock Text="Drag and drop an image to load"
+                       VerticalAlignment="Center"
+                       Foreground="Gray"/>
+        </StackPanel>
+
+        <!-- Center: Image display with drag-drop -->
+        <Border Name="DropZone"
+                Background="Transparent"
+                BorderBrush="Gray"
+                BorderThickness="1"
+                Margin="8"
+                CornerRadius="4"
+                DragDrop.AllowDrop="True">
+            <Panel>
+                <!-- Placeholder text when no image -->
+                <TextBlock Text="Drop Image Here"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="24"
+                           Foreground="LightGray"
+                           IsVisible="{Binding DisplayImage, Converter={x:Static ObjectConverters.IsNull}}"/>
+
+                <!-- Image display -->
+                <Image Source="{Binding DisplayImage}"
+                       Stretch="Uniform"
+                       IsVisible="{Binding DisplayImage, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            </Panel>
+        </Border>
+    </DockPanel>
+</Window>
