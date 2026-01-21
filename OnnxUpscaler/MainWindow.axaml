@@ -8,16 +8,26 @@
         MinWidth="400" MinHeight="300">
 
     <DockPanel>
-        <!-- Top: Button toolbar for future use -->
+        <!-- Top: Button toolbar -->
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
                     Margin="8"
                     Spacing="8">
-            <!-- Future buttons will go here -->
-            <TextBlock Text="Drag and drop an image to load"
+            <Button Content="Load Model"
+                    Command="{Binding LoadModelCommand}"/>
+            <Button Content="Upscale"
+                    Command="{Binding UpscaleCommand}"/>
+            <TextBlock Text="{Binding ModelPath}"
                        VerticalAlignment="Center"
+                       Margin="8,0,0,0"
                        Foreground="Gray"/>
         </StackPanel>
+
+        <!-- Status bar -->
+        <TextBlock DockPanel.Dock="Bottom"
+                   Text="{Binding StatusText}"
+                   Margin="8"
+                   Foreground="Gray"/>
 
         <!-- Center: Image display with drag-drop -->
         <Border Name="DropZone"

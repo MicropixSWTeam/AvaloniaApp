@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using OnnxUpscaler.ViewModels;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace OnnxUpscaler;
 
@@ -18,6 +19,31 @@ public partial class MainWindow : Window
             dropZone.AddHandler(DragDrop.DropEvent, OnDrop);
             dropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         }
+
+        // Wire up file picker callback when DataContext is set
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.ModelFilePickerCallback = PickModelFileAsync;
+            }
+        };
+    }
+
+    private async Task<string?> PickModelFileAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select ONNX Model",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("ONNX Model") { Patterns = new[] { "*.onnx" } },
+                FilePickerFileTypes.All
+            }
+        });
+
+        return files.FirstOrDefault()?.TryGetLocalPath();
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

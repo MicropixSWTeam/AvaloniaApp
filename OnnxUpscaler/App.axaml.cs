@@ -18,7 +18,8 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var imageService = new ImageService();
-            var viewModel = new MainViewModel(imageService);
+            var onnxService = new OnnxService();
+            var viewModel = new MainViewModel(imageService, onnxService);
 
             desktop.MainWindow = new MainWindow
             {
