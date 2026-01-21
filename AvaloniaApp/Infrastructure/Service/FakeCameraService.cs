@@ -7,6 +7,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -18,11 +19,12 @@ namespace AvaloniaApp.Infrastructure.Service
         private const int SensorWidth = 5328;
         private const int SensorHeight = 3040;
 
-        private readonly string _imagePath;
+        private readonly string _imageDirectory;
         private readonly int _frameRateFps;
         private readonly SemaphoreSlim _gate = new(1, 1);
 
-        private byte[]? _sourceImageData;
+        private List<byte[]> _sourceImages = new();
+        private int _currentImageIndex = 0;
         private int _imageWidth;
         private int _imageHeight;
         private bool _disposed;
@@ -46,9 +48,9 @@ namespace AvaloniaApp.Infrastructure.Service
         public CameraData? ConnectedCameraInfo { get; private set; }
         public bool IsStreaming => _isIntentionallyStreaming;
 
-        public FakeCameraService(string imagePath, int frameRateFps = 10)
+        public FakeCameraService(string imageDirectory, int frameRateFps = 10)
         {
-            _imagePath = imagePath ?? throw new ArgumentNullException(nameof(imagePath));
+            _imageDirectory = imageDirectory ?? throw new ArgumentNullException(nameof(imageDirectory));
             _frameRateFps = frameRateFps > 0 ? frameRateFps : 10;
         }
 
@@ -83,12 +85,12 @@ namespace AvaloniaApp.Infrastructure.Service
 
                 ConnectionStateChanged?.Invoke(CameraConnectionState.Connecting);
 
-                if (!LoadSourceImage())
+                if (!LoadSourceImages())
                 {
                     _isIntentionallyStreaming = false;
                     ConnectedCameraInfo = null;
                     ConnectionStateChanged?.Invoke(CameraConnectionState.Error);
-                    ErrorOccurred?.Invoke($"Failed to load image: {_imagePath}");
+                    ErrorOccurred?.Invoke($"Failed to load images from: {_imageDirectory}");
                     return;
                 }
 
@@ -136,21 +138,59 @@ namespace AvaloniaApp.Infrastructure.Service
             }
         }
 
-        private bool LoadSourceImage()
+        private bool LoadSourceImages()
         {
             try
             {
-                if (!File.Exists(_imagePath))
+                if (!Directory.Exists(_imageDirectory))
                 {
-                    Debug.WriteLine($"[FakeCameraService] Image not found: {_imagePath}");
+                    Debug.WriteLine($"[FakeCameraService] Directory not found: {_imageDirectory}");
                     return false;
                 }
 
-                using var srcMat = Cv2.ImRead(_imagePath, ImreadModes.Unchanged);
+                var extensions = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp" };
+                var files = extensions
+                    .SelectMany(ext => Directory.GetFiles(_imageDirectory, ext))
+                    .OrderBy(f => f)
+                    .ToList();
+
+                if (files.Count == 0)
+                {
+                    Debug.WriteLine($"[FakeCameraService] No image files found in: {_imageDirectory}");
+                    return false;
+                }
+
+                _sourceImages.Clear();
+                _currentImageIndex = 0;
+
+                foreach (var file in files)
+                {
+                    byte[]? imageData = LoadAndProcessImage(file);
+                    if (imageData != null)
+                    {
+                        _sourceImages.Add(imageData);
+                    }
+                }
+
+                Debug.WriteLine($"[FakeCameraService] Loaded {_sourceImages.Count} images from: {_imageDirectory}");
+                return _sourceImages.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[FakeCameraService] Error loading images: {ex.Message}");
+                return false;
+            }
+        }
+
+        private byte[]? LoadAndProcessImage(string filePath)
+        {
+            try
+            {
+                using var srcMat = Cv2.ImRead(filePath, ImreadModes.Unchanged);
                 if (srcMat.Empty())
                 {
-                    Debug.WriteLine($"[FakeCameraService] Failed to load image: {_imagePath}");
-                    return false;
+                    Debug.WriteLine($"[FakeCameraService] Failed to load image: {filePath}");
+                    return null;
                 }
 
                 // Convert to grayscale if needed
@@ -173,18 +213,16 @@ namespace AvaloniaApp.Infrastructure.Service
                 _imageHeight = finalMat.Rows;
                 int length = _imageWidth * _imageHeight;
 
-                _sourceImageData = new byte[length];
-                System.Runtime.InteropServices.Marshal.Copy(finalMat.Data, _sourceImageData, 0, length);
+                byte[] imageData = new byte[length];
+                System.Runtime.InteropServices.Marshal.Copy(finalMat.Data, imageData, 0, length);
 
                 finalMat.Dispose();
-
-                Debug.WriteLine($"[FakeCameraService] Loaded image: {_imageWidth}x{_imageHeight}");
-                return true;
+                return imageData;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[FakeCameraService] Error loading image: {ex.Message}");
-                return false;
+                Debug.WriteLine($"[FakeCameraService] Error loading image {filePath}: {ex.Message}");
+                return null;
             }
         }
 
@@ -266,14 +304,17 @@ namespace AvaloniaApp.Infrastructure.Service
 
         private FrameData? CreateFrameFromSource()
         {
-            if (_sourceImageData == null) return null;
+            if (_sourceImages.Count == 0) return null;
+
+            byte[] currentImage = _sourceImages[_currentImageIndex];
+            _currentImageIndex = (_currentImageIndex + 1) % _sourceImages.Count;
 
             int length = _imageWidth * _imageHeight;
             var buffer = ArrayPool<byte>.Shared.Rent(length);
 
             try
             {
-                Buffer.BlockCopy(_sourceImageData, 0, buffer, 0, length);
+                Buffer.BlockCopy(currentImage, 0, buffer, 0, length);
                 return FrameData.Wrap(buffer, _imageWidth, _imageHeight, _imageWidth, length);
             }
             catch
@@ -344,7 +385,7 @@ namespace AvaloniaApp.Infrastructure.Service
                 _frames.Writer.TryComplete();
                 while (_frames.Reader.TryRead(out var frame)) frame.Dispose();
 
-                _sourceImageData = null;
+                _sourceImages.Clear();
             }
             finally
             {
