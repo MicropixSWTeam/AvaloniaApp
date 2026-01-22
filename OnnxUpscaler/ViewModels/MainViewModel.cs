@@ -111,7 +111,7 @@ public partial class MainViewModel : ObservableObject
             await Task.Run(() => _onnxService.LoadModel(path));
             ModelPath = Path.GetFileName(path);
             IsModelLoaded = true;
-            StatusText = $"Model loaded: {ModelPath}";
+            StatusText = $"Model loaded: {ModelPath} [{_onnxService.ExecutionProvider}]";
         }
         catch (Exception ex)
         {

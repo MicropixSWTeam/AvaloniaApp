@@ -16,6 +16,7 @@ public class OnnxService : IDisposable
     public string? ModelPath { get; private set; }
     public string? InputName { get; private set; }
     public string? OutputName { get; private set; }
+    public string? ExecutionProvider { get; private set; }
 
     public void LoadModel(string path)
     {
@@ -25,13 +26,28 @@ public class OnnxService : IDisposable
         ModelPath = null;
         InputName = null;
         OutputName = null;
+        ExecutionProvider = null;
 
-        // Create session options for CPU execution
+        // Try CUDA first, fall back to CPU
         var sessionOptions = new SessionOptions();
         sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
 
-        // Load the model
-        _session = new InferenceSession(path, sessionOptions);
+        try
+        {
+            // Try to use CUDA (GPU)
+            sessionOptions.AppendExecutionProvider_CUDA(0);
+            _session = new InferenceSession(path, sessionOptions);
+            ExecutionProvider = "CUDA (GPU)";
+        }
+        catch
+        {
+            // Fall back to CPU
+            sessionOptions = new SessionOptions();
+            sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+            _session = new InferenceSession(path, sessionOptions);
+            ExecutionProvider = "CPU";
+        }
+
         ModelPath = path;
 
         // Get input/output names dynamically
