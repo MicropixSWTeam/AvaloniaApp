@@ -4,8 +4,10 @@ using CommunityToolkit.Mvvm.Input;
 using OpenCvSharp;
 using OnnxUpscaler.Services;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace OnnxUpscaler.ViewModels;
@@ -132,7 +134,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanUpscale))]
     private async Task UpscaleAsync()
     {
-        if (_currentMat == null || !_onnxService.IsModelLoaded)
+        if (_originalMat == null || !_onnxService.IsModelLoaded)
             return;
 
         IsProcessing = true;
@@ -140,38 +142,35 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var inputMat = _currentMat;
+            var inputMat = _originalMat;
             Mat? outputMat = null;
-            var stopwatch = Stopwatch.StartNew();
+            var times = new List<long>();
 
             await Task.Run(() =>
             {
                 for (int i = 0; i < iterations; i++)
                 {
                     outputMat?.Dispose();
+                    var sw = Stopwatch.StartNew();
                     outputMat = _onnxService.Upscale(inputMat);
+                    sw.Stop();
+                    times.Add(sw.ElapsedMilliseconds);
                 }
             });
 
-            stopwatch.Stop();
-            var totalMs = stopwatch.ElapsedMilliseconds;
-            var avgMs = totalMs / iterations;
+            // Calculate median
+            times.Sort();
+            var medianMs = times[iterations / 2];
+            var totalMs = times.Sum();
 
             if (outputMat != null)
             {
-                // Dispose old Mat and update with new one
+                // Store upscaled result (don't update display)
                 _currentMat?.Dispose();
                 _currentMat = outputMat;
 
-                // Update display
-                var bitmap = _imageService.MatToBitmap(_currentMat);
-                if (bitmap != null)
-                {
-                    DisplayImage?.Dispose();
-                    DisplayImage = bitmap;
-                    StatusText = $"Upscaled: {_currentMat.Width}x{_currentMat.Height} | {iterations}x in {totalMs}ms (avg: {avgMs}ms)";
-                    HasUpscaledImage = true;
-                }
+                StatusText = $"Upscaled: {_currentMat.Width}x{_currentMat.Height} | {iterations}x in {totalMs}ms (median: {medianMs}ms)";
+                HasUpscaledImage = true;
             }
         }
         catch (Exception ex)
