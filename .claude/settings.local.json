@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dotnet run:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(dotnet build:*)"
     ]
   }
 }

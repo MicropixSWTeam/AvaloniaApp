@@ -241,8 +241,8 @@ public partial class MainViewModel : ObservableObject
         });
 
         StatusText = gpuAvailable
-            ? $"CPU: {cpuMedian}ms | GPU: {gpuMedian}ms (median of {iterations})"
-            : $"CPU: {cpuMedian}ms | GPU: Not available (median of {iterations})";
+            ? $"Compare ({iterations}x median): CPU {cpuMedian}ms | GPU {gpuMedian}ms"
+            : $"Compare ({iterations}x median): CPU {cpuMedian}ms | GPU: N/A";
 
         IsProcessing = false;
     }
