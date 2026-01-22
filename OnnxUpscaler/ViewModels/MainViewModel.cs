@@ -103,6 +103,8 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            // Print full error to console for debugging
+            Console.Error.WriteLine($"[ERROR] Failed to load model: {ex}");
             StatusText = $"Error loading model: {ex.Message}";
             IsModelLoaded = false;
             ModelPath = null;
