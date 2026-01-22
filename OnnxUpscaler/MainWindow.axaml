@@ -17,6 +17,8 @@
                     Command="{Binding LoadModelCommand}"/>
             <Button Content="Upscale"
                     Command="{Binding UpscaleCommand}"/>
+            <Button Content="Save &amp; View"
+                    Command="{Binding SaveAndViewCommand}"/>
             <TextBlock Text="{Binding ModelPath}"
                        VerticalAlignment="Center"
                        Margin="8,0,0,0"

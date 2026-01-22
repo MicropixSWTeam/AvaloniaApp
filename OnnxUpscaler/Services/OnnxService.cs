@@ -44,29 +44,23 @@ public class OnnxService : IDisposable
         if (_session == null || InputName == null || OutputName == null)
             throw new InvalidOperationException("Model not loaded. Call LoadModel first.");
 
-        // Convert BGR to RGB
-        using var rgb = new Mat();
-        Cv2.CvtColor(input, rgb, ColorConversionCodes.BGR2RGB);
+        // ESPCN expects grayscale input [1, 1, H, W]
+        int height = input.Rows;
+        int width = input.Cols;
 
-        int height = rgb.Rows;
-        int width = rgb.Cols;
-        int channels = 3;
+        // Create input tensor [1, 1, H, W] for grayscale
+        var inputTensor = new DenseTensor<float>(new[] { 1, 1, height, width });
 
-        // Create input tensor [1, 3, H, W]
-        var inputTensor = new DenseTensor<float>(new[] { 1, channels, height, width });
-
-        // Convert HWC uint8 [0,255] to CHW float32 [0,1]
+        // Convert HW uint8 [0,255] to CHW float32 [0,1]
         unsafe
         {
-            byte* ptr = (byte*)rgb.Data;
+            byte* ptr = (byte*)input.Data;
             for (int h = 0; h < height; h++)
             {
                 for (int w = 0; w < width; w++)
                 {
-                    int pixelIndex = (h * width + w) * channels;
-                    inputTensor[0, 0, h, w] = ptr[pixelIndex + 0] / 255.0f; // R
-                    inputTensor[0, 1, h, w] = ptr[pixelIndex + 1] / 255.0f; // G
-                    inputTensor[0, 2, h, w] = ptr[pixelIndex + 2] / 255.0f; // B
+                    int pixelIndex = h * width + w;
+                    inputTensor[0, 0, h, w] = ptr[pixelIndex] / 255.0f;
                 }
             }
         }
@@ -85,31 +79,24 @@ public class OnnxService : IDisposable
         int outHeight = outputDims[2];
         int outWidth = outputDims[3];
 
-        // Create output Mat (RGB)
-        var outputRgb = new Mat(outHeight, outWidth, MatType.CV_8UC3);
+        // Create output Mat (grayscale)
+        var outputMat = new Mat(outHeight, outWidth, MatType.CV_8UC1);
 
-        // Convert CHW float32 [0,1] to HWC uint8 [0,255]
+        // Convert CHW float32 [0,1] to HW uint8 [0,255]
         unsafe
         {
-            byte* ptr = (byte*)outputRgb.Data;
+            byte* ptr = (byte*)outputMat.Data;
             for (int h = 0; h < outHeight; h++)
             {
                 for (int w = 0; w < outWidth; w++)
                 {
-                    int pixelIndex = (h * outWidth + w) * channels;
-                    ptr[pixelIndex + 0] = (byte)Math.Clamp(outputTensor[0, 0, h, w] * 255.0f, 0, 255); // R
-                    ptr[pixelIndex + 1] = (byte)Math.Clamp(outputTensor[0, 1, h, w] * 255.0f, 0, 255); // G
-                    ptr[pixelIndex + 2] = (byte)Math.Clamp(outputTensor[0, 2, h, w] * 255.0f, 0, 255); // B
+                    int pixelIndex = h * outWidth + w;
+                    ptr[pixelIndex] = (byte)Math.Clamp(outputTensor[0, 0, h, w] * 255.0f, 0, 255);
                 }
             }
         }
 
-        // Convert RGB back to BGR for OpenCV
-        var outputBgr = new Mat();
-        Cv2.CvtColor(outputRgb, outputBgr, ColorConversionCodes.RGB2BGR);
-        outputRgb.Dispose();
-
-        return outputBgr;
+        return outputMat;
     }
 
     public void Dispose()
