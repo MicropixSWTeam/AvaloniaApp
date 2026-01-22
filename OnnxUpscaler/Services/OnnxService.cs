@@ -18,7 +18,9 @@ public class OnnxService : IDisposable
     public string? OutputName { get; private set; }
     public string? ExecutionProvider { get; private set; }
 
-    public void LoadModel(string path)
+    public void LoadModel(string path) => LoadModel(path, forceCpu: false);
+
+    public void LoadModel(string path, bool forceCpu)
     {
         // Dispose existing session if any
         _session?.Dispose();
@@ -28,29 +30,31 @@ public class OnnxService : IDisposable
         OutputName = null;
         ExecutionProvider = null;
 
-        // Try CUDA first, fall back to CPU
         var sessionOptions = new SessionOptions();
         sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
 
-        try
+        if (!forceCpu)
         {
-            // Try to use CUDA (GPU)
-            sessionOptions.AppendExecutionProvider_CUDA(0);
-            _session = new InferenceSession(path, sessionOptions);
-            ExecutionProvider = "CUDA (GPU)";
-        }
-        catch
-        {
-            // Fall back to CPU
-            sessionOptions = new SessionOptions();
-            sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-            _session = new InferenceSession(path, sessionOptions);
-            ExecutionProvider = "CPU";
+            try
+            {
+                // Try to use CUDA (GPU)
+                sessionOptions.AppendExecutionProvider_CUDA(0);
+                _session = new InferenceSession(path, sessionOptions);
+                ExecutionProvider = "CUDA (GPU)";
+                ModelPath = path;
+                InputName = _session.InputMetadata.Keys.First();
+                OutputName = _session.OutputMetadata.Keys.First();
+                return;
+            }
+            catch { /* Fall through to CPU */ }
         }
 
+        // CPU fallback or forced CPU
+        sessionOptions = new SessionOptions();
+        sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+        _session = new InferenceSession(path, sessionOptions);
+        ExecutionProvider = "CPU";
         ModelPath = path;
-
-        // Get input/output names dynamically
         InputName = _session.InputMetadata.Keys.First();
         OutputName = _session.OutputMetadata.Keys.First();
     }

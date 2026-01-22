@@ -30,11 +30,13 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UpscaleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompareCommand))]
     private bool _isModelLoaded;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadModelCommand))]
     [NotifyCanExecuteChangedFor(nameof(UpscaleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompareCommand))]
     private bool _isProcessing;
 
     [ObservableProperty]
@@ -74,8 +76,9 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            // Notify UpscaleCommand that CanExecute may have changed
+            // Notify commands that CanExecute may have changed
             UpscaleCommand.NotifyCanExecuteChanged();
+            CompareCommand.NotifyCanExecuteChanged();
             HasUpscaledImage = false;
 
             var bitmap = _imageService.MatToBitmap(_currentMat);
@@ -181,6 +184,67 @@ public partial class MainViewModel : ObservableObject
         {
             IsProcessing = false;
         }
+    }
+
+    private bool CanCompare() => IsModelLoaded && !IsProcessing && _originalMat != null;
+
+    [RelayCommand(CanExecute = nameof(CanCompare))]
+    private async Task CompareAsync()
+    {
+        if (_originalMat == null || string.IsNullOrEmpty(_onnxService.ModelPath)) return;
+
+        IsProcessing = true;
+        StatusText = "Comparing CPU vs GPU...";
+
+        var modelPath = _onnxService.ModelPath;
+        const int iterations = 5;
+        long cpuMedian = 0, gpuMedian = 0;
+        bool gpuAvailable = false;
+
+        await Task.Run(() =>
+        {
+            var sw = new Stopwatch();
+            var times = new List<long>();
+
+            // Test CPU
+            _onnxService.LoadModel(modelPath, forceCpu: true);
+            for (int i = 0; i < iterations; i++)
+            {
+                sw.Restart();
+                _onnxService.Upscale(_originalMat);
+                sw.Stop();
+                times.Add(sw.ElapsedMilliseconds);
+            }
+            times.Sort();
+            cpuMedian = times[iterations / 2];
+
+            // Test GPU
+            try
+            {
+                _onnxService.LoadModel(modelPath, forceCpu: false);
+                if (_onnxService.ExecutionProvider?.Contains("GPU") == true)
+                {
+                    gpuAvailable = true;
+                    times.Clear();
+                    for (int i = 0; i < iterations; i++)
+                    {
+                        sw.Restart();
+                        _onnxService.Upscale(_originalMat);
+                        sw.Stop();
+                        times.Add(sw.ElapsedMilliseconds);
+                    }
+                    times.Sort();
+                    gpuMedian = times[iterations / 2];
+                }
+            }
+            catch { /* GPU not available */ }
+        });
+
+        StatusText = gpuAvailable
+            ? $"CPU: {cpuMedian}ms | GPU: {gpuMedian}ms (median of {iterations})"
+            : $"CPU: {cpuMedian}ms | GPU: Not available (median of {iterations})";
+
+        IsProcessing = false;
     }
 
     private bool CanSaveAndView() => HasUpscaledImage && _currentMat != null;
