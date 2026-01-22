@@ -136,17 +136,26 @@ public partial class MainViewModel : ObservableObject
             return;
 
         IsProcessing = true;
-        StatusText = "Upscaling...";
+        const int iterations = 5;
 
         try
         {
             var inputMat = _currentMat;
             Mat? outputMat = null;
+            var stopwatch = Stopwatch.StartNew();
 
             await Task.Run(() =>
             {
-                outputMat = _onnxService.Upscale(inputMat);
+                for (int i = 0; i < iterations; i++)
+                {
+                    outputMat?.Dispose();
+                    outputMat = _onnxService.Upscale(inputMat);
+                }
             });
+
+            stopwatch.Stop();
+            var totalMs = stopwatch.ElapsedMilliseconds;
+            var avgMs = totalMs / iterations;
 
             if (outputMat != null)
             {
@@ -160,7 +169,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     DisplayImage?.Dispose();
                     DisplayImage = bitmap;
-                    StatusText = $"Upscaled: {_currentMat.Width}x{_currentMat.Height}";
+                    StatusText = $"Upscaled: {_currentMat.Width}x{_currentMat.Height} | {iterations}x in {totalMs}ms (avg: {avgMs}ms)";
                     HasUpscaledImage = true;
                 }
             }
