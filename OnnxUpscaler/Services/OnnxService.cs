@@ -66,18 +66,15 @@ public class OnnxService : IDisposable
 
         // Create input tensor [1, 1, H, W] for grayscale
         var inputTensor = new DenseTensor<float>(new[] { 1, 1, height, width });
+        var inputSpan = inputTensor.Buffer.Span;
 
         // Convert HW uint8 [0,255] to CHW float32 [0,1]
         unsafe
         {
             byte* ptr = (byte*)input.Data;
-            for (int h = 0; h < height; h++)
+            for (int i = 0; i < height * width; i++)
             {
-                for (int w = 0; w < width; w++)
-                {
-                    int pixelIndex = h * width + w;
-                    inputTensor[0, 0, h, w] = ptr[pixelIndex] / 255.0f;
-                }
+                inputSpan[i] = ptr[i] / 255.0f;
             }
         }
 
@@ -99,16 +96,13 @@ public class OnnxService : IDisposable
         var outputMat = new Mat(outHeight, outWidth, MatType.CV_8UC1);
 
         // Convert CHW float32 [0,1] to HW uint8 [0,255]
+        var outputSpan = ((DenseTensor<float>)outputTensor).Buffer.Span;
         unsafe
         {
             byte* ptr = (byte*)outputMat.Data;
-            for (int h = 0; h < outHeight; h++)
+            for (int i = 0; i < outHeight * outWidth; i++)
             {
-                for (int w = 0; w < outWidth; w++)
-                {
-                    int pixelIndex = h * outWidth + w;
-                    ptr[pixelIndex] = (byte)Math.Clamp(outputTensor[0, 0, h, w] * 255.0f, 0, 255);
-                }
+                ptr[i] = (byte)Math.Clamp(outputSpan[i] * 255.0f, 0, 255);
             }
         }
 
