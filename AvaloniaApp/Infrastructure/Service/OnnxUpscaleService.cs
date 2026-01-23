@@ -2,6 +2,7 @@ using AvaloniaApp.Core.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using Serilog;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -28,25 +29,29 @@ namespace AvaloniaApp.Infrastructure.Service
         {
             _config = config;
             IsEnabled = config.GetValue<bool>("Upscale:Enabled");
+            var preferGpu = config.GetValue<bool>("Upscale:PreferGpu", true);
+            Log.Information("[OnnxUpscaleService] Enabled={Enabled}, PreferGpu={PreferGpu}", IsEnabled, preferGpu);
+
             if (IsEnabled)
             {
                 try
                 {
-                    var preferGpu = config.GetValue<bool>("Upscale:PreferGpu", true);
                     var fullPath = Path.Combine(AppContext.BaseDirectory, ModelPath);
+                    Log.Information("[OnnxUpscaleService] Model path: {Path}", fullPath);
+
                     if (File.Exists(fullPath))
                     {
                         LoadModel(fullPath, !preferGpu);
                     }
                     else
                     {
-                        Console.WriteLine($"[OnnxUpscaleService] Model not found at: {fullPath}");
+                        Log.Warning("[OnnxUpscaleService] Model not found at: {Path}", fullPath);
                         IsEnabled = false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[OnnxUpscaleService] Failed to initialize: {ex.Message}");
+                    Log.Error(ex, "[OnnxUpscaleService] Failed to initialize");
                     IsEnabled = false;
                     _session = null;
                 }
@@ -73,12 +78,12 @@ namespace AvaloniaApp.Infrastructure.Service
                     ExecutionProvider = "CUDA (GPU)";
                     InputName = _session.InputMetadata.Keys.First();
                     OutputName = _session.OutputMetadata.Keys.First();
-                    Console.WriteLine($"[OnnxUpscaleService] Loaded model with {ExecutionProvider}");
+                    Log.Information("[OnnxUpscaleService] Loaded model with {Provider}", ExecutionProvider);
                     return;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Fall through to CPU
+                    Log.Warning(ex, "[OnnxUpscaleService] CUDA initialization failed, falling back to CPU");
                 }
             }
 
@@ -89,7 +94,7 @@ namespace AvaloniaApp.Infrastructure.Service
             ExecutionProvider = "CPU";
             InputName = _session.InputMetadata.Keys.First();
             OutputName = _session.OutputMetadata.Keys.First();
-            Console.WriteLine($"[OnnxUpscaleService] Loaded model with {ExecutionProvider}");
+            Log.Information("[OnnxUpscaleService] Loaded model with {Provider}", ExecutionProvider);
         }
 
         public FrameData? Upscale(FrameData input)
