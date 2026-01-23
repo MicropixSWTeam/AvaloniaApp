@@ -87,11 +87,4 @@
         </Compile>
     </ItemGroup>
 
-    <ItemGroup>
-        <EditorConfigFiles Remove="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
-    </ItemGroup>
 </Project>
