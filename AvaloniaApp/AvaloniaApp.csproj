@@ -63,23 +63,23 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Update="Presentation\Views\UserControls\LoadDialogView.axaml.cs">
+        <Compile Update="Presentation\Views\UserControls\Chart\SpecturmView.axaml.cs">
+          <DependentUpon>SpecturmView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\Popup\LoadDialogView.axaml.cs">
             <DependentUpon>LoadDialogView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\ProcessImageView.axaml.cs">
+        <Compile Update="Presentation\Views\UserControls\Camera\ProcessImageView.axaml.cs">
           <DependentUpon>ProcessImageView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\LineProfileView.axaml.cs">
+        <Compile Update="Presentation\Views\UserControls\Chart\LineProfileView.axaml.cs">
           <DependentUpon>LineProfileView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\RawImageView.axaml.cs">
+        <Compile Update="Presentation\Views\UserControls\Camera\RawImageView.axaml.cs">
             <DependentUpon>RawImageView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\RgbImageView.axaml.cs">
+        <Compile Update="Presentation\Views\UserControls\Camera\RgbImageView.axaml.cs">
             <DependentUpon>RgbImageView.axaml</DependentUpon>
-        </Compile>
-        <Compile Update="Presentation\Views\UserControls\LogoView.axaml.cs">
-            <DependentUpon>LogoView.axaml</DependentUpon>
         </Compile>
     </ItemGroup>
 
