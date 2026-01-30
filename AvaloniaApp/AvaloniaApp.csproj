@@ -69,17 +69,11 @@
         <Compile Update="Presentation\Views\UserControls\Popup\LoadDialogView.axaml.cs">
             <DependentUpon>LoadDialogView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\Camera\ProcessImageView.axaml.cs">
-          <DependentUpon>ProcessImageView.axaml</DependentUpon>
-        </Compile>
         <Compile Update="Presentation\Views\UserControls\Chart\LineProfileView.axaml.cs">
           <DependentUpon>LineProfileView.axaml</DependentUpon>
         </Compile>
-        <Compile Update="Presentation\Views\UserControls\Camera\RawImageView.axaml.cs">
-            <DependentUpon>RawImageView.axaml</DependentUpon>
-        </Compile>
-        <Compile Update="Presentation\Views\UserControls\Camera\RgbImageView.axaml.cs">
-            <DependentUpon>RgbImageView.axaml</DependentUpon>
+        <Compile Update="Presentation\Views\Viewers\SetupViewerView.axaml.cs">
+          <DependentUpon>SetupViewerView.axaml</DependentUpon>
         </Compile>
     </ItemGroup>
 
