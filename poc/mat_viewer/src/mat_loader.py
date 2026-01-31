@@ -33,3 +33,28 @@ class MatLoader:
             'mean': ch.mean(),
             'std': ch.std()
         }
+
+    def export_channel(self, idx: int, path: Path) -> Path:
+        """채널을 grayscale PNG로 저장"""
+        ch = self.get_channel(idx)
+        # 정규화: min-max → 0-255
+        ch_norm = (ch - ch.min()) / (ch.max() - ch.min() + 1e-8)
+        ch_uint8 = (ch_norm * 255).astype(np.uint8)
+
+        from PIL import Image
+        img = Image.fromarray(ch_uint8, mode='L')
+        img.save(path)
+        return path
+
+    def export_all_channels(self, output_dir: Path, start_wavelength: int = 400, step: int = 10) -> list[Path]:
+        """모든 채널을 {wavelength}nm.png 형식으로 저장"""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        paths = []
+        for i in range(self.n_channels):
+            wavelength = start_wavelength + i * step
+            path = output_dir / f"{wavelength}nm.png"
+            self.export_channel(i, path)
+            paths.append(path)
+        return paths
