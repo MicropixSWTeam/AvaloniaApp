@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from src import PPISimple, PPIPPID, PPIIGFPPI, GuidedUpsampler
+from src import PPISimple, PPIPPID, PPIIGFPPI, GuidedUpsampler, SpectralUpsampler
 
 
 METHODS = {
@@ -85,18 +85,38 @@ def run_pipeline(args):
     print(f"  Shape: {ppi_upscaled.shape}")
     print(f"  Saved: {upscaled_path}")
 
+    # Step 5: Upsample all channels
+    print(f"\n[Step 5] Upsampling all channels...")
+    spectral_upsampler = SpectralUpsampler()
+    channels_2x = spectral_upsampler.upsample_all_channels(channels, ppi, ppi_upscaled)
+    print(f"  Original: {channels.shape}")
+    print(f"  Upscaled: {channels_2x.shape}")
+
+    # Save sample channels
+    channel_paths = []
+    for i in [0, 7, 14]:  # 첫번째, 중간, 마지막 채널
+        ch_path = output_dir / f"4_channel_{i}_2x.png"
+        save_image(channels_2x[i], ch_path)
+        channel_paths.append(ch_path)
+        print(f"  Saved: {ch_path}")
+
     # Summary
     print("\n" + "=" * 50)
     print("Pipeline complete! Output files:")
     print(f"  1. PPI ({args.method}):     {ppi_path}")
     print(f"  2. Guide (MSFA):            {guide_path}")
-    print(f"  3. Upscaled ({args.upscale}x):        {upscaled_path}")
+    print(f"  3. Upscaled PPI ({args.upscale}x):    {upscaled_path}")
+    print(f"  4. Upscaled channels:       {len(channels_2x)} channels")
+    for ch_path in channel_paths:
+        print(f"     - {ch_path}")
 
     # Statistics
     print("\n" + "-" * 50)
     print("Statistics:")
-    print(f"  Original PPI:  {ppi.shape[0]}x{ppi.shape[1]}, mean={ppi.mean():.2f}, std={ppi.std():.2f}")
-    print(f"  Upscaled PPI:  {ppi_upscaled.shape[0]}x{ppi_upscaled.shape[1]}, mean={ppi_upscaled.mean():.2f}, std={ppi_upscaled.std():.2f}")
+    print(f"  Original PPI:      {ppi.shape[0]}x{ppi.shape[1]}, mean={ppi.mean():.2f}, std={ppi.std():.2f}")
+    print(f"  Upscaled PPI:      {ppi_upscaled.shape[0]}x{ppi_upscaled.shape[1]}, mean={ppi_upscaled.mean():.2f}, std={ppi_upscaled.std():.2f}")
+    print(f"  Original channels: {channels.shape}")
+    print(f"  Upscaled channels: {channels_2x.shape}")
 
 
 def main():
