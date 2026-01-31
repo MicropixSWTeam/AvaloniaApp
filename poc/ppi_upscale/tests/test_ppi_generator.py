@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from src import PPISimple, PPIPPID
+from src import PPISimple, PPIPPID, PPIIGFPPI
 
 
 @pytest.fixture
@@ -99,6 +99,44 @@ class TestPPIPPID:
         assert isinstance(generator, PPISimple)
 
 
+class TestPPIIGFPPI:
+    def test_generate_ppi(self, temp_channel_dir):
+        generator = PPIIGFPPI(temp_channel_dir)
+        ppi = generator.generate_ppi()
+
+        assert ppi.shape == (100, 100)
+        # IGFPPI should be close to simple average for uniform images
+        assert np.allclose(ppi.mean(), 150.0, atol=1.0)
+
+    def test_method_name(self, temp_channel_dir):
+        generator = PPIIGFPPI(temp_channel_dir)
+        assert generator.method_name == "igfppi"
+
+    def test_inherits_from_simple(self, temp_channel_dir):
+        generator = PPIIGFPPI(temp_channel_dir)
+        assert isinstance(generator, PPISimple)
+
+    def test_statistics_include_iterations(self, temp_channel_dir):
+        generator = PPIIGFPPI(temp_channel_dir)
+        generator.generate_ppi()
+        stats = generator.get_statistics()
+
+        assert "iterations_horizontal" in stats
+        assert "iterations_vertical" in stats
+        assert stats["iterations_horizontal"] >= 1
+        assert stats["iterations_vertical"] >= 1
+
+    def test_custom_parameters(self, temp_channel_dir):
+        generator = PPIIGFPPI(
+            temp_channel_dir,
+            epsilon_pixel=1e-5,
+            epsilon_global=1e-4,
+            max_iterations=100,
+        )
+        ppi = generator.generate_ppi()
+        assert ppi.shape == (100, 100)
+
+
 class TestWithRealData:
     def test_simple_with_real_data(self, real_data_dir):
         generator = PPISimple(real_data_dir)
@@ -120,3 +158,13 @@ class TestWithRealData:
         assert ppi.shape == (1012, 1064)
         stats = generator.get_statistics()
         assert stats["method"] == "ppid"
+
+    def test_igfppi_with_real_data(self, real_data_dir):
+        generator = PPIIGFPPI(real_data_dir)
+        ppi = generator.generate_ppi()
+
+        assert ppi.shape == (1012, 1064)
+        stats = generator.get_statistics()
+        assert stats["method"] == "igfppi"
+        assert stats["iterations_horizontal"] >= 1
+        assert stats["iterations_vertical"] >= 1

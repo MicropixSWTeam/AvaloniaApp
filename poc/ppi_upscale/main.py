@@ -4,12 +4,13 @@
 import argparse
 from pathlib import Path
 
-from src import PPISimple, PPIPPID
+from src import PPISimple, PPIPPID, PPIIGFPPI
 
 
 METHODS = {
     "simple": PPISimple,
     "ppid": PPIPPID,
+    "igfppi": PPIIGFPPI,
 }
 
 
