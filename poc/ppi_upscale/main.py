@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entry point for PPI generation."""
+"""CLI entry point for PPI generation pipeline."""
 
 import argparse
 from pathlib import Path
@@ -19,9 +19,89 @@ METHODS = {
 UPSCALE_METHODS = ["guided", "bicubic", "lanczos"]
 
 
+def save_image(arr: np.ndarray, path: Path) -> Path:
+    """Save numpy array as grayscale PNG."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img_uint8 = np.clip(arr, 0, 255).astype(np.uint8)
+    img = Image.fromarray(img_uint8, mode="L")
+    img.save(path)
+    return path
+
+
+def save_normalized_image(arr: np.ndarray, path: Path) -> Path:
+    """Save numpy array as normalized grayscale PNG (0-255 range)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arr_min, arr_max = arr.min(), arr.max()
+    if arr_max > arr_min:
+        arr_norm = (arr - arr_min) / (arr_max - arr_min) * 255
+    else:
+        arr_norm = np.zeros_like(arr)
+    img_uint8 = arr_norm.astype(np.uint8)
+    img = Image.fromarray(img_uint8, mode="L")
+    img.save(path)
+    return path
+
+
+def run_pipeline(args):
+    """Run the full PPI generation and upscaling pipeline."""
+    output_dir = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Input directory: {args.input}")
+    print(f"Output directory: {output_dir}")
+    print(f"PPI method: {args.method}")
+    print(f"Upscale: {args.upscale}x ({args.upscale_method})")
+    print("=" * 50)
+
+    # Step 1: Load channels
+    print("\n[Step 1] Loading MSFA channels...")
+    generator_cls = METHODS[args.method]
+    generator = generator_cls(args.input)
+    channels = generator.load_channels()
+    print(f"  Loaded {len(channels)} channels, shape: {channels.shape[1:]} each")
+
+    # Step 2: Generate PPI
+    print(f"\n[Step 2] Generating PPI ({args.method})...")
+    ppi = generator.generate_ppi()
+    ppi_path = output_dir / f"1_ppi_{args.method}.png"
+    save_image(ppi, ppi_path)
+    print(f"  Shape: {ppi.shape}")
+    print(f"  Saved: {ppi_path}")
+
+    # Step 3: Compute guide from MSFA
+    print("\n[Step 3] Computing guide from MSFA channels...")
+    upscaler = GuidedUpsampler(scale_factor=args.upscale, method=args.upscale_method)
+    guide = upscaler._compute_msfa_guide(channels)
+    guide_path = output_dir / "2_guide_msfa.png"
+    save_normalized_image(guide, guide_path)
+    print(f"  Shape: {guide.shape}")
+    print(f"  Saved: {guide_path}")
+
+    # Step 4: Upscale PPI
+    print(f"\n[Step 4] Upscaling PPI {args.upscale}x ({args.upscale_method})...")
+    ppi_upscaled = upscaler.upscale(ppi, channels=channels)
+    upscaled_path = output_dir / f"3_ppi_{args.method}_{args.upscale}x_{args.upscale_method}.png"
+    save_image(ppi_upscaled, upscaled_path)
+    print(f"  Shape: {ppi_upscaled.shape}")
+    print(f"  Saved: {upscaled_path}")
+
+    # Summary
+    print("\n" + "=" * 50)
+    print("Pipeline complete! Output files:")
+    print(f"  1. PPI ({args.method}):     {ppi_path}")
+    print(f"  2. Guide (MSFA):            {guide_path}")
+    print(f"  3. Upscaled ({args.upscale}x):        {upscaled_path}")
+
+    # Statistics
+    print("\n" + "-" * 50)
+    print("Statistics:")
+    print(f"  Original PPI:  {ppi.shape[0]}x{ppi.shape[1]}, mean={ppi.mean():.2f}, std={ppi.std():.2f}")
+    print(f"  Upscaled PPI:  {ppi_upscaled.shape[0]}x{ppi_upscaled.shape[1]}, mean={ppi_upscaled.mean():.2f}, std={ppi_upscaled.std():.2f}")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate Pseudo-Panchromatic Image (PPI) from multispectral channels"
+        description="PPI generation and upscaling pipeline"
     )
     parser.add_argument(
         "--input",
@@ -31,24 +111,24 @@ def main():
         help="Input directory containing *nm.png files (default: data)",
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         "-o",
         type=Path,
-        default=Path("output/ppi_result.png"),
-        help="Output PPI file path (default: output/ppi_result.png)",
+        default=Path("output"),
+        help="Output directory for pipeline results (default: output)",
     )
     parser.add_argument(
         "--method",
         "-m",
         choices=list(METHODS.keys()),
-        default="simple",
-        help="PPI generation method (default: simple)",
+        default="igfppi",
+        help="PPI generation method (default: igfppi)",
     )
     parser.add_argument(
         "--upscale",
         type=int,
-        default=None,
-        help="Upscale factor (e.g., 2 for 2x upscaling)",
+        default=2,
+        help="Upscale factor (default: 2)",
     )
     parser.add_argument(
         "--upscale-method",
@@ -58,47 +138,7 @@ def main():
     )
 
     args = parser.parse_args()
-
-    print(f"Input directory: {args.input}")
-    print(f"Output file: {args.output}")
-    print(f"Method: {args.method}")
-    if args.upscale:
-        print(f"Upscale: {args.upscale}x ({args.upscale_method})")
-    print("-" * 40)
-
-    generator_cls = METHODS[args.method]
-    generator = generator_cls(args.input)
-
-    print("Loading channels...")
-    channels = generator.load_channels()
-    print(f"Loaded {len(channels)} channels, shape: {channels.shape[1:]} each")
-
-    print(f"Generating PPI ({args.method})...")
-    ppi = generator.generate_ppi()
-
-    # Apply upscaling if requested
-    if args.upscale:
-        print(f"Upscaling {args.upscale}x using {args.upscale_method}...")
-        upscaler = GuidedUpsampler(scale_factor=args.upscale, method=args.upscale_method)
-        # Pass raw MSFA channels for guided upsampling
-        ppi = upscaler.upscale(ppi, channels=channels)
-        # Update generator's ppi for statistics
-        generator.ppi = ppi
-
-    print("Saving PPI...")
-    saved_path = generator.save_ppi(args.output)
-    print(f"Saved to: {saved_path}")
-
-    print("-" * 40)
-    print("Statistics:")
-    stats = generator.get_statistics()
-    print(f"  Method: {stats['method']}")
-    print(f"  Shape: {stats['shape']}")
-    print(f"  Channels: {stats['num_channels']}")
-    print(f"  Mean: {stats['mean']:.2f}")
-    print(f"  Std:  {stats['std']:.2f}")
-    print(f"  Min:  {stats['min']:.2f}")
-    print(f"  Max:  {stats['max']:.2f}")
+    run_pipeline(args)
 
 
 if __name__ == "__main__":
