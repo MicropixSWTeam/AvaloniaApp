@@ -370,3 +370,8 @@ poc/ppi_upscale/data/
 poc/ppi_upscale/output/
 poc/ppi_upscale/.venv/
 poc/ppi_upscale/.pytest_cache/
+
+# POC mat_viewer
+poc/mat_viewer/data/*.mat
+poc/mat_viewer/.venv/
+poc/mat_viewer/venv/
