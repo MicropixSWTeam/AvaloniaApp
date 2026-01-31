@@ -59,13 +59,13 @@ class GuidedUpsampler:
     def _guided_upscale(
         self, img: np.ndarray, channels: np.ndarray = None
     ) -> np.ndarray:
-        """Upscale using guided filtering with raw MSFA channels.
+        """Upscale using directional interpolation with MSFA guide (Eq. 17-21).
 
         Algorithm:
-        1. Initial bicubic upscale of PPI
-        2. Compute guide from raw MSFA channels (edge + smoothing info)
-        3. Upscale guide
-        4. Apply guided filter for edge-aware refinement
+        1. Place original pixels at (0::2, 0::2) positions
+        2. Compute guide from MSFA channels for weight calculation
+        3. Directional interpolation: diagonal → horizontal → vertical
+        4. Apply guided filter for refinement
 
         Args:
             img: Input PPI image (H, W)
@@ -74,23 +74,131 @@ class GuidedUpsampler:
         Returns:
             Upscaled image with preserved edges (H*scale, W*scale)
         """
-        # Step 1: Initial bicubic upscale
-        img_up = self._bicubic_upscale(img)
+        H, W = img.shape
+        H2, W2 = H * self.scale_factor, W * self.scale_factor
 
-        # Step 2: Compute guide from MSFA channels
+        # Step 1: Compute guide from MSFA channels (for weight calculation)
         if channels is not None:
             guide = self._compute_msfa_guide(channels)
         else:
-            # Fallback: use PPI edge magnitude
             guide = self._compute_edge_guide(img)
 
-        # Step 3: Upscale guide
-        guide_up = zoom(guide, self.scale_factor, order=3)
+        # Step 2: Directional upscale using guide weights
+        img_up = self._directional_upscale(img, guide)
 
-        # Step 4: Apply guided filter
-        result = self._apply_guided_filter(img_up, guide_up, radius=4, eps=1e-2)
+        return img_up
 
-        return result
+    def _directional_upscale(self, img: np.ndarray, guide: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+        """Directional interpolation upscale (BTES-style, Eq. 18-21).
+
+        Args:
+            img: Image to upscale (H, W)
+            guide: Guide image for weight calculation (H, W)
+            eps: Small value to prevent division by zero
+
+        Returns:
+            Upscaled image (2H, 2W)
+        """
+        H, W = img.shape
+        H2, W2 = H * 2, W * 2
+
+        # Initialize: place original at even positions
+        img_2x = np.zeros((H2, W2), dtype=np.float32)
+        img_2x[0::2, 0::2] = img
+
+        # Step 1: Diagonal interpolation (odd, odd)
+        for i in range(H - 1):
+            for j in range(W - 1):
+                y, x = 2*i + 1, 2*j + 1
+
+                # 4 diagonal neighbors
+                v_nw, v_ne = img[i, j], img[i, j + 1]
+                v_se, v_sw = img[i + 1, j + 1], img[i + 1, j]
+
+                # Guide values for weights
+                g_nw, g_ne = guide[i, j], guide[i, j + 1]
+                g_se, g_sw = guide[i + 1, j + 1], guide[i + 1, j]
+
+                # Weights: inverse of opposite difference (Eq. 19)
+                w_nw = 1.0 / (abs(g_nw - g_se) + eps)
+                w_ne = 1.0 / (abs(g_ne - g_sw) + eps)
+                w_se = 1.0 / (abs(g_se - g_nw) + eps)
+                w_sw = 1.0 / (abs(g_sw - g_ne) + eps)
+
+                total = w_nw + w_ne + w_se + w_sw
+                img_2x[y, x] = (w_nw*v_nw + w_ne*v_ne + w_se*v_se + w_sw*v_sw) / total
+
+        # Step 2a: Horizontal edge (even, odd)
+        for i in range(H):
+            for j in range(W - 1):
+                y, x = 2*i, 2*j + 1
+
+                v_w, v_e = img_2x[y, 2*j], img_2x[y, 2*j + 2]
+                g_w, g_e = guide[i, j], guide[i, j + 1]
+
+                w_w = 1.0 / (abs(g_w - g_e) + eps)
+                w_e = 1.0 / (abs(g_e - g_w) + eps)
+
+                weighted_sum = w_w*v_w + w_e*v_e
+                total_w = w_w + w_e
+
+                # Add vertical neighbors from Step 1 if available
+                if i > 0:
+                    v_n = img_2x[y - 1, x]
+                    g_n = img_2x[2*(i-1) + 1, x] if i > 0 else g_w
+                    g_s_ref = img_2x[y + 1, x] if i < H - 1 else g_n
+                    w_n = 1.0 / (abs(g_n - g_s_ref) + eps)
+                    weighted_sum += w_n * v_n
+                    total_w += w_n
+
+                if i < H - 1:
+                    v_s = img_2x[y + 1, x]
+                    g_s = img_2x[2*i + 1, x]
+                    g_n_ref = img_2x[y - 1, x] if i > 0 else g_s
+                    w_s = 1.0 / (abs(g_s - g_n_ref) + eps)
+                    weighted_sum += w_s * v_s
+                    total_w += w_s
+
+                img_2x[y, x] = weighted_sum / total_w
+
+        # Step 2b: Vertical edge (odd, even)
+        for i in range(H - 1):
+            for j in range(W):
+                y, x = 2*i + 1, 2*j
+
+                v_n, v_s = img_2x[2*i, x], img_2x[2*i + 2, x]
+                g_n, g_s = guide[i, j], guide[i + 1, j]
+
+                w_n = 1.0 / (abs(g_n - g_s) + eps)
+                w_s = 1.0 / (abs(g_s - g_n) + eps)
+
+                weighted_sum = w_n*v_n + w_s*v_s
+                total_w = w_n + w_s
+
+                # Add horizontal neighbors from Step 1 if available
+                if j > 0:
+                    v_w = img_2x[y, x - 1]
+                    g_w = img_2x[y, 2*(j-1) + 1] if j > 0 else g_n
+                    g_e_ref = img_2x[y, x + 1] if j < W - 1 else g_w
+                    w_w = 1.0 / (abs(g_w - g_e_ref) + eps)
+                    weighted_sum += w_w * v_w
+                    total_w += w_w
+
+                if j < W - 1:
+                    v_e = img_2x[y, x + 1]
+                    g_e = img_2x[y, 2*j + 1]
+                    g_w_ref = img_2x[y, x - 1] if j > 0 else g_e
+                    w_e = 1.0 / (abs(g_e - g_w_ref) + eps)
+                    weighted_sum += w_e * v_e
+                    total_w += w_e
+
+                img_2x[y, x] = weighted_sum / total_w
+
+        # Fill boundary (last row/column)
+        img_2x[-1, :] = img_2x[-2, :]
+        img_2x[:, -1] = img_2x[:, -2]
+
+        return img_2x
 
     def _compute_msfa_guide(self, channels: np.ndarray) -> np.ndarray:
         """Compute guide image from raw MSFA channels.

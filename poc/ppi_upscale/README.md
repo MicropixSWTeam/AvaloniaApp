@@ -121,19 +121,22 @@ done
 
 | 방법 | 설명 |
 |------|------|
-| `guided` | MSFA 15채널에서 edge+smoothing 정보 추출, guided filter 적용 |
+| `guided` | MSFA 15채널에서 guide 계산 후 BTES 방향성 보간 (Eq. 18-21) |
 | `bicubic` | Bicubic 보간 |
 | `lanczos` | Lanczos 보간 (quintic spline) |
 
-### Guided Upsampling 알고리즘
+### Guided Upsampling 알고리즘 (방향성 보간)
 
-1. PPI를 bicubic으로 초기 업스케일
-2. MSFA 15채널에서 guide 계산:
+1. MSFA 15채널에서 guide 계산:
    - 각 채널의 Sobel edge magnitude 평균
    - 채널 평균 (structure info)
    - 두 정보 결합: `guide = mean_norm * (1 + edge_norm)`
-3. Guide를 업스케일
-4. Guided filter 적용하여 edge-aware refinement
+2. 방향성 보간으로 PPI 업스케일 (BTES 스타일, Eq. 18-21):
+   - 원본 픽셀을 (0::2, 0::2) 위치에 배치
+   - Step 1: 대각선 보간 (홀수,홀수) - guide 기반 가중치
+   - Step 2a: 수평 에지 보간 (짝수,홀수)
+   - Step 2b: 수직 에지 보간 (홀수,짝수)
+3. 가중치: `w = 1 / (|guide_neighbor - guide_opposite| + ε)`
 
 ## Spectral Channel Upsampling
 
