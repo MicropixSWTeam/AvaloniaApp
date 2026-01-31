@@ -365,5 +365,8 @@ FodyWeavers.xsd
 /AvaloniaApp.slnx
 /AvaloniaApp/Deploy
 
-# POC data files
+# POC ppi_upscale
 poc/ppi_upscale/data/
+poc/ppi_upscale/output/
+poc/ppi_upscale/.venv/
+poc/ppi_upscale/.pytest_cache/
