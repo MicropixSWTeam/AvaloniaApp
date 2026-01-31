@@ -4,7 +4,10 @@
 import argparse
 from pathlib import Path
 
-from src import PPISimple, PPIPPID, PPIIGFPPI
+import numpy as np
+from PIL import Image
+
+from src import PPISimple, PPIPPID, PPIIGFPPI, GuidedUpsampler
 
 
 METHODS = {
@@ -12,6 +15,8 @@ METHODS = {
     "ppid": PPIPPID,
     "igfppi": PPIIGFPPI,
 }
+
+UPSCALE_METHODS = ["guided", "bicubic", "lanczos"]
 
 
 def main():
@@ -39,12 +44,26 @@ def main():
         default="simple",
         help="PPI generation method (default: simple)",
     )
+    parser.add_argument(
+        "--upscale",
+        type=int,
+        default=None,
+        help="Upscale factor (e.g., 2 for 2x upscaling)",
+    )
+    parser.add_argument(
+        "--upscale-method",
+        choices=UPSCALE_METHODS,
+        default="guided",
+        help="Upscaling method (default: guided)",
+    )
 
     args = parser.parse_args()
 
     print(f"Input directory: {args.input}")
     print(f"Output file: {args.output}")
     print(f"Method: {args.method}")
+    if args.upscale:
+        print(f"Upscale: {args.upscale}x ({args.upscale_method})")
     print("-" * 40)
 
     generator_cls = METHODS[args.method]
@@ -55,7 +74,16 @@ def main():
     print(f"Loaded {len(channels)} channels, shape: {channels.shape[1:]} each")
 
     print(f"Generating PPI ({args.method})...")
-    generator.generate_ppi()
+    ppi = generator.generate_ppi()
+
+    # Apply upscaling if requested
+    if args.upscale:
+        print(f"Upscaling {args.upscale}x using {args.upscale_method}...")
+        upscaler = GuidedUpsampler(scale_factor=args.upscale, method=args.upscale_method)
+        # Pass raw MSFA channels for guided upsampling
+        ppi = upscaler.upscale(ppi, channels=channels)
+        # Update generator's ppi for statistics
+        generator.ppi = ppi
 
     print("Saving PPI...")
     saved_path = generator.save_ppi(args.output)
