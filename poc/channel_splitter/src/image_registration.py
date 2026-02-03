@@ -1,39 +1,63 @@
-"""Image registration module using phase correlation."""
+"""Image registration module using template matching."""
 
 import numpy as np
 from typing import List, Tuple
-from skimage.registration import phase_cross_correlation
 from scipy.ndimage import shift as ndi_shift
+from scipy.signal import correlate2d
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def compute_shift(reference: np.ndarray, target: np.ndarray) -> Tuple[float, float]:
     """
-    Compute x,y shift between reference and target using phase correlation.
+    Compute x,y shift using template matching on center region.
 
     Args:
         reference: Reference image (grayscale or RGB).
         target: Target image to align (same shape as reference).
 
     Returns:
-        Tuple of (dx, dy) shift values. Positive dx means target is shifted right,
-        positive dy means target is shifted down.
+        Tuple of (dx, dy) shift values.
     """
-    # Convert to grayscale if needed
     ref_gray = _to_grayscale(reference)
     target_gray = _to_grayscale(target)
 
-    # Compute phase correlation
-    shift_yx, error, diffphase = phase_cross_correlation(
-        ref_gray, target_gray, upsample_factor=10
-    )
+    # Extract center region as template (1/3 of image size)
+    h, w = ref_gray.shape
+    th, tw = h // 3, w // 3
+    cy, cx = h // 2, w // 2
+    template = ref_gray[cy - th//2 : cy + th//2, cx - tw//2 : cx + tw//2]
 
-    # Return as (dx, dy) - note phase_cross_correlation returns (dy, dx)
-    return (shift_yx[1], shift_yx[0])
+    # Normalize template
+    template = template - template.mean()
+
+    # Search in a larger region of target
+    search_margin = max(h, w) // 4
+    sy1 = max(0, cy - th//2 - search_margin)
+    sy2 = min(h, cy + th//2 + search_margin)
+    sx1 = max(0, cx - tw//2 - search_margin)
+    sx2 = min(w, cx + tw//2 + search_margin)
+    search_region = target_gray[sy1:sy2, sx1:sx2]
+    search_region = search_region - search_region.mean()
+
+    # Cross-correlation
+    corr = correlate2d(search_region, template, mode='same')
+
+    # Find peak
+    peak_y, peak_x = np.unravel_index(np.argmax(corr), corr.shape)
+
+    # Calculate shift relative to center of search region
+    expected_y = (sy2 - sy1) // 2
+    expected_x = (sx2 - sx1) // 2
+
+    dy = peak_y - expected_y
+    dx = peak_x - expected_x
+
+    return (float(dx), float(dy))
 
 
 def apply_shift(image: np.ndarray, dx: float, dy: float) -> np.ndarray:
     """
-    Apply translation shift to an image.
+    Apply translation shift to an image. Empty areas are marked in red.
 
     Args:
         image: Input image (grayscale or RGB).
@@ -41,28 +65,72 @@ def apply_shift(image: np.ndarray, dx: float, dy: float) -> np.ndarray:
         dy: Vertical shift (positive = shift down).
 
     Returns:
-        Shifted image with same shape as input.
+        Shifted RGB image with empty areas filled in red.
     """
-    # ndi_shift expects shift in (y, x) order for 2D
+    # Convert grayscale to RGB first
     if image.ndim == 2:
-        return ndi_shift(image, shift=(-dy, -dx), mode='constant', cval=0)
-    elif image.ndim == 3:
-        # For RGB, shift each channel
-        shifted = np.zeros_like(image)
-        for c in range(image.shape[2]):
-            shifted[:, :, c] = ndi_shift(
-                image[:, :, c], shift=(-dy, -dx), mode='constant', cval=0
-            )
-        return shifted
+        rgb_image = np.stack([image, image, image], axis=-1)
     else:
-        raise ValueError(f"Unsupported image dimensions: {image.ndim}")
+        rgb_image = image.copy()
+
+    height, width = rgb_image.shape[:2]
+
+    # Create empty area mask based on shift direction
+    empty_mask = np.zeros((height, width), dtype=bool)
+
+    # Calculate empty regions based on shift
+    shift_y, shift_x = int(round(-dy)), int(round(-dx))
+
+    if shift_y > 0:
+        empty_mask[:shift_y, :] = True
+    elif shift_y < 0:
+        empty_mask[shift_y:, :] = True
+
+    if shift_x > 0:
+        empty_mask[:, :shift_x] = True
+    elif shift_x < 0:
+        empty_mask[:, shift_x:] = True
+
+    # Apply shift to each channel
+    shifted = np.zeros_like(rgb_image)
+    for c in range(3):
+        shifted[:, :, c] = ndi_shift(
+            rgb_image[:, :, c], shift=(shift_y, shift_x), mode='constant', cval=0
+        )
+
+    # Fill empty areas with red
+    shifted[empty_mask, 0] = 255  # Red
+    shifted[empty_mask, 1] = 0    # Green
+    shifted[empty_mask, 2] = 0    # Blue
+
+    return shifted
+
+
+def _process_channel(args) -> Tuple[int, np.ndarray, Tuple[float, float]]:
+    """Process a single channel for registration (for parallel execution)."""
+    i, channel, reference, is_ref = args
+
+    if is_ref:
+        # Reference channel - convert to RGB
+        if channel.ndim == 2:
+            rgb = np.stack([channel, channel, channel], axis=-1)
+        else:
+            rgb = channel.copy()
+        return (i, rgb, (0.0, 0.0))
+    else:
+        # Compute and apply shift
+        dx, dy = compute_shift(reference, channel)
+        shifted = apply_shift(channel, dx, dy)
+        shifted = np.clip(shifted, 0, 255).astype(np.uint8)
+        return (i, shifted, (dx, dy))
 
 
 def register_channels(
     channels: List[np.ndarray], ref_index: int = 7
 ) -> Tuple[List[np.ndarray], List[Tuple[float, float]]]:
     """
-    Register all channels to a reference channel using phase correlation.
+    Register all channels to a reference channel using template matching.
+    Uses parallel processing for speed.
 
     Args:
         channels: List of 15 channel images (numpy arrays).
@@ -77,22 +145,34 @@ def register_channels(
         return [], []
 
     reference = channels[ref_index]
-    registered = []
-    shifts = []
+    total = len(channels)
 
-    for i, channel in enumerate(channels):
-        if i == ref_index:
-            # Reference channel has no shift
-            registered.append(channel.copy())
-            shifts.append((0.0, 0.0))
-        else:
-            # Compute and apply shift
-            dx, dy = compute_shift(reference, channel)
-            shifted = apply_shift(channel, dx, dy)
-            # Ensure output is uint8 for display
-            shifted = np.clip(shifted, 0, 255).astype(np.uint8)
-            registered.append(shifted)
-            shifts.append((dx, dy))
+    # Prepare arguments for parallel processing
+    args_list = [
+        (i, channels[i], reference, i == ref_index)
+        for i in range(total)
+    ]
+
+    # Process in parallel
+    print(f"Registering {total} channels in parallel...", flush=True)
+    results = [None] * total
+
+    with ProcessPoolExecutor() as executor:
+        futures = {executor.submit(_process_channel, args): args[0] for args in args_list}
+
+        for future in as_completed(futures):
+            idx, shifted, shift = future.result()
+            results[idx] = (shifted, shift)
+            dx, dy = shift
+            if idx == ref_index:
+                print(f"  Channel {idx+1}/{total}: (reference)", flush=True)
+            else:
+                print(f"  Channel {idx+1}/{total}: dx={dx:+.1f}, dy={dy:+.1f}", flush=True)
+
+    registered = [r[0] for r in results]
+    shifts = [r[1] for r in results]
+
+    print("Registration complete!", flush=True)
 
     return registered, shifts
 
