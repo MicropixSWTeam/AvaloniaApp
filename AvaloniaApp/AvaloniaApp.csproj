@@ -1,28 +1,93 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <AssemblyName>CameraApplication</AssemblyName>
+        <ApplicationIcon>Assets/Icon/LogoIcon.ico</ApplicationIcon>
+        <Nullable>enable</Nullable>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <Folder Include="Models\" />
-    <AvaloniaResource Include="Assets\**" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ItemGroup>
+        <AvaloniaResource Include="Assets\**" />
+    </ItemGroup>
+	
+    <ItemGroup>
+        <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <None Include="Assets/Icon/LogoIcon.ico" Pack="true" Visible="false" />
+    </ItemGroup>  
+    
+    <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="15.1.0" />
     <PackageReference Include="Avalonia" Version="11.3.9" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.9" />
-    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
     <PackageReference Include="Avalonia.Diagnostics" Version="11.3.9">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+        <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+        <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
+    <PackageReference Include="Avalonia.Xaml.Behaviors" Version="11.3.0.6" />
+    <PackageReference Include="AvaloniaDialogs" Version="3.7.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="DialogHost.Avalonia" Version="0.10.0" />
+    <PackageReference Include="FluentAvalonia.FluentIcons" Version="1.1.201" />
+    <PackageReference Include="FluentAvaloniaUI" Version="2.4.1" />
+    <PackageReference Include="FluentValidation" Version="12.1.0" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />
+    <PackageReference Include="Material.Avalonia" Version="3.13.3" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="MessageBox.Avalonia" Version="3.3.0" />
+    <PackageReference Include="MessageBox.Avalonia.Markdown" Version="3.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="OpenCvSharp4.Windows" Version="4.11.0.20250507" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="VmbNET.win-x64" Version="1.3.1" />
-  </ItemGroup>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Core\Enums\" />
+        <Folder Include="Application\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Update="Presentation\Views\UserControls\SpectrumView.axaml.cs">
+          <DependentUpon>SpectrumView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\LoadDialogView.axaml.cs">
+            <DependentUpon>LoadDialogView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\LineProfileView.axaml.cs">
+          <DependentUpon>LineProfileView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\RawImageView.axaml.cs">
+            <DependentUpon>RawImageView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\RgbImageView.axaml.cs">
+            <DependentUpon>RgbImageView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\LogoView.axaml.cs">
+            <DependentUpon>LogoView.axaml</DependentUpon>
+        </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EditorConfigFiles Remove="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="C:\Users\hbmin\source\repos\AvaloniaApp\AvaloniaApp\.editorconfig" />
+    </ItemGroup>
 </Project>

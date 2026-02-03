@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/AvaloniaApp/AvaloniaApp.csproj
+/AvaloniaApp.slnx
+/AvaloniaApp/Deploy
