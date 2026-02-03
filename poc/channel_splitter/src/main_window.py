@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 
 from .image_splitter import split_image, get_channel_label
+from .image_registration import register_channels
 from .channel_view import ChannelView
 
 
@@ -16,6 +17,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.channels = []
+        self.registered_channels = []
+        self.shifts = []
+        self.is_registered = False
         self.current_index = 0
         self._setup_ui()
         self.setAcceptDrops(True)
@@ -58,6 +62,23 @@ class MainWindow(QMainWindow):
         self.next_btn.setEnabled(False)
         nav_layout.addWidget(self.next_btn)
 
+        # Register toggle button
+        self.register_btn = QPushButton("Register")
+        self.register_btn.setFixedSize(100, 40)
+        self.register_btn.setCheckable(True)
+        self.register_btn.clicked.connect(self._toggle_registration)
+        self.register_btn.setEnabled(False)
+        self.register_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e0e0e0;
+            }
+            QPushButton:checked {
+                background-color: #4CAF50;
+                color: white;
+            }
+        """)
+        nav_layout.addWidget(self.register_btn)
+
         nav_container = QWidget()
         nav_container.setLayout(nav_layout)
         main_layout.addWidget(nav_container, 0, Qt.AlignmentFlag.AlignCenter)
@@ -96,12 +117,16 @@ class MainWindow(QMainWindow):
         """Load and split an image file."""
         try:
             self.channels, tile_size = split_image(file_path)
+            self.registered_channels = []
+            self.shifts = []
+            self.is_registered = False
+            self.register_btn.setChecked(False)
             self.current_index = 0
             self._show_current_channel()
             self._update_nav_buttons()
 
             # Resize window to fit tile
-            self.resize(tile_size[1] + 40, tile_size[0] + 120)
+            self.resize(tile_size[1] + 40, tile_size[0] + 150)
             self.setWindowTitle(
                 f"Channel Splitter - {file_path.split('/')[-1]} "
                 f"({tile_size[1]}x{tile_size[0]})"
@@ -116,8 +141,18 @@ class MainWindow(QMainWindow):
         if not self.channels:
             return
 
-        channel_data = self.channels[self.current_index]
+        # Choose registered or original channels
+        if self.is_registered and self.registered_channels:
+            channel_data = self.registered_channels[self.current_index]
+        else:
+            channel_data = self.channels[self.current_index]
+
+        # Build label with shift info
         label = get_channel_label(self.current_index)
+        if self.is_registered and self.shifts:
+            dx, dy = self.shifts[self.current_index]
+            label += f"  |  dx: {dx:+.1f}, dy: {dy:+.1f}"
+
         channel_view = ChannelView(channel_data, label)
         self.display_layout.addWidget(channel_view)
 
@@ -128,6 +163,20 @@ class MainWindow(QMainWindow):
         has_channels = len(self.channels) > 0
         self.prev_btn.setEnabled(has_channels and self.current_index > 0)
         self.next_btn.setEnabled(has_channels and self.current_index < len(self.channels) - 1)
+        self.register_btn.setEnabled(has_channels)
+
+    def _toggle_registration(self):
+        """Toggle between registered and original channels."""
+        if not self.channels:
+            return
+
+        self.is_registered = self.register_btn.isChecked()
+
+        # Compute registration on first toggle
+        if self.is_registered and not self.registered_channels:
+            self.registered_channels, self.shifts = register_channels(self.channels)
+
+        self._show_current_channel()
 
     def _prev_channel(self):
         """Show previous channel."""
@@ -147,6 +196,10 @@ class MainWindow(QMainWindow):
         """Show an error message."""
         self._clear_display()
         self.channels = []
+        self.registered_channels = []
+        self.shifts = []
+        self.is_registered = False
+        self.register_btn.setChecked(False)
         self._update_nav_buttons()
 
         error_label = QLabel(f"Error: {message}\n\nPlease try another image.")
