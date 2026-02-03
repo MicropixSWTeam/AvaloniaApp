@@ -62,21 +62,11 @@ class MainWindow(QMainWindow):
         self.next_btn.setEnabled(False)
         nav_layout.addWidget(self.next_btn)
 
-        # Register toggle button
+        # Register button
         self.register_btn = QPushButton("Register")
         self.register_btn.setFixedSize(100, 40)
-        self.register_btn.setCheckable(True)
         self.register_btn.clicked.connect(self._toggle_registration)
         self.register_btn.setEnabled(False)
-        self.register_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e0e0e0;
-            }
-            QPushButton:checked {
-                background-color: #4CAF50;
-                color: white;
-            }
-        """)
         nav_layout.addWidget(self.register_btn)
 
         nav_container = QWidget()
@@ -120,7 +110,8 @@ class MainWindow(QMainWindow):
             self.registered_channels = []
             self.shifts = []
             self.is_registered = False
-            self.register_btn.setChecked(False)
+            self.register_btn.setText("Register")
+            self.register_btn.setEnabled(True)
             self.current_index = 0
             self._show_current_channel()
             self._update_nav_buttons()
@@ -163,19 +154,19 @@ class MainWindow(QMainWindow):
         has_channels = len(self.channels) > 0
         self.prev_btn.setEnabled(has_channels and self.current_index > 0)
         self.next_btn.setEnabled(has_channels and self.current_index < len(self.channels) - 1)
-        self.register_btn.setEnabled(has_channels)
 
     def _toggle_registration(self):
-        """Toggle between registered and original channels."""
+        """Apply registration to all channels."""
         if not self.channels:
             return
 
-        self.is_registered = self.register_btn.isChecked()
-
-        # Compute registration on first toggle
-        if self.is_registered and not self.registered_channels:
+        # Compute registration if not done yet
+        if not self.registered_channels:
             self.registered_channels, self.shifts = register_channels(self.channels)
 
+        self.is_registered = True
+        self.register_btn.setEnabled(False)
+        self.register_btn.setText("Registered")
         self._show_current_channel()
 
     def _prev_channel(self):
@@ -199,7 +190,8 @@ class MainWindow(QMainWindow):
         self.registered_channels = []
         self.shifts = []
         self.is_registered = False
-        self.register_btn.setChecked(False)
+        self.register_btn.setText("Register")
+        self.register_btn.setEnabled(False)
         self._update_nav_buttons()
 
         error_label = QLabel(f"Error: {message}\n\nPlease try another image.")
