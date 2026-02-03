@@ -6,9 +6,14 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 
+import os
+
 from .image_splitter import split_image, get_channel_label
-from .image_registration import register_channels
+from .image_registration import register_channels, export_registered_channels
 from .channel_view import ChannelView
+
+# Output directory for exported images
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "../../..", "ppi_upscale/data")
 
 
 class MainWindow(QMainWindow):
@@ -69,6 +74,13 @@ class MainWindow(QMainWindow):
         self.register_btn.setEnabled(False)
         nav_layout.addWidget(self.register_btn)
 
+        # Export button
+        self.export_btn = QPushButton("Export")
+        self.export_btn.setFixedSize(100, 40)
+        self.export_btn.clicked.connect(self._export_channels)
+        self.export_btn.setEnabled(False)
+        nav_layout.addWidget(self.export_btn)
+
         nav_container = QWidget()
         nav_container.setLayout(nav_layout)
         main_layout.addWidget(nav_container, 0, Qt.AlignmentFlag.AlignCenter)
@@ -112,6 +124,8 @@ class MainWindow(QMainWindow):
             self.is_registered = False
             self.register_btn.setText("Register")
             self.register_btn.setEnabled(True)
+            self.export_btn.setText("Export")
+            self.export_btn.setEnabled(False)
             self.current_index = 0
             self._show_current_channel()
             self._update_nav_buttons()
@@ -167,7 +181,17 @@ class MainWindow(QMainWindow):
         self.is_registered = True
         self.register_btn.setEnabled(False)
         self.register_btn.setText("Registered")
+        self.export_btn.setEnabled(True)
         self._show_current_channel()
+
+    def _export_channels(self):
+        """Export registered channels to PNG files."""
+        if not self.channels or not self.shifts:
+            return
+
+        output_dir = os.path.normpath(EXPORT_DIR)
+        export_registered_channels(self.channels, self.shifts, output_dir)
+        print(f"Files exported to: {output_dir}")
 
     def _prev_channel(self):
         """Show previous channel."""
@@ -192,6 +216,8 @@ class MainWindow(QMainWindow):
         self.is_registered = False
         self.register_btn.setText("Register")
         self.register_btn.setEnabled(False)
+        self.export_btn.setText("Export")
+        self.export_btn.setEnabled(False)
         self._update_nav_buttons()
 
         error_label = QLabel(f"Error: {message}\n\nPlease try another image.")

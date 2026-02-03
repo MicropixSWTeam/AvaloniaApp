@@ -55,17 +55,18 @@ def compute_shift(reference: np.ndarray, target: np.ndarray) -> Tuple[float, flo
     return (float(dx), float(dy))
 
 
-def apply_shift(image: np.ndarray, dx: float, dy: float) -> np.ndarray:
+def apply_shift(image: np.ndarray, dx: float, dy: float, highlight_empty: bool = True) -> np.ndarray:
     """
-    Apply translation shift to an image. Empty areas are marked in red.
+    Apply translation shift to an image.
 
     Args:
         image: Input image (grayscale or RGB).
         dx: Horizontal shift (positive = shift right).
         dy: Vertical shift (positive = shift down).
+        highlight_empty: If True, fill empty areas with red. If False, fill with black.
 
     Returns:
-        Shifted RGB image with empty areas filled in red.
+        Shifted RGB image.
     """
     # Convert grayscale to RGB first
     if image.ndim == 2:
@@ -75,21 +76,8 @@ def apply_shift(image: np.ndarray, dx: float, dy: float) -> np.ndarray:
 
     height, width = rgb_image.shape[:2]
 
-    # Create empty area mask based on shift direction
-    empty_mask = np.zeros((height, width), dtype=bool)
-
     # Calculate empty regions based on shift
     shift_y, shift_x = int(round(-dy)), int(round(-dx))
-
-    if shift_y > 0:
-        empty_mask[:shift_y, :] = True
-    elif shift_y < 0:
-        empty_mask[shift_y:, :] = True
-
-    if shift_x > 0:
-        empty_mask[:, :shift_x] = True
-    elif shift_x < 0:
-        empty_mask[:, shift_x:] = True
 
     # Apply shift to each channel
     shifted = np.zeros_like(rgb_image)
@@ -98,10 +86,23 @@ def apply_shift(image: np.ndarray, dx: float, dy: float) -> np.ndarray:
             rgb_image[:, :, c], shift=(shift_y, shift_x), mode='constant', cval=0
         )
 
-    # Fill empty areas with red
-    shifted[empty_mask, 0] = 255  # Red
-    shifted[empty_mask, 1] = 0    # Green
-    shifted[empty_mask, 2] = 0    # Blue
+    # Fill empty areas with red if highlighting
+    if highlight_empty:
+        empty_mask = np.zeros((height, width), dtype=bool)
+
+        if shift_y > 0:
+            empty_mask[:shift_y, :] = True
+        elif shift_y < 0:
+            empty_mask[shift_y:, :] = True
+
+        if shift_x > 0:
+            empty_mask[:, :shift_x] = True
+        elif shift_x < 0:
+            empty_mask[:, shift_x:] = True
+
+        shifted[empty_mask, 0] = 255  # Red
+        shifted[empty_mask, 1] = 0    # Green
+        shifted[empty_mask, 2] = 0    # Blue
 
     return shifted
 
@@ -186,3 +187,57 @@ def _to_grayscale(image: np.ndarray) -> np.ndarray:
         return np.dot(image[..., :3], [0.2989, 0.5870, 0.1140])
     else:
         raise ValueError(f"Unsupported image dimensions: {image.ndim}")
+
+
+# Channel wavelengths for export filenames (410nm to 690nm, 20nm steps)
+WAVELENGTHS = [410, 430, 450, 470, 490, 510, 530, 550, 570, 590, 610, 630, 650, 670, 690]
+
+
+def export_registered_channels(
+    channels: List[np.ndarray],
+    shifts: List[Tuple[float, float]],
+    output_dir: str
+) -> List[str]:
+    """
+    Export registered channels as grayscale PNG files with black fill.
+
+    Args:
+        channels: List of original channel images.
+        shifts: List of (dx, dy) shift values for each channel.
+        output_dir: Directory to save the PNG files.
+
+    Returns:
+        List of saved file paths.
+    """
+    import os
+    from PIL import Image
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    saved_files = []
+    total = len(channels)
+
+    print(f"Exporting {total} channels to {output_dir}...", flush=True)
+
+    for i, (channel, (dx, dy)) in enumerate(zip(channels, shifts)):
+        # Apply shift with black fill (no highlight)
+        shifted = apply_shift(channel, dx, dy, highlight_empty=False)
+        shifted = np.clip(shifted, 0, 255).astype(np.uint8)
+
+        # Convert to grayscale for export
+        if shifted.ndim == 3:
+            gray = np.dot(shifted[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint8)
+        else:
+            gray = shifted
+
+        # Save as PNG
+        wavelength = WAVELENGTHS[i] if i < len(WAVELENGTHS) else (410 + i * 20)
+        filename = f"{wavelength}nm.png"
+        filepath = os.path.join(output_dir, filename)
+
+        Image.fromarray(gray).save(filepath)
+        saved_files.append(filepath)
+        print(f"  Saved {filename}", flush=True)
+
+    print("Export complete!", flush=True)
+    return saved_files
