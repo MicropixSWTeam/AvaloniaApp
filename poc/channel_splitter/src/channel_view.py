@@ -38,11 +38,6 @@ class ChannelView(QWidget):
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(image_label)
 
-        # Add separator line
-        separator = QLabel()
-        separator.setFixedHeight(1)
-        separator.setStyleSheet("background-color: #ccc;")
-        layout.addWidget(separator)
 
     def _numpy_to_pixmap(self, array: np.ndarray) -> QPixmap:
         """Convert numpy array to QPixmap."""
