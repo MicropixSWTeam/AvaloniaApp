@@ -63,8 +63,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Update="Presentation\Views\UserControls\SpectrumView.axaml.cs">
+          <DependentUpon>SpectrumView.axaml</DependentUpon>
+        </Compile>
         <Compile Update="Presentation\Views\UserControls\LoadDialogView.axaml.cs">
             <DependentUpon>LoadDialogView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\UserControls\LineProfileView.axaml.cs">
+          <DependentUpon>LineProfileView.axaml</DependentUpon>
         </Compile>
         <Compile Update="Presentation\Views\UserControls\RawImageView.axaml.cs">
             <DependentUpon>RawImageView.axaml</DependentUpon>
