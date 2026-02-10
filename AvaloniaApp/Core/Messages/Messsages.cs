@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaApp.Presentation.ViewModels.Viewer
+namespace AvaloniaApp.Core.Messages
 {
-    internal class LeftContentViewModel
+    internal class Messsages
     {
     }
 }
