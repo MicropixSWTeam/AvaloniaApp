@@ -66,6 +66,9 @@
         <Compile Update="Presentation\Views\UserControls\Camera\ProcessImageView.axaml.cs">
           <DependentUpon>ProcessImageView.axaml</DependentUpon>
         </Compile>
+        <Compile Update="Presentation\Views\UserControls\Camera\WavelengthImageView.axaml.cs">
+          <DependentUpon>WavelengthImageView.axaml</DependentUpon>
+        </Compile>
         <Compile Update="Presentation\Views\UserControls\Chart\SpectrumView.axaml.cs">
           <DependentUpon>SpectrumView.axaml</DependentUpon>
         </Compile>
