@@ -65,6 +65,7 @@
     <ItemGroup>
         <Folder Include="Core\Enums\" />
         <Folder Include="Application\" />
+        <Folder Include="Infrastructure\Hardware\" />
     </ItemGroup>
 
     <ItemGroup>
