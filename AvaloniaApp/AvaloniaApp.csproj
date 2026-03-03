@@ -14,6 +14,13 @@
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
+
+    <ItemGroup>
+      <AvaloniaXaml Remove="Infrastructure\Hardware\**" />
+      <Compile Remove="Infrastructure\Hardware\**" />
+      <EmbeddedResource Remove="Infrastructure\Hardware\**" />
+      <None Remove="Infrastructure\Hardware\**" />
+    </ItemGroup>
 	
     <ItemGroup>
         <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
@@ -65,7 +72,6 @@
     <ItemGroup>
         <Folder Include="Core\Enums\" />
         <Folder Include="Application\" />
-        <Folder Include="Infrastructure\Hardware\" />
     </ItemGroup>
 
     <ItemGroup>
