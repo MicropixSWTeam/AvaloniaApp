@@ -60,6 +60,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.3" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.24.3" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
@@ -96,6 +97,9 @@
         </Compile>
         <Compile Update="Presentation\Views\UserControls\Camera\RgbImageView.axaml.cs">
             <DependentUpon>RgbImageView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Presentation\Views\Windows\ViewerWindow.axaml.cs">
+          <DependentUpon>ViewerWindow.axaml</DependentUpon>
         </Compile>
     </ItemGroup>
 
